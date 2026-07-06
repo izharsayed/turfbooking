@@ -5,6 +5,8 @@
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "scripts": {
+    "dev": "turbo dev",
+    "dev:web": "turbo dev --filter=@turf-booking/backend --filter=@turf-booking/admin-web --filter=@turf-booking/customer-web",
     "dev:backend": "turbo dev --filter=@turf-booking/backend",
     "dev:admin": "turbo dev --filter=@turf-booking/admin-web",
     "dev:customer": "turbo dev --filter=@turf-booking/customer-web",

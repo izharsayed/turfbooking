@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-06 16:25 IST
+> Last updated: 2026-07-06 22:14 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -296,3 +296,12 @@ pnpm dev:backend      # start the server
 - Removed the `isAuthenticated &&` guard from the `NearbyMap` component render condition.
 - Moved the 'nearby' tab between 'bookings' and 'support' in the nav order for better UX.
 - **Why**: The Nearby Maps tab was invisible to logged-out users. Now accessible to everyone.
+
+### 30. `package.json` (root) — Modified
+- Added `"dev": "turbo dev"` script — runs all apps concurrently.
+- Added `"dev:web": "turbo dev --filter=backend --filter=admin-web --filter=customer-web"` — web apps only (no mobile/Expo).
+- **Why**: `pnpm dev` was throwing `Command "dev" not found` because the root package.json had no `dev` script, only `dev:backend`, `dev:admin`, etc.
+
+| Date | Summary |
+|------|---------|
+| 2026-07-06 | Fixed missing `pnpm dev` root script; added `dev` and `dev:web` to root package.json |
