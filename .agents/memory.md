@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-06 15:50 IST
+> Last updated: 2026-07-06 22:14 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -269,3 +269,40 @@ pnpm dev:backend      # start the server
 |------|---------|
 | 2026-07-04 | Initial setup: switched to Firebase provider, fixed Prisma/ESM issues, got backend running on port 5000 |
 | 2026-07-04 | Created `memory.md` and `AGENTS.md` rule for persistent AI memory |
+| 2026-07-06 | Added Map tab to mobile app using `react-native-maps` with turf markers and bottom detail card |
+
+---
+
+### 27. `apps/mobile-app/app/index.tsx` — Modified
+- Added `react-native-maps` dependency to mobile-app package.
+- Added a new **Map tab** (🗺️) to the bottom navigation between Bookings and Support.
+- Rendered a full-screen `MapView` with custom `⚽` emoji markers for each turf location.
+- Tapping a marker shows a `Callout` tooltip with turf name, sport, and price.
+- Added a slide-up bottom card (`mapCard`) when a marker is tapped — showing turf name, area, sport badge, rating, price, and a **Book This Turf** CTA that navigates to the Explore tab.
+- Map is rendered outside the `ScrollView` so it can fill the full remaining screen height.
+- Turf coordinates are placed in Mumbai (Andheri West, Bandra East, Dwarka area) for demo purposes.
+- **Why**: User requested a Map tab to show turf locations on an interactive map.
+
+### 28. `apps/mobile-app/app/index.tsx` — Modified
+- Synced `mockTurfs` and `turfLocations` arrays with customer web data.
+- Updated all 3 existing venues to use Ahmednagar coordinates (matching `NearbyMap.tsx`).
+- Renamed "Lords Cricket Indoor" → "Lords Cricket Club" to match customer web.
+- Updated all area labels from Mumbai neighbourhoods → Ahmednagar localities (Savedi, Pipeline Road, Kedgaon, Gulmohar Road).
+- Added **Camp Nou Arena** as the 4th venue (id: '4', Football, ₹1800/hr) in both Explore cards and Map markers.
+- Updated map `initialRegion` to Ahmednagar center `[19.0948, 74.7480]` with tighter zoom (0.12 delta).
+- **Why**: Mobile app had stale Mumbai placeholder data; customer web uses Ahmednagar. Synced for consistency.
+
+### 29. `apps/customer-web/src/App.tsx` — Modified
+- Removed the `isAuthenticated` auth-gate from the **📍 Nearby Maps** tab in the navbar.
+- Removed the `isAuthenticated &&` guard from the `NearbyMap` component render condition.
+- Moved the 'nearby' tab between 'bookings' and 'support' in the nav order for better UX.
+- **Why**: The Nearby Maps tab was invisible to logged-out users. Now accessible to everyone.
+
+### 30. `package.json` (root) — Modified
+- Added `"dev": "turbo dev"` script — runs all apps concurrently.
+- Added `"dev:web": "turbo dev --filter=backend --filter=admin-web --filter=customer-web"` — web apps only (no mobile/Expo).
+- **Why**: `pnpm dev` was throwing `Command "dev" not found` because the root package.json had no `dev` script, only `dev:backend`, `dev:admin`, etc.
+
+| Date | Summary |
+|------|---------|
+| 2026-07-06 | Fixed missing `pnpm dev` root script; added `dev` and `dev:web` to root package.json |

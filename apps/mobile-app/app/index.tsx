@@ -34,17 +34,17 @@ const mockTurfs: Turf[] = [
     sport: 'Football',
     price: 1200,
     rating: 4.8,
-    area: 'Andheri West',
-    image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60'
+    area: 'Savedi, Ahmednagar',
+    image: 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60'
   },
   {
     id: '2',
-    name: 'Lords Cricket Indoor',
+    name: 'Lords Cricket Club',
     sport: 'Cricket',
     price: 1500,
     rating: 4.9,
-    area: 'Bandra East',
-    image: 'https://images.unsplash.com/photo-1531415080290-bc9854503f37?w=600&auto=format&fit=crop&q=60'
+    area: 'Pipeline Road, Ahmednagar',
+    image: 'https://images.unsplash.com/photo-1607734834519-d8576ae60ea6?w=600&auto=format&fit=crop&q=60'
   },
   {
     id: '3',
@@ -52,8 +52,17 @@ const mockTurfs: Turf[] = [
     sport: 'Box Cricket',
     price: 1000,
     rating: 4.7,
-    area: 'Dwarka Sector 10',
-    image: 'https://images.unsplash.com/photo-1459865264687-595d652de67e?w=600&auto=format&fit=crop&q=60'
+    area: 'Kedgaon, Ahmednagar',
+    image: 'https://images.unsplash.com/photo-1518605076385-7bf7b1f54411?w=600&auto=format&fit=crop&q=60'
+  },
+  {
+    id: '4',
+    name: 'Camp Nou Arena',
+    sport: 'Football',
+    price: 1800,
+    rating: 4.9,
+    area: 'Gulmohar Road, Ahmednagar',
+    image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60'
   }
 ];
 
@@ -64,19 +73,19 @@ const turfLocations = [
     sport: 'Football',
     price: 1200,
     rating: 4.8,
-    area: 'Andheri West',
-    latitude: 19.1299,
-    longitude: 72.8342,
+    area: 'Savedi, Ahmednagar',
+    latitude: 19.1158,
+    longitude: 74.7420,
   },
   {
     id: '2',
-    name: 'Lords Cricket Indoor',
+    name: 'Lords Cricket Club',
     sport: 'Cricket',
     price: 1500,
     rating: 4.9,
-    area: 'Bandra East',
-    latitude: 19.0596,
-    longitude: 72.8370,
+    area: 'Pipeline Road, Ahmednagar',
+    latitude: 19.1035,
+    longitude: 74.7562,
   },
   {
     id: '3',
@@ -84,9 +93,19 @@ const turfLocations = [
     sport: 'Box Cricket',
     price: 1000,
     rating: 4.7,
-    area: 'Dwarka Sector 10',
-    latitude: 19.0044,
-    longitude: 72.8258,
+    area: 'Kedgaon, Ahmednagar',
+    latitude: 19.0745,
+    longitude: 74.7335,
+  },
+  {
+    id: '4',
+    name: 'Camp Nou Arena',
+    sport: 'Football',
+    price: 1800,
+    rating: 4.9,
+    area: 'Gulmohar Road, Ahmednagar',
+    latitude: 19.1235,
+    longitude: 74.7485,
   },
 ];
 
@@ -244,10 +263,10 @@ export default function HomeScreen() {
             provider={PROVIDER_DEFAULT}
             style={styles.map}
             initialRegion={{
-              latitude: 19.076,
-              longitude: 72.8777,
-              latitudeDelta: 0.18,
-              longitudeDelta: 0.18,
+              latitude: 19.0948,
+              longitude: 74.7480,
+              latitudeDelta: 0.12,
+              longitudeDelta: 0.12,
             }}
           >
             {turfLocations.map((turf) => (

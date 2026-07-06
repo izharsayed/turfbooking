@@ -265,10 +265,7 @@ export default function App() {
             ? 'bg-slate-900/40 border-slate-800'
             : 'bg-slate-100/80 border-slate-200'
         }`}>
-          {(isAuthenticated
-            ? (['explore', 'bookings', 'support', 'nearby'] as const)
-            : (['explore', 'bookings', 'support'] as const)
-          ).map((tab) => {
+          {(['explore', 'bookings', 'nearby', 'support'] as const).map((tab) => {
             const labels: Record<string, string> = {
               explore: 'Explore',
               bookings: 'My Bookings',
@@ -677,7 +674,7 @@ export default function App() {
         )}
 
         {/* Tab 4: Nearby Map Finder */}
-        {activeTab === 'nearby' && isAuthenticated && (
+        {activeTab === 'nearby' && (
           <NearbyMap
             turfs={sampleTurfs}
             isDarkMode={isDarkMode}
