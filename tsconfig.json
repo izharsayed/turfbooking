@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "incremental": true,
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@turf-booking/types": ["packages/types/src/index.ts"],
+      "@turf-booking/ui": ["packages/ui/src/index.ts"],
+      "@turf-booking/utils": ["packages/utils/src/index.ts"],
+      "@turf-booking/api-client": ["packages/api-client/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

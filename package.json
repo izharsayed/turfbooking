@@ -1,0 +1,62 @@
+{
+  "name": "turf-booking-monorepo",
+  "version": "1.0.0",
+  "description": "Production-ready Turf Booking Platform Turborepo",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "dev:backend": "turbo dev --filter=@turf-booking/backend",
+    "dev:admin": "turbo dev --filter=@turf-booking/admin-web",
+    "dev:customer": "turbo dev --filter=@turf-booking/customer-web",
+    "dev:mobile": "turbo dev --filter=@turf-booking/mobile-app",
+    "build:all": "turbo build",
+    "lint:all": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "prepare": "husky",
+    "db:migrate": "pnpm --filter=@turf-booking/backend prisma:migrate",
+    "db:generate": "pnpm --filter=@turf-booking/backend prisma:generate",
+    "db:seed": "pnpm --filter=@turf-booking/backend prisma:seed"
+  },
+  "keywords": [
+    "turf",
+    "booking",
+    "turborepo",
+    "pnpm",
+    "clean-architecture"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@commitlint/cli": "^19.3.0",
+    "@commitlint/config-conventional": "^19.2.2",
+    "@typescript-eslint/eslint-plugin": "^7.15.0",
+    "@typescript-eslint/parser": "^7.15.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.34.3",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.7",
+    "prettier": "^3.3.2",
+    "turbo": "^2.0.4",
+    "typescript": "^5.5.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css}": [
+      "prettier --write"
+    ]
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "protobufjs"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@turf-booking/utils",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared utility logic for Turf Booking",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.2"
+  }
+}
