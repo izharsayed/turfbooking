@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-04 22:16 IST
+> Last updated: 2026-07-06 13:40 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -134,6 +134,7 @@ pnpm dev:backend      # start the server
 | `REDIS_URL not defined` | Caching disabled | Add Upstash Redis URL to `.env` |
 | `Nodemailer config missing` | Email prints to console | Add SMTP config when email features needed |
 | `Cloudinary config missing` | File uploads fall back to local disk | Add Cloudinary keys when image uploads needed |
+| `npm warn Unknown project config "only-built-dependencies"` | Harmless warning from npm/npx | Ignore (caused by `npx pnpm` reading pnpm's `.npmrc` config) |
 
 ---
 
@@ -152,3 +153,5 @@ pnpm dev:backend      # start the server
 |------|---------|
 | 2026-07-04 | Initial setup: switched to Firebase provider, fixed Prisma/ESM issues, got backend running on port 5000 |
 | 2026-07-04 | Created `memory.md` and `AGENTS.md` rule for persistent AI memory |
+| 2026-07-06 | Started backend server using `cmd.exe /c npx pnpm --filter=@turf-booking/backend run dev` to bypass PowerShell execution policies and missing global turbo command. |
+| 2026-07-06 | Installed dependencies via `npx pnpm install` and launched admin-web, customer-web, and backend via direct pnpm filter scripts. |
