@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-04 22:16 IST
+> Last updated: 2026-07-06 15:50 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -85,6 +85,122 @@ FIREBASE_STORAGE_BUCKET=turfbook-74c8c.appspot.com
 - Workspace rule: AI agent must update `memory.md` after every task, fix, or decision.
 - Format rules defined for change entries, next steps, and environment updates.
 - **Why**: Ensures memory stays current automatically without the user needing to remind the agent.
+
+### 8. `apps/customer-web/src/index.css` — Modified
+- Imported Google Fonts ("Plus Jakarta Sans" and "Outfit").
+- Set default sans-serif font family to `'Plus Jakarta Sans', 'Outfit'`.
+- **Why**: Standard sans-serif stack looked generic and unpolished; new typography aligns with modern premium design standards.
+
+### 9. `apps/customer-web/src/App.tsx` — Modified
+- Restructured layout using radial glowing background accents.
+- Replaced broken Unsplash image URLs with working, high-quality sports turf photos.
+- Integrated `lucide-react` icons inside categories, search tabs, and details lists.
+- Refined dark and light mode contrasts to comply with high color-contrast guidelines.
+- **Why**: Elevates visual aesthetics and fixes broken images shown in the landing page screenshot.
+
+### 10. `apps/customer-web/src/App.tsx` — Modified
+- Embedded a subtle, dark-masked background turf image overlay on the top absolute container.
+- Added linear gradient masks to ensure high readability and contrast for hero texts in both dark and light modes.
+- **Why**: Responds to user request to add a turf image into the page background.
+
+### 11. `apps/customer-web/src/App.tsx` — Modified
+- Replaced the background turf photo with a highly vibrant green grass texture and increased opacity (`opacity-[0.15]` in dark and `opacity-[0.08]` in light mode).
+- Fixed the broken Wembley Futsal Dome card image by linking a working Unsplash sport dome URL.
+- **Why**: Resolves visibility issues where the background turf was too faint to see in light mode, and fixes the broken Wembley dome card.
+
+### 12. `apps/customer-web/public/images/turf-bg.jpg` — Created
+- Saved user-provided turf photo locally (422 KB) at `apps/customer-web/public/images/turf-bg.jpg`.
+- Updated `App.tsx` to reference `/images/turf-bg.jpg` instead of any external Unsplash URL.
+- Bumped opacity slightly to `0.18` (dark) / `0.10` (light) for better visibility.
+- **Why**: User requested the image be stored locally so it doesn't depend on an external network URL.
+
+### 13. `apps/customer-web/src/App.tsx` — Modified
+- Replaced CSS `mix-blend-overlay/multiply` approach (which made image invisible on light mode) with inline `opacity` style directly on the `<img>` tag.
+- Used inline gradient `style` props for the dark/light mode overlay — more reliable across browser rendering engines.
+- Changed container from `absolute` to `fixed` so the background stays pinned during scroll.
+- **Why**: Fixes the "image not loading" report — the image was loading but `mix-blend-multiply` on a light background made it invisible. Now clearly visible in both dark (35% opacity) and light (22% opacity) modes.
+
+### 14. `apps/customer-web/src/App.tsx` — Modified
+- Restored the local turf background image.
+- Updated the header styling to use transparent backgrounds (`bg-transparent`) instead of semi-opaque white/dark backgrounds.
+- This allows the restored background turf image to flow smoothly behind the floating pill-style navbar.
+- **Why**: Responds to user request to keep the turf background image but make the navbar transparent/glassmorphic like the reference image.
+
+### 15. `apps/customer-web/src/App.tsx` & `store/authStore.ts` — Modified
+- Redesigned the auth modal to establish **Phone Number** as the primary field for login and sign up.
+- Integrated a premium sliding tab toggle between **Password Login** and **OTP Login**.
+- Configured dynamic form layouts that simulate OTP code generation/dispatched alerts matching the backend `/send-otp` and `/verify-otp` endpoints.
+- Mapped phone property inside `UserProfile` state store interface.
+- **Why**: Implements phone-number focused login/signup flow as requested by the user.
+
+### 16. `apps/mobile-app/app/index.tsx` & `store/authStore.ts` — Modified
+- Upgraded the mobile app's authentication screens to align on **Phone Number** as primary credentials.
+- Created `authTabButton` stylesheet classes to prevent style collisions with main tab layouts.
+- Integrated phone code indicator badges, OTP send dialog triggers, and password modes matching the customer-web client flow.
+- **Why**: Ensures consistency across both Customer Web and Mobile applications for the phone-primary login flow.
+
+### 17. `apps/customer-web/src/App.tsx` & `apps/mobile-app/app/index.tsx` — Modified
+- Styled all login/signup input fields with solid white background (`bg-white` / `#ffffff`) and dark text color (`text-slate-900` / `#0f172a`).
+- Set custom border parameters (`border-slate-700/30` / `#cbd5e1`) to match the user's reference modal layout.
+- Styled labels to uppercase font matching the screenshot design.
+- **Why**: Matches the auth forms design with the user's reference UI.
+
+### 18. `apps/customer-web/src/App.tsx` — Modified
+- Removed the top logo block and header title ("Welcome Back" / "Create Account") from the auth modal overlay.
+- Re-styled the phone number box into a single unified container with the `+91` code inline with a right border, rather than two separate boxes.
+- **Why**: Ensures exact layout matching with the user's reference design, which starts directly with the form inputs.
+
+### 19. `apps/customer-web/src/App.tsx` — Modified
+- Styled the auth modal backdrop and container to align with the **Turf Theme**.
+- Set the overlay bg to a softer transparent color (`bg-[#030712]/60 backdrop-blur-sm`) to keep the turf image visible behind it.
+- Styled the modal container card with a semi-transparent glassmorphism look and a glowing green border (`bg-[#030712]/80 border-emerald-500/20 shadow-[0_0_60px_-15px_rgba(16,185,129,0.25)]`).
+- Styled the method switcher tabs to a dark green/emerald active state.
+- **Why**: Matches the auth forms design with the green turf theme.
+
+### 20. `apps/customer-web/src/App.tsx` — Modified
+- Enhanced the explore turf card list grid item designs.
+- Designed glassmorphism card skins (`bg-[#0f172a]/40 backdrop-blur-xl` in dark mode, `bg-white/90` in light mode) with rounded-3xl corners.
+- Programmed a subtle dark hover elevation shadow (`hover:shadow-[0_20px_40px_-15px_rgba(16,185,129,0.15)]` / `rgba(16,185,129,0.1)`) that casts a soft emerald/green spotlight underneath the card.
+- Standardized image aspect ratios and added gradient overlays.
+- **Why**: Responds to user request to enhance the card UI layout to look extremely premium.
+
+### 21. `apps/mobile-app/app/index.tsx` — Modified
+- Upgraded the mobile arena card UI.
+- Increased card corner radius (`borderRadius: 24`), set backgrounds to a clean dark slate (`#0c1122`), and added shadow elevations.
+- Re-styled rating indicators with dynamic transparent backgrounds (`rgba(16,185,129,0.1)`) and added a premium emerald `sportBadge` tag layout.
+- **Why**: Standardizes cards look and feel across customer web and mobile workspaces.
+
+### 22. `apps/customer-web/src/App.tsx` — Modified
+- Made the login/signup modal background card (`bg-white` / `bg-[#030712]/80`), overlay, switcher tabs, close button, and field labels fully responsive to the `isDarkMode` theme selector state.
+- **Why**: Fixes the issue where the login card remained black after switching to the white theme.
+
+### 23. `apps/customer-web/src/components/NearbyMap.tsx` & `App.tsx` — Created | Modified
+- Created a fully geofenced Leaflet.js map component displaying local user coordinates and nearby turf venues.
+- Configured dynamic theme toggles for Leaflet maps layers (light theme maps vs CartoDB dark maps).
+- Programmed range radius sliders with automatic Haversine formula calculation filters, allowing the user to filter turfs by km distance.
+- Integrated auth-gated navbar tabs that conditionally show the "📍 Nearby Maps" tab when user is logged in.
+- Coded direct booking redirection links: clicking "Book Now" in map popups transitions the user straight to the explore tab, focusing the specific turf details card.
+- **Why**: Responds to user request to add geofencing nearby maps on user login.
+
+### 24. `apps/customer-web/src/components/NearbyMap.tsx` & `App.tsx` — Modified
+- Added a new mock turf venue 'Camp Nou Arena' (Mumbai - Andheri West) with precise `lat`/`lng` coordinates to the sample data list.
+- Programmed a smart distance check fallback in the Geofencing Map: if the user's location is > 120km away from any active turf, it activates a "Demo Mode" centering on Mumbai and showing the available venues to prevent blank list empty states.
+- **Why**: Allows users in any location to immediately view and test the interactive map pins.
+
+### 25. `apps/customer-web/src/components/NearbyMap.tsx` & `App.tsx` — Modified
+- Relocated all sample turf mock venues (Old Trafford, Lords, Wembley, Camp Nou) to Ahmednagar, Maharashtra by updating their latitude/longitude coordinates and city/area fields.
+- Set the default center of the Geofencing Map component to Ahmednagar, Maharashtra `[19.0948, 74.7480]`.
+- **Why**: Responds to user request to use Maharashtra, Ahmednagar as the base location for geofenced turfs.
+
+### 26. `apps/owner-web/` — Created
+- Designed and initialized a brand-new React 19 + Vite web application under `apps/owner-web` listening on port `3004`.
+- Programmed 4 distinct dashboard tabs:
+  - **Overview Dashboard**: Displays revenue, active venues, slot fill rate metrics, and custom SVG weekly bar charts.
+  - **My Turfs**: Lists owner's active arenas and hosts form to add/edit turf fields (including coordinates and sports).
+  - **Slot Manager**: Displays a calendar slot schedule by day of the week, allowing owner to toggle slot availability or block slots for maintenance.
+  - **Bookings Log**: Comprehensive table of customer reservations with customer name, phone, slot time, amount, and quick cancel action.
+- Styled with a premium dark emerald theme (`#030712`) matching the brand identity of TurfBook.
+- **Why**: Responds to user request to create a turf owner panel.
 
 ---
 

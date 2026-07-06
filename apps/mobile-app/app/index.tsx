@@ -61,7 +61,14 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   
   // Auth simulation
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [authModalVisible, setAuthModalVisible] = useState(false);
 
   // Booking items
@@ -69,13 +76,63 @@ export default function HomeScreen() {
     { id: 'B-88392', turfName: 'Old Trafford Arena', date: '2026-07-06', time: '18:00 - 19:00', amount: 1200, status: 'UPCOMING' }
   ]);
 
-  const handleLogin = () => {
-    if (!email) {
-      Alert.alert('Error', 'Please enter your email address');
+  const handleSendOtp = () => {
+    if (!phone || phone.length < 10) {
+      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
       return;
     }
-    login({ id: 'USR-101', email, name: email.split('@')[0], role: 'CUSTOMER' }, 'dummy_token');
+    Alert.alert('OTP Dispatched', `💬 SMS OTP Sent to +91 ${phone}: [ 123456 ] (Mock OTP)`);
+    setOtpSent(true);
+  };
+
+  const handleLogin = () => {
+    if (!phone || phone.length < 10) {
+      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      return;
+    }
+
+    if (isRegisterMode) {
+      if (!name) {
+        Alert.alert('Error', 'Please enter your name');
+        return;
+      }
+      login({ 
+        id: 'USR-101', 
+        email: email || `${phone}@turfbook.com`, 
+        name, 
+        phone, 
+        role: 'CUSTOMER' 
+      }, 'dummy_token');
+    } else {
+      // Login
+      if (loginMethod === 'otp') {
+        if (!otpSent) {
+          handleSendOtp();
+          return;
+        }
+        if (otp !== '123456') {
+          Alert.alert('Error', 'Invalid OTP code');
+          return;
+        }
+      } else {
+        if (!password) {
+          Alert.alert('Error', 'Please enter your password');
+          return;
+        }
+      }
+
+      login({ 
+        id: 'USR-101', 
+        email: `${phone}@turfbook.com`, 
+        name: `User ${phone.slice(-4)}`, 
+        phone, 
+        role: 'CUSTOMER' 
+      }, 'dummy_token');
+    }
+
     setAuthModalVisible(false);
+    setOtpSent(false);
+    setOtp('');
   };
 
   const handleBook = () => {
@@ -251,20 +308,157 @@ export default function HomeScreen() {
       <Modal visible={authModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Sign In</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Enter your email address"
-              placeholderTextColor="#64748b"
-              style={styles.modalInput}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+            {/* Title */}
+            <Text style={styles.modalTitle}>
+              {isRegisterMode ? 'Create Account' : 'Welcome Back'}
+            </Text>
+
+            {/* Login Method Toggle Tabs */}
+            {!isRegisterMode && (
+              <View style={styles.tabContainer}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setLoginMethod('password');
+                    setOtpSent(false);
+                    setOtp('');
+                  }}
+                  style={[styles.authTabButton, loginMethod === 'password' && styles.tabButtonActive]}
+                >
+                  <Text style={[styles.authTabButtonText, loginMethod === 'password' && styles.tabButtonTextActive]}>
+                    Password
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setLoginMethod('otp')}
+                  style={[styles.authTabButton, loginMethod === 'otp' && styles.tabButtonActive]}
+                >
+                  <Text style={[styles.authTabButtonText, loginMethod === 'otp' && styles.tabButtonTextActive]}>
+                    OTP Login
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Form Fields */}
+            <View style={{ gap: 12, marginBottom: 16 }}>
+              {/* REGISTER ONLY: Name */}
+              {isRegisterMode && (
+                <View>
+                  <Text style={styles.fieldLabel}>FULL NAME</Text>
+                  <TextInput
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Enter your name"
+                    placeholderTextColor="#64748b"
+                    style={styles.modalInputText}
+                  />
+                </View>
+              )}
+
+              {/* PRIMARY: Phone Number */}
+              <View>
+                <Text style={styles.fieldLabel}>PHONE NUMBER</Text>
+                <View style={styles.phoneInputRow}>
+                  <View style={styles.phoneCodeContainer}>
+                    <Text style={styles.phoneCodeText}>+91</Text>
+                  </View>
+                  <TextInput
+                    value={phone}
+                    onChangeText={(val) => setPhone(val.replace(/[^0-9]/g, ''))}
+                    placeholder="9876543210"
+                    placeholderTextColor="#64748b"
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                    style={styles.phoneInputText}
+                  />
+                </View>
+              </View>
+
+              {/* REGISTER ONLY: Email (Optional) */}
+              {isRegisterMode && (
+                <View>
+                  <Text style={styles.fieldLabel}>EMAIL ADDRESS (OPTIONAL)</Text>
+                  <TextInput
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="name@example.com"
+                    placeholderTextColor="#64748b"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={styles.modalInputText}
+                  />
+                </View>
+              )}
+
+              {/* DYNAMIC: Password or OTP Code */}
+              {!isRegisterMode && loginMethod === 'otp' ? (
+                otpSent && (
+                  <View>
+                    <Text style={styles.fieldLabel}>6-DIGIT OTP CODE</Text>
+                    <TextInput
+                      value={otp}
+                      onChangeText={(val) => setOtp(val.replace(/[^0-9]/g, ''))}
+                      placeholder="------"
+                      placeholderTextColor="#64748b"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      style={[styles.modalInputText, { textAlign: 'center', letterSpacing: 8, fontWeight: 'bold' }]}
+                    />
+                  </View>
+                )
+              ) : (
+                /* PASSWORD FIELD (Login with Password OR Register with Password) */
+                <View>
+                  <Text style={styles.fieldLabel}>PASSWORD</Text>
+                  <TextInput
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="••••••••"
+                    placeholderTextColor="#64748b"
+                    secureTextEntry={true}
+                    style={styles.modalInputText}
+                  />
+                </View>
+              )}
+            </View>
+
+            {/* Action Button */}
             <TouchableOpacity style={styles.modalButton} onPress={handleLogin}>
-              <Text style={styles.modalButtonText}>Login</Text>
+              <Text style={styles.modalButtonText}>
+                {isRegisterMode
+                  ? 'Sign Up & Create Account'
+                  : loginMethod === 'otp'
+                    ? otpSent ? 'Verify & Login' : 'Send Verification OTP'
+                    : 'Login'}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setAuthModalVisible(false)} style={styles.modalClose}>
+
+            {/* Mode Toggle Link */}
+            <TouchableOpacity
+              onPress={() => {
+                setIsRegisterMode(!isRegisterMode);
+                setOtpSent(false);
+                setOtp('');
+              }}
+              style={styles.modeToggleContainer}
+            >
+              <Text style={styles.modeToggleText}>
+                {isRegisterMode ? 'Already registered? ' : "Don't have an account? "}
+                <Text style={styles.modeToggleHighlight}>
+                  {isRegisterMode ? 'Login' : 'Sign Up'}
+                </Text>
+              </Text>
+            </TouchableOpacity>
+
+            {/* Cancel Button */}
+            <TouchableOpacity
+              onPress={() => {
+                setAuthModalVisible(false);
+                setOtpSent(false);
+                setOtp('');
+              }}
+              style={styles.modalClose}
+            >
               <Text style={styles.modalCloseText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -371,59 +565,72 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   card: {
-    backgroundColor: '#0f172a',
-    borderRadius: 14,
+    backgroundColor: '#0c1122',
+    borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#1e293b',
-    marginBottom: 16,
+    marginBottom: 18,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 4,
   },
   cardImage: {
-    height: 150,
+    height: 160,
     width: '100%',
   },
   cardContent: {
-    padding: 16,
+    padding: 18,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#ffffff',
   },
   rating: {
     color: '#10b981',
     fontWeight: 'bold',
-    fontSize: 13,
+    fontSize: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   cardArea: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginBottom: 14,
+    fontSize: 13,
+    color: '#64748b',
+    marginBottom: 16,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: 'rgba(30, 41, 59, 0.5)',
   },
   sportBadge: {
-    backgroundColor: '#1e293b',
-    color: '#fff',
-    fontSize: 11,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    color: '#10b981',
+    fontSize: 10,
     fontWeight: 'bold',
+    textTransform: 'uppercase',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 5,
+    borderRadius: 10,
   },
   price: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ffffff',
   },
   detailSection: {
     padding: 20,
@@ -585,15 +792,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 16,
   },
+  modalInputText: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    padding: 14,
+    color: '#0f172a',
+    fontSize: 14,
+  },
   modalButton: {
     backgroundColor: '#10b981',
     padding: 14,
     borderRadius: 10,
     alignItems: 'center',
     marginBottom: 12,
+    marginTop: 8,
   },
   modalButtonText: {
-    color: '#020617',
+    color: '#ffffff',
     fontWeight: 'bold',
     fontSize: 14,
   },
@@ -604,5 +821,81 @@ const styles = StyleSheet.create({
   modalCloseText: {
     color: '#64748b',
     fontSize: 13,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#020617',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+  },
+  authTabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabButtonActive: {
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+  },
+  authTabButtonText: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  tabButtonTextActive: {
+    color: '#fff',
+  },
+  fieldLabel: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    letterSpacing: 1,
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  phoneCodeContainer: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  phoneCodeText: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  phoneInputText: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    padding: 14,
+    color: '#0f172a',
+    fontSize: 14,
+  },
+  modeToggleContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  modeToggleText: {
+    color: '#64748b',
+    fontSize: 12,
+  },
+  modeToggleHighlight: {
+    color: '#10b981',
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
   },
 });
