@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-06 15:50 IST
+> Last updated: 2026-07-06 16:10 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -268,3 +268,16 @@ pnpm dev:backend      # start the server
 |------|---------|
 | 2026-07-04 | Initial setup: switched to Firebase provider, fixed Prisma/ESM issues, got backend running on port 5000 |
 | 2026-07-04 | Created `memory.md` and `AGENTS.md` rule for persistent AI memory |
+| 2026-07-06 | Added Map tab to mobile app using `react-native-maps` with turf markers and bottom detail card |
+
+---
+
+### 27. `apps/mobile-app/app/index.tsx` — Modified
+- Added `react-native-maps` dependency to mobile-app package.
+- Added a new **Map tab** (🗺️) to the bottom navigation between Bookings and Support.
+- Rendered a full-screen `MapView` with custom `⚽` emoji markers for each turf location.
+- Tapping a marker shows a `Callout` tooltip with turf name, sport, and price.
+- Added a slide-up bottom card (`mapCard`) when a marker is tapped — showing turf name, area, sport badge, rating, price, and a **Book This Turf** CTA that navigates to the Explore tab.
+- Map is rendered outside the `ScrollView` so it can fill the full remaining screen height.
+- Turf coordinates are placed in Mumbai (Andheri West, Bandra East, Dwarka area) for demo purposes.
+- **Why**: User requested a Map tab to show turf locations on an interactive map.
