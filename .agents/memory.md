@@ -250,6 +250,7 @@ pnpm dev:backend      # start the server
 | `REDIS_URL not defined` | Caching disabled | Add Upstash Redis URL to `.env` |
 | `Nodemailer config missing` | Email prints to console | Add SMTP config when email features needed |
 | `Cloudinary config missing` | File uploads fall back to local disk | Add Cloudinary keys when image uploads needed |
+| `npm warn Unknown project config "only-built-dependencies"` | Harmless warning from npm/npx | Ignore (caused by `npx pnpm` reading pnpm's `.npmrc` config) |
 
 ---
 
