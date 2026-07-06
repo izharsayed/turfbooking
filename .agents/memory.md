@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-06 16:10 IST
+> Last updated: 2026-07-06 16:25 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -281,3 +281,18 @@ pnpm dev:backend      # start the server
 - Map is rendered outside the `ScrollView` so it can fill the full remaining screen height.
 - Turf coordinates are placed in Mumbai (Andheri West, Bandra East, Dwarka area) for demo purposes.
 - **Why**: User requested a Map tab to show turf locations on an interactive map.
+
+### 28. `apps/mobile-app/app/index.tsx` — Modified
+- Synced `mockTurfs` and `turfLocations` arrays with customer web data.
+- Updated all 3 existing venues to use Ahmednagar coordinates (matching `NearbyMap.tsx`).
+- Renamed "Lords Cricket Indoor" → "Lords Cricket Club" to match customer web.
+- Updated all area labels from Mumbai neighbourhoods → Ahmednagar localities (Savedi, Pipeline Road, Kedgaon, Gulmohar Road).
+- Added **Camp Nou Arena** as the 4th venue (id: '4', Football, ₹1800/hr) in both Explore cards and Map markers.
+- Updated map `initialRegion` to Ahmednagar center `[19.0948, 74.7480]` with tighter zoom (0.12 delta).
+- **Why**: Mobile app had stale Mumbai placeholder data; customer web uses Ahmednagar. Synced for consistency.
+
+### 29. `apps/customer-web/src/App.tsx` — Modified
+- Removed the `isAuthenticated` auth-gate from the **📍 Nearby Maps** tab in the navbar.
+- Removed the `isAuthenticated &&` guard from the `NearbyMap` component render condition.
+- Moved the 'nearby' tab between 'bookings' and 'support' in the nav order for better UX.
+- **Why**: The Nearby Maps tab was invisible to logged-out users. Now accessible to everyone.
