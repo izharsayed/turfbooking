@@ -8,10 +8,14 @@ import {
   TextInput,
   Image,
   Modal,
-  Alert
+  Alert,
+  Dimensions
 } from 'react-native';
+import MapView, { Marker, Callout, PROVIDER_DEFAULT } from 'react-native-maps';
 import { formatCurrency } from '@turf-booking/utils';
 import { useAuthStore } from '../store/authStore.js';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface Turf {
   id: string;
@@ -53,9 +57,43 @@ const mockTurfs: Turf[] = [
   }
 ];
 
+const turfLocations = [
+  {
+    id: '1',
+    name: 'Old Trafford Arena',
+    sport: 'Football',
+    price: 1200,
+    rating: 4.8,
+    area: 'Andheri West',
+    latitude: 19.1299,
+    longitude: 72.8342,
+  },
+  {
+    id: '2',
+    name: 'Lords Cricket Indoor',
+    sport: 'Cricket',
+    price: 1500,
+    rating: 4.9,
+    area: 'Bandra East',
+    latitude: 19.0596,
+    longitude: 72.8370,
+  },
+  {
+    id: '3',
+    name: 'Wembley Futsal Dome',
+    sport: 'Box Cricket',
+    price: 1000,
+    rating: 4.7,
+    area: 'Dwarka Sector 10',
+    latitude: 19.0044,
+    longitude: 72.8258,
+  },
+];
+
 export default function HomeScreen() {
   const { isAuthenticated, user, login, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'explore' | 'bookings' | 'support'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'bookings' | 'map' | 'support'>('explore');
+  const [selectedMapTurf, setSelectedMapTurf] = useState<(typeof turfLocations)[0] | null>(null);
   const [selectedTurf, setSelectedTurf] = useState<Turf | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -186,20 +224,86 @@ export default function HomeScreen() {
 
       {/* Tabs */}
       <View style={styles.tabsRow}>
-        {(['explore', 'bookings', 'support'] as const).map((tab) => (
+        {(['explore', 'bookings', 'map', 'support'] as const).map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
-            onPress={() => { setActiveTab(tab); setSelectedTurf(null); }}
+            onPress={() => { setActiveTab(tab); setSelectedTurf(null); setSelectedMapTurf(null); }}
           >
             <Text style={[styles.tabButtonText, activeTab === tab && styles.activeTabButtonText]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === 'map' ? '🗺️ Map' : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <ScrollView style={styles.scroll}>
+      {/* Map Tab — outside ScrollView so it fills the screen */}
+      {activeTab === 'map' && (
+        <View style={styles.mapContainer}>
+          <MapView
+            provider={PROVIDER_DEFAULT}
+            style={styles.map}
+            initialRegion={{
+              latitude: 19.076,
+              longitude: 72.8777,
+              latitudeDelta: 0.18,
+              longitudeDelta: 0.18,
+            }}
+          >
+            {turfLocations.map((turf) => (
+              <Marker
+                key={turf.id}
+                coordinate={{ latitude: turf.latitude, longitude: turf.longitude }}
+                onPress={() => setSelectedMapTurf(turf)}
+              >
+                <View style={styles.markerBubble}>
+                  <Text style={styles.markerText}>⚽</Text>
+                </View>
+                <Callout tooltip>
+                  <View style={styles.calloutBox}>
+                    <Text style={styles.calloutName}>{turf.name}</Text>
+                    <Text style={styles.calloutSport}>{turf.sport}</Text>
+                    <Text style={styles.calloutPrice}>{formatCurrency(turf.price)}/hr</Text>
+                  </View>
+                </Callout>
+              </Marker>
+            ))}
+          </MapView>
+
+          {/* Selected turf bottom card */}
+          {selectedMapTurf && (
+            <View style={styles.mapCard}>
+              <View style={styles.mapCardHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.mapCardTitle}>{selectedMapTurf.name}</Text>
+                  <Text style={styles.mapCardArea}>📍 {selectedMapTurf.area}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setSelectedMapTurf(null)}>
+                  <Text style={styles.mapCardClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.mapCardRow}>
+                <View style={styles.mapCardBadge}>
+                  <Text style={styles.mapCardBadgeText}>{selectedMapTurf.sport}</Text>
+                </View>
+                <Text style={styles.mapCardRating}>★ {selectedMapTurf.rating}</Text>
+                <Text style={styles.mapCardPrice}>{formatCurrency(selectedMapTurf.price)}/hr</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.mapCardButton}
+                onPress={() => {
+                  const turf = mockTurfs.find(t => t.id === selectedMapTurf.id);
+                  if (turf) { setSelectedTurf(turf); setActiveTab('explore'); setSelectedMapTurf(null); }
+                }}
+              >
+                <Text style={styles.mapCardButtonText}>Book This Turf →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
+      <ScrollView style={[styles.scroll, activeTab === 'map' && { display: 'none' }]}>
         {activeTab === 'explore' && !selectedTurf && (
           <View style={styles.section}>
             {/* Search Input */}
@@ -289,7 +393,9 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Tab 3: Support */}
+        {/* Tab 3: Map — rendered outside ScrollView above */}
+
+        {/* Tab 4: Support */}
         {activeTab === 'support' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Help center</Text>
@@ -302,6 +408,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         )}
+      {activeTab !== 'map' && <View />}
       </ScrollView>
 
       {/* Auth Modal */}
@@ -897,5 +1004,130 @@ const styles = StyleSheet.create({
     color: '#10b981',
     fontWeight: 'bold',
     textDecorationLine: 'underline',
+  },
+
+  // ---- Map Tab Styles ----
+  mapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  map: {
+    flex: 1,
+    width: '100%',
+  },
+  markerBubble: {
+    backgroundColor: '#020617',
+    borderRadius: 20,
+    padding: 6,
+    borderWidth: 2,
+    borderColor: '#10b981',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  markerText: {
+    fontSize: 18,
+  },
+  calloutBox: {
+    backgroundColor: '#0f172a',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#10b981',
+    minWidth: 150,
+  },
+  calloutName: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  calloutSport: {
+    color: '#10b981',
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  calloutPrice: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  mapCard: {
+    position: 'absolute',
+    bottom: 20,
+    left: 16,
+    right: 16,
+    backgroundColor: '#0c1122',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  mapCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  mapCardTitle: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginBottom: 2,
+  },
+  mapCardArea: {
+    color: '#64748b',
+    fontSize: 12,
+  },
+  mapCardClose: {
+    color: '#64748b',
+    fontSize: 18,
+    paddingLeft: 12,
+  },
+  mapCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  mapCardBadge: {
+    backgroundColor: 'rgba(16,185,129,0.15)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  mapCardBadgeText: {
+    color: '#10b981',
+    fontSize: 11,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  mapCardRating: {
+    color: '#facc15',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  mapCardPrice: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+  mapCardButton: {
+    backgroundColor: '#10b981',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  mapCardButtonText: {
+    color: '#020617',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });

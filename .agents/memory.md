@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-06 16:02 IST
+> Last updated: 2026-07-06 15:50 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -269,5 +269,3 @@ pnpm dev:backend      # start the server
 |------|---------|
 | 2026-07-04 | Initial setup: switched to Firebase provider, fixed Prisma/ESM issues, got backend running on port 5000 |
 | 2026-07-04 | Created `memory.md` and `AGENTS.md` rule for persistent AI memory |
-| 2026-07-06 | Started backend server using `cmd.exe /c npx pnpm --filter=@turf-booking/backend run dev` to bypass PowerShell execution policies and missing global turbo command. |
-| 2026-07-06 | Installed dependencies via `npx pnpm install` and launched admin-web, customer-web, and backend via direct pnpm filter scripts. |
