@@ -9,6 +9,7 @@
     "dev:admin": "turbo dev --filter=@turf-booking/admin-web",
     "dev:customer": "turbo dev --filter=@turf-booking/customer-web",
     "dev:mobile": "turbo dev --filter=@turf-booking/mobile-app",
+    "dev:owner": "turbo dev --filter=@turf-booking/owner-web",
     "build:all": "turbo build",
     "lint:all": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
