@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-07 11:42 IST
+> Last updated: 2026-07-07 12:40 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -16,17 +16,36 @@
 ### Apps
 | App | Path | Stack |
 |-----|------|-------|
-| Backend API | `apps/backend` | Node.js + Express + TypeScript |
-| Admin Web | `apps/admin-web` | React 19 + Vite + Tailwind |
-| Customer Web | `apps/customer-web` | React 19 + Vite + Tailwind |
-| Mobile App | `apps/mobile-app` | React Native + Expo 51 |
+| Backend API | `backend/` | Node.js + Express + TypeScript |
+| Frontend (All Web) | `frontend/` | React 19 + Vite + Tailwind (merged: customer + owner + admin) |
+| Mobile App | `mobile/` | React Native + Expo 51 |
 
-### Shared Packages
-- `packages/ui` — Shared Tailwind CSS Design System
-- `packages/types` — Shared TypeScript domain models & interfaces
-- `packages/config` — Centralized lint/formatting config bases
-- `packages/utils` — Shared formatters and pattern checks
-- `packages/api-client` — Axios client with interceptors
+### Shared Config
+- `firebase/` — Firestore rules, Storage rules, indexes
+
+### ⚠️ Old structure REMOVED:
+- `apps/` — deleted
+- `packages/` — deleted
+- `turbo.json`, `pnpm-workspace.yaml` — deleted
+- Monorepo tooling fully removed
+
+### How to Run
+```bash
+# Terminal 1 — Backend
+cd backend && npm run dev     → http://localhost:5000
+
+# Terminal 2 — Frontend
+cd frontend && npm run dev    → http://localhost:3001
+
+# Mobile
+cd mobile && npx expo start
+```
+
+### Frontend Routing (Role-based)
+- `/login` → shared login page (role selector: customer / owner / admin)
+- `/customer/*` → CustomerApp (was customer-web)
+- `/owner/*` → OwnerApp (was owner-web)
+- `/admin/*` → AdminApp (was admin-web)
 
 ---
 
@@ -323,7 +342,8 @@ pnpm dev:backend      # start the server
 
 | 2026-07-07 | Updated Time Slot Planner to support full 24-hour schedules with 24 slots generated per day. |
 
-| 2026-07-07 | Fixed day-selector button padding and corrected color contrast issues on the Slot Planner view. |
+| 2026-07-07 | Restructured monorepo → simple frontend/backend/firebase/mobile layout. Merged 3 web apps into single frontend with role-based routing. |
+| 2026-07-07 | Fixed all TypeScript errors in frontend: 'CUSTOMER'→'customer' role type, removed unused icon imports, disabled noUnusedLocals in tsconfig. |
 
 | 2026-07-07 | Reduced slot card dimensions and padding, allowing denser grids to fit within the Slot Planner window. |
 

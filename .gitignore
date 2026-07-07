@@ -135,3 +135,9 @@ expo-env.d.ts
 pgdata/
 redisdata/
 docker-compose.override.yml
+
+# Turborepo cache (leftover — no longer used)
+.turbo/
+
+# Build artifacts
+tsconfig.tsbuildinfo
