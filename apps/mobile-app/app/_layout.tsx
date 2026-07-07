@@ -23,6 +23,8 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ title: 'TurfBook' }} />
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="profile" options={{ title: 'My Profile' }} />
       </Stack>
     </QueryClientProvider>
   );

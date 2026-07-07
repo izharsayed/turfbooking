@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-06 22:14 IST
+> Last updated: 2026-07-07 11:42 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -202,6 +202,12 @@ FIREBASE_STORAGE_BUCKET=turfbook-74c8c.appspot.com
 - Styled with a premium dark emerald theme (`#030712`) matching the brand identity of TurfBook.
 - **Why**: Responds to user request to create a turf owner panel.
 
+### 27. `apps/admin-web/` & `apps/owner-web/` — Modified
+- Integrated custom `themeStore` utilizing Zustand to persist dark and light theme state (`admin-theme` and `owner-theme` in localStorage).
+- Added a dark/light mode toggle switch button in the header of the Admin Panel and the sidebar of the Owner Panel.
+- Updated all subviews, cards, inputs, buttons, tables, and charts to dynamically toggle styles using Tailwind CSS classes, yielding gorgeous off-white light modes and dark modes.
+- **Why**: Responds to user requests to add dark and light theme switches to both the admin panel and owner panel.
+
 ---
 
 ## ✅ Working State
@@ -306,3 +312,121 @@ pnpm dev:backend      # start the server
 | Date | Summary |
 |------|---------|
 | 2026-07-06 | Fixed missing `pnpm dev` root script; added `dev` and `dev:web` to root package.json |
+| 2026-07-07 | Integrated 5 Premium Features in Turf Owner Panel (Dynamic pricing, financial CSV statements download, staff access roles, offline equipment rentals, and player reviews manager reply feed). |
+| 2026-07-07 | Matched Owner Web Panel UI styling (Google Fonts, local background turf image, backdrop-filters, and glassmorphism layouts) with Customer Web Panel. |
+
+| 2026-07-07 | Restricted Turf Owner Panel scroll to internal section viewports by locking layout container height to h-screen. |
+
+| 2026-07-07 | Integrated collapsible toggles on main dashboard panels (Weekly Booking Performance, Quick Status, Revenue Distribution) and optimized chart vertical scaling. |
+
+| 2026-07-07 | Removed Maintenance Blocks status card from dashboard sidebar. |
+
+| 2026-07-07 | Updated Time Slot Planner to support full 24-hour schedules with 24 slots generated per day. |
+
+| 2026-07-07 | Fixed day-selector button padding and corrected color contrast issues on the Slot Planner view. |
+
+| 2026-07-07 | Reduced slot card dimensions and padding, allowing denser grids to fit within the Slot Planner window. |
+
+| 2026-07-07 | Simplified Dynamic Pricing Rules panel and relocated it to the bottom of the Slot Planner as a horizontal toolbar. |
+
+| 2026-07-07 | Wired slot card click triggers to launch pre-filled manual booking form, and synced booking submissions to slot statuses. |
+
+| 2026-07-07 | Implemented a responsive mobile header bar and sliding hamburger menu overlay sidebar. |
+
+| 2026-07-07 | Integrated desktop collapsibility toggles on sidebar, allowing transition between full w-64 and icon-only w-20 layouts. |
+
+| 2026-07-07 | Restricted STAFF role view to only allow navigation to Slot Manager and Bookings Log. |
+
+| 2026-07-07 | Enabled slot planner click interactions for the STAFF role, allowing manual bookings. |
+
+### 31. apps/owner-web/src/App.tsx — Modified
+- Extended state variables and interfaces (Review, StaffMember, pricing rules, selected addons, replyText, userRole).
+- Integrated Dynamic Pricing Rules config card panel; updated Slot planner cards to dynamically compute peak/weekend prices and display badges.
+- Programmed CSV Export function compilation (Booking statement download).
+- Programmed Staff switch (OWNER vs STAFF) sidebar footer toggle; restricted financial charts, total metrics, add/edit/delete buttons when STAFF role is active.
+- Integrated Equipment Rentals checkboxes selection in manual booking form; updated booking reservations list to display selected equipment rental badges.
+- Created Player Reviews & Ratings subview with stars indicators and interactive official manager replies textbox input.
+- Added invite-staff form and deletion control buttons on staff list directory cards.
+- **Why**: Responds to user request to implement all premium features (Dynamic pricing, financial export, staff access roles, equipment rentals add-ons, and customer reviews feed) in the Turf Owner Panel.
+
+### 32. apps/owner-web/src/index.css & src/App.tsx — Modified
+- Loaded Google Fonts ("Plus Jakarta Sans", "Outfit") and set default body font family.
+- Copied "turf-bg.jpg" locally locally into `apps/owner-web/public/images/turf-bg.jpg`.
+- Integrated a fixed background turf image wrapper with dynamic opacity overlays responding to the `isDarkMode` state.
+- Enhanced card grids, main content tag, and sidebar styling with glassmorphism backdrop filters and semi-transparent colors.
+- **Why**: Responds to user request to match the Turf Owner Panel UI aesthetics, backgrounds, and fonts with the Customer Web Panel.
+
+### 33. apps/owner-web/src/App.tsx — Modified
+- Swapped outer viewport container layout from `min-h-screen` to `h-screen overflow-hidden`.
+- Configured individual `overflow-y-auto` rules on both the navigation sidebar (`aside`) and the main panel container (`main`).
+- **Why**: Responds to user request to lock the layout viewport to prevent global page-scrolling, turning the panel into a native-feeling SaaS dashboard app.
+
+### 34. apps/owner-web/src/App.tsx — Modified
+- Declared state variables `weeklyPerfOpen`, `quickStatusOpen`, and `revDistOpen` to support collapsing dashboard card containers.
+- Reduced default chart height from `h-64` to `h-40` and updated vertical bar scale logic to render more compactly.
+- Added Chevron toggle buttons inside the section titles that collapse card elements, leaving only their headers visible.
+- **Why**: Responds to user request to minimize dashboard sections to prevent vertical scrolling and keep important indicators immediately visible in the viewport.
+
+### 35. apps/owner-web/src/App.tsx — Modified
+- Removed the "MAINTENANCE BLOCKS" status box indicator from the Quick Status panel on the dashboard.
+- **Why**: Responds to user request to remove this indicator.
+
+### 36. apps/owner-web/src/App.tsx — Modified
+- Replaced the static 7-slot time range array with a dynamic 24-slot generator that compiles all hourly slots of a day (`00:00 - 01:00` to `23:00 - 24:00`).
+- **Why**: Responds to user request to support a full 24-hour slot management system in the Slot Planner.
+
+### 37. apps/owner-web/src/App.tsx — Modified
+- Swapped out the non-standard `px-4.5` padding class with a fully supported `px-5` class on the days-of-the-week buttons.
+- Configured accessible text color classes (white text on emerald green background in light mode) to improve color contrast.
+- **Why**: Responds to user request to fix the squished day selector pills and enhance their visual readability.
+
+### 38. apps/owner-web/src/App.tsx — Modified
+- Reduced slot planner button card height from `h-28` to `h-18` and decreased padding to `px-3.5 py-2.5`.
+- Restructured layout details (price, peak/weekend emoji icons, block reasons) to be single-line and space-efficient.
+- **Why**: Responds to user request to minimize the size of the slot scheduler cards, fitting more slots inside the active viewport height.
+
+### 39. apps/owner-web/src/App.tsx — Modified
+- Relocated the Dynamic Pricing Surcharge Rules form card from the top of the Slot Planner subview to the bottom.
+- Simplified the form card layout into a single-row horizontal settings toolbar strip.
+- **Why**: Responds to user request to remove the bulky top rules card, make it simpler/better, and position it at the bottom of the page.
+
+### 40. apps/owner-web/src/App.tsx — Modified
+- Programmed a `handleSlotClick` handler that intercepts slot clicks, pre-populates the manual booking form inputs (date, time slot), switches view tab to Bookings Log, and opens the manual booking panel.
+- Enhanced the `handleSaveManualBooking` form submission method to search and update the respective slot status to `BOOKED` React-state dynamically.
+- **Why**: Responds to user request to make slot card clicks seamlessly launch the offline/manual booking form pre-filled with the slot's schedule details.
+
+### 41. apps/owner-web/src/App.tsx — Modified
+- Declared `isSidebarOpen` state to control mobile/tablet sidebar visibility.
+- Implemented a Mobile Header bar featuring a hamburger Menu trigger and light/dark theme switch, visible below the `md` breakpoint.
+- Configured a slide-in overlay drawer for the sidebar along with a frosted backdrop overlay and X Close buttons to dismiss the drawer.
+- **Why**: Responds to user request to add a hamburger menu in the sidebar/layout to support responsive mobile layouts.
+
+### 42. apps/owner-web/src/App.tsx — Modified
+- Declared `isSidebarCollapsed` state to control desktop sidebar width expansion/collapsibility.
+- Added a toggle hamburger menu button inside the sidebar header next to the branding logo.
+- Styled responsive transition classes so that clicking the toggle on desktop collapses the sidebar to a mini-width icon-only panel (`w-20`), while keeping standard mobile overlay drawers intact.
+- **Why**: Responds to user request to provide a hamburger/collapse toggle button for the sidebar on all viewports.
+
+### 43. apps/owner-web/src/App.tsx — Modified
+- Filtered the sidebar navigation items list array dynamically if `userRole === 'STAFF'` to only show Slot Manager and Bookings Log tabs.
+- Programmed the role switcher onClick handler to automatically reset active tab to `slots` when switching to STAFF.
+- **Why**: Responds to user request to restrict the staff panel view so staff members can only access the Slot Manager and Bookings Log subviews.
+
+### 44. apps/owner-web/src/App.tsx — Modified
+- Removed the `disabled={userRole === 'STAFF'}` check from the slot planner button card elements.
+- Enabled standard hover pointer scales and clicks for staff members on the slot planner list.
+- **Why**: Responds to user request to make sure the slot button clicks successfully open the offline booking form when logged in as a STAFF role.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
