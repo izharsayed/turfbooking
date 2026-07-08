@@ -1,7 +1,7 @@
+import { env } from './config/env.js';
 import http from 'http';
 import { Server } from 'socket.io';
 import app from './app.js';
-import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { prisma } from './database/index.js';
 
