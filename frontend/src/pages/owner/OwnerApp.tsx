@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useThemeStore } from '../../store/themeStore';
-import { api } from '../../store/api';
+import api from '../../services/api';
 
 // Inlined from @turf-booking/ui
 function Button({ children, onClick, className = '', variant = 'primary', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) {
@@ -33,7 +33,8 @@ import {
   ChevronDown,
   ChevronUp,
   Menu,
-  X
+  X,
+  CloudRain
 } from 'lucide-react';
 
 interface Turf {
@@ -945,6 +946,19 @@ export default function App() {
                       <span className="text-[10px] font-bold text-blue-500 block mb-1">LOCATIONS STATUS</span>
                       <p className="text-sm font-semibold">Ahmednagar: 2 active venues</p>
                     </div>
+
+                    <div className={`p-3 border rounded-xl transition-colors duration-300 ${
+                      isDarkMode ? 'bg-[#0f172a]/60 border-slate-800' : 'bg-emerald-50/40 border-slate-200'
+                    } flex items-start gap-2.5`}>
+                      <CloudRain className="h-5 w-5 text-emerald-450 shrink-0 mt-0.5 animate-bounce" />
+                      <div>
+                        <span className="text-[10px] font-bold text-emerald-400 block mb-0.5">WEATHER ADVISORY (AHMEDNAGAR)</span>
+                        <p className="text-xs font-semibold text-slate-350">29°C — Partly Cloudy</p>
+                        <p className="text-[10px] text-slate-400 mt-1 leading-normal">
+                          💡 Peak hours are clear. Recommend enabling standard floodlights from 18:00 to 22:00.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -971,21 +985,74 @@ export default function App() {
                 </div>
                 
                 {revDistOpen && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <div className={`p-4 border rounded-xl ${isDarkMode ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-100'}`}>
-                      <span className="text-xs text-slate-500 block font-bold mb-1">FOOTBALL FIELD</span>
-                      <span className="text-xl font-extrabold text-emerald-500">₹{bookings.filter(b => b.sport === 'Football' && b.status !== 'CANCELLED').reduce((s,b) => s+b.amount, 0)}</span>
-                      <span className="text-[10px] text-slate-400 block mt-1">From Football matches</span>
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                      <div className={`p-4 border rounded-xl ${isDarkMode ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-100'}`}>
+                        <span className="text-xs text-slate-500 block font-bold mb-1">FOOTBALL FIELD</span>
+                        <span className="text-xl font-extrabold text-emerald-500">₹{bookings.filter(b => b.sport === 'Football' && b.status !== 'CANCELLED').reduce((s,b) => s+b.amount, 0)}</span>
+                        <span className="text-[10px] text-slate-400 block mt-1">From Football matches</span>
+                      </div>
+                      <div className={`p-4 border rounded-xl ${isDarkMode ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-100'}`}>
+                        <span className="text-xs text-slate-500 block font-bold mb-1">CRICKET FIELD</span>
+                        <span className="text-xl font-extrabold text-amber-500">₹{bookings.filter(b => b.sport === 'Cricket' && b.status !== 'CANCELLED').reduce((s,b) => s+b.amount, 0)}</span>
+                        <span className="text-[10px] text-slate-400 block mt-1">From Cricket leagues</span>
+                      </div>
+                      <div className={`p-4 border rounded-xl ${isDarkMode ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-100'}`}>
+                        <span className="text-xs text-slate-500 block font-bold mb-1">PEAK SURCHARGES ACCRUED</span>
+                        <span className="text-xl font-extrabold text-purple-500">₹{bookings.filter(b => b.status !== 'CANCELLED').reduce((s,b) => {
+                          return s + Math.round(b.amount * 0.15);
+                        }, 0)}</span>
+                        <span className="text-[10px] text-slate-400 block mt-1">Weekend and evening hours extra</span>
+                      </div>
                     </div>
-                    <div className={`p-4 border rounded-xl ${isDarkMode ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-100'}`}>
-                      <span className="text-xs text-slate-500 block font-bold mb-1">CRICKET FIELD</span>
-                      <span className="text-xl font-extrabold text-amber-500">₹{bookings.filter(b => b.sport === 'Cricket' && b.status !== 'CANCELLED').reduce((s,b) => s+b.amount, 0)}</span>
-                      <span className="text-[10px] text-slate-400 block mt-1">From Cricket leagues</span>
-                    </div>
-                    <div className={`p-4 border rounded-xl ${isDarkMode ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-100'}`}>
-                      <span className="text-xs text-slate-500 block font-bold mb-1">PEAK SURCHARGES ACCRUED</span>
-                      <span className="text-xl font-extrabold text-purple-500">₹1,500</span>
-                      <span className="text-[10px] text-slate-400 block mt-1">Weekend and evening hours extra</span>
+
+                    {/* Live Pricing Simulator Controls */}
+                    <div className={`p-5 border rounded-2xl ${
+                      isDarkMode ? 'bg-[#030712]/60 border-slate-800' : 'bg-slate-50/50 border-slate-200 shadow-inner'
+                    } space-y-4`}>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-200">Live Surcharge Revenue Simulator</h4>
+                          <p className="text-[11px] text-slate-550 font-medium">Simulate weekly revenue growth by shifting surcharge rates.</p>
+                        </div>
+                        <span className="text-xs bg-emerald-500/10 text-emerald-450 px-2.5 py-1.5 rounded-xl border border-emerald-500/20 font-bold shrink-0">
+                          Projected Bump: +{formatCurrency(Math.round((bookings.length * 0.4 * peakSurcharge) + (bookings.length * 0.2 * weekendSurcharge)))} / week
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs font-semibold">
+                            <span className="text-slate-450">Peak Hour Surcharge (18:00 - 22:00)</span>
+                            <span className="text-emerald-455 font-bold">₹{peakSurcharge}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1000"
+                            step="50"
+                            value={peakSurcharge}
+                            onChange={(e) => setPeakSurcharge(Number(e.target.value))}
+                            className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs font-semibold">
+                            <span className="text-slate-450">Weekend Surcharge (Saturday - Sunday)</span>
+                            <span className="text-emerald-455 font-bold">₹{weekendSurcharge}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="800"
+                            step="50"
+                            value={weekendSurcharge}
+                            onChange={(e) => setWeekendSurcharge(Number(e.target.value))}
+                            className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}

@@ -123,13 +123,61 @@ export default function LoginPage() {
         <h1 className={`text-2xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Welcome back</h1>
         <p className={`text-sm mb-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Sign in to your account</p>
 
+        {/* Quick Demo Login Dropdown */}
+        <div className="mb-6">
+          <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${isDarkMode ? themeColors.textDark : themeColors.text}`}>
+            ⚡ Quick Demo Login
+          </label>
+          <select
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === 'customer') {
+                setRole('customer');
+                setEmail('customer@turfbook.com');
+                setPassword('password');
+              } else if (val === 'owner') {
+                setRole('owner');
+                setEmail('owner@turfbook.com');
+                setPassword('password');
+              } else if (val === 'admin') {
+                setRole('admin');
+                setEmail('admin@turfbook.com');
+                setPassword('password');
+              }
+            }}
+            defaultValue=""
+            className={`w-full px-3 py-3 rounded-xl border text-sm outline-none font-semibold transition-all ${
+              isDarkMode 
+                ? 'bg-[#0f172a] border-slate-700 text-slate-350 focus:border-indigo-500/50' 
+                : 'bg-white border-slate-300 text-slate-700 focus:border-emerald-500/50 shadow-sm'
+            }`}
+          >
+            <option value="" disabled>-- Select a Demo User --</option>
+            <option value="customer">👤 Customer (customer@turfbook.com)</option>
+            <option value="owner">🏟️ Turf Owner (owner@turfbook.com)</option>
+            <option value="admin">🛠️ System Admin (admin@turfbook.com)</option>
+          </select>
+        </div>
+
         {/* Role selector */}
         <div className={`flex rounded-xl p-1 mb-6 gap-1 ${isDarkMode ? 'bg-slate-800/60' : 'bg-slate-100'}`}>
           {(['customer', 'owner', 'admin'] as UserRole[]).map((r) => (
             <button
               key={r}
               type="button"
-              onClick={() => setRole(r)}
+              onClick={() => {
+                setRole(r);
+                if (r === 'customer') {
+                  setEmail('customer@turfbook.com');
+                  setPassword('password');
+                } else if (r === 'owner') {
+                  setEmail('owner@turfbook.com');
+                  setPassword('password');
+                } else if (r === 'admin') {
+                  setEmail('admin@turfbook.com');
+                  setPassword('password');
+                }
+              }}
               className={`flex-1 py-2 rounded-lg text-sm font-semibold capitalize transition-all duration-300 ${
                 role === r
                   ? `${themeColors.bgActive} text-white shadow-md transform scale-[1.02]`

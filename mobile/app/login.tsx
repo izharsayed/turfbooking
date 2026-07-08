@@ -41,6 +41,31 @@ export default function LoginScreen() {
   const [otpSent, setOtpSent] = useState(false);
   const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [devDropdownOpen, setDevDropdownOpen] = useState(false);
+
+  // ── Dummy accounts for quick dev testing ──────────────────────────────
+  const DUMMY_ACCOUNTS = [
+    { label: '👤 Customer', phone: '9000000001', email: 'customer@turfbook.com', password: 'Customer@123', role: 'CUSTOMER',    name: 'Demo Customer' },
+    { label: '🏟️ Owner',    phone: '9000000002', email: 'owner@turfbook.com',    password: 'Owner@123',    role: 'TURF_OWNER', name: 'Demo Owner'    },
+  ];
+
+  const applyDummyLogin = (account: typeof DUMMY_ACCOUNTS[0]) => {
+    // Bypass API — directly set auth store with a fake token (dev only)
+    login(
+      {
+        id: `dev-${account.role.toLowerCase()}`,
+        email: account.email,
+        name: account.name,
+        phone: account.phone,
+        role: account.role,
+      },
+      'dev-token-bypass'
+    );
+    setDevDropdownOpen(false);
+    router.replace(account.role === 'TURF_OWNER' ? '/owner' : '/');
+  };
+  // ─────────────────────────────────────────────────────────────────────
+
 
   const handleSendOtp = async () => {
     if (!phone || phone.length < 10) {
@@ -112,7 +137,7 @@ export default function LoginScreen() {
           },
           loginRes.data.accessToken
         );
-        router.replace('/');
+        router.replace(loginRes.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
       } catch (e: any) {
         Alert.alert('Registration Failed', e.message || 'Something went wrong.');
       }
@@ -137,7 +162,7 @@ export default function LoginScreen() {
             },
             res.data.accessToken
           );
-          router.replace('/');
+          router.replace(res.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
         } catch (e: any) {
           Alert.alert('OTP Verification Failed', e.message || 'Invalid or expired OTP');
         }
@@ -162,7 +187,7 @@ export default function LoginScreen() {
             },
             res.data.accessToken
           );
-          router.replace('/');
+          router.replace(res.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
         } catch (e: any) {
           Alert.alert('Login Failed', e.message || 'Invalid email or password');
         }
@@ -202,6 +227,44 @@ export default function LoginScreen() {
           <Text style={[styles.brandName, { color: theme.text }]}>TurfBook</Text>
           <Text style={styles.brandTagline}>Book your game. Own the pitch.</Text>
         </View>
+
+        {/* ── Dev Quick Login Dropdown ─────────────────────── */}
+        <TouchableOpacity
+          style={[styles.devBar, { backgroundColor: isDarkMode ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)', borderColor: 'rgba(99,102,241,0.3)' }]}
+          onPress={() => setDevDropdownOpen(!devDropdownOpen)}
+          activeOpacity={0.75}
+        >
+          <MaterialCommunityIcons name="test-tube" size={14} color="#6366f1" />
+          <Text style={styles.devBarText}>Dev Quick Login</Text>
+          <MaterialCommunityIcons
+            name={devDropdownOpen ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color="#6366f1"
+            style={{ marginLeft: 'auto' }}
+          />
+        </TouchableOpacity>
+
+        {devDropdownOpen && (
+          <View style={[styles.devDropdown, { backgroundColor: isDarkMode ? '#0f172a' : '#ffffff', borderColor: 'rgba(99,102,241,0.25)' }]}>
+            {DUMMY_ACCOUNTS.map((acct) => (
+              <TouchableOpacity
+                key={acct.role}
+                style={[styles.devAccountRow, { borderBottomColor: isDarkMode ? '#1e293b' : '#f1f5f9' }]}
+                onPress={() => applyDummyLogin(acct)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.devAccountLabel, { color: isDarkMode ? '#ffffff' : '#0f172a' }]}>{acct.label}</Text>
+                  <Text style={[styles.devAccountEmail, { color: '#6366f1' }]}>📱 {acct.phone} · Instant bypass</Text>
+                </View>
+                <View style={[styles.devFillBtn, { backgroundColor: 'rgba(99,102,241,0.12)' }]}>
+                  <Text style={styles.devFillBtnText}>Fill</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        {/* ─────────────────────────────────────────────────── */}
 
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.title, { color: theme.text }]}>
@@ -565,5 +628,55 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Dev quick login styles
+  devBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  devBarText: {
+    color: '#6366f1',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  devDropdown: {
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  devAccountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  devAccountLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  devAccountEmail: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  devFillBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  devFillBtnText: {
+    color: '#6366f1',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

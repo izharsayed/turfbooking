@@ -155,7 +155,11 @@ async function seed() {
       console.log(`Created user: ${u.email} (${userId})`);
     } else {
       userId = existingUser.docs[0].id;
-      console.log(`User already exists: ${u.email} (${userId})`);
+      await firestoreDb.collection('users').doc(userId).update({
+        passwordHash,
+        isActive: true
+      });
+      console.log(`User already exists: ${u.email} (${userId}) - updated password hash and active status.`);
     }
     usersMap[u.email] = userId;
   }

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import NearbyMap from './NearbyMap';
+import api from '../../services/api';
 
 // Inlined from @turf-booking/ui
 function Button({ children, onClick, className = '', variant = 'primary', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) {
@@ -142,18 +143,87 @@ export default function App() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
 
+  // Backend Turfs list state
+  const [turfs, setTurfs] = useState<Turf[]>([]);
+
   // Booking details
-  const [bookings, setBookings] = useState<any[]>([
-    {
-      id: 'B-88392',
-      turfName: 'Old Trafford Arena',
-      date: '2026-07-08',
-      time: '18:00 - 19:00',
-      sport: 'Football',
-      amount: 1200,
-      status: 'UPCOMING'
+  const [bookings, setBookings] = useState<any[]>([]);
+
+  // Load Turfs from Backend
+  useEffect(() => {
+    const fetchTurfs = async () => {
+      try {
+        const res = await api.get('/turfs');
+        const backendTurfs = res.data?.data || [];
+        
+        const getSportName = (sportId: string): string => {
+          const map: Record<string, string> = {
+            'NHQKZB3YRCRhWBL95sUE': 'Football',
+            'nB4mpucB3cyLZA8gXxiA': 'Cricket',
+            'HV8G3I9zmsYnUWFqqqMV': 'Box Cricket'
+          };
+          return map[sportId] || 'Football';
+        };
+
+        const mapped: Turf[] = backendTurfs.map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          description: t.description || '',
+          city: t.location?.city || 'Ahmednagar',
+          area: t.location?.area || 'Savedi',
+          price: t.pricePerHour || 1200,
+          sport: getSportName(t.sports?.[0] || ''),
+          rating: t.rating || 5.0,
+          image: t.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
+          amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
+          lat: t.location?.latitude || 19.0948,
+          lng: t.location?.longitude || 74.7480
+        }));
+        setTurfs(mapped);
+      } catch (err) {
+        console.error('Error fetching turfs:', err);
+      }
+    };
+    fetchTurfs();
+  }, []);
+
+  // Load Bookings from Backend
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setBookings([
+        {
+          id: 'B-88392',
+          turfName: 'Old Trafford Arena',
+          date: '2026-07-08',
+          time: '18:00 - 19:00',
+          sport: 'Football',
+          amount: 1200,
+          status: 'UPCOMING'
+        }
+      ]);
+      return;
     }
-  ]);
+
+    const fetchBookings = async () => {
+      try {
+        const res = await api.get('/bookings');
+        const list = res.data?.data || [];
+        const mapped = list.map((b: any) => ({
+          id: b.id,
+          turfName: b.turfName,
+          date: b.date,
+          time: b.time,
+          sport: b.sport || 'Football',
+          amount: b.amount,
+          status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : 'CANCELLED'
+        }));
+        setBookings(mapped);
+      } catch (err) {
+        console.error('Error fetching bookings:', err);
+      }
+    };
+    fetchBookings();
+  }, [isAuthenticated]);
 
   // Support state
   const [tickets, setTickets] = useState<any[]>([
@@ -228,25 +298,40 @@ export default function App() {
     }
   };
 
-  const handleBookSlot = () => {
+  const handleBookSlot = async () => {
     if (!isAuthenticated) {
       setAuthMode('login');
       return;
     }
-    if (!selectedTime) return;
+    if (!selectedTime || !selectedTurf) return;
 
-    const newBooking = {
-      id: `B-${Math.floor(10000 + Math.random() * 90000)}`,
-      turfName: selectedTurf!.name,
-      date: selectedDate,
-      time: selectedTime,
-      sport: selectedTurf!.sport,
-      amount: selectedTurf!.price,
-      status: 'UPCOMING'
-    };
+    try {
+      const bookingPayload = {
+        turfId: selectedTurf.id,
+        slotId: selectedTime,
+        amount: selectedTurf.price,
+        time: selectedTime,
+      };
+      
+      const res = await api.post('/bookings', bookingPayload);
+      const created = res.data?.data;
 
-    setBookings([newBooking, ...bookings]);
-    setBookingStep('success');
+      const newBooking = {
+        id: created?.id || `B-${Math.floor(10000 + Math.random() * 90000)}`,
+        turfName: selectedTurf.name,
+        date: selectedDate,
+        time: selectedTime,
+        sport: selectedTurf.sport,
+        amount: selectedTurf.price,
+        status: 'UPCOMING'
+      };
+
+      setBookings([newBooking, ...bookings]);
+      setBookingStep('success');
+    } catch (err) {
+      console.error('Error creating booking:', err);
+      alert('Failed to complete booking on the server.');
+    }
   };
 
   const handleRaiseTicket = (e: React.FormEvent) => {
@@ -262,7 +347,7 @@ export default function App() {
     setNewTicketSubject('');
   };
 
-  const filteredTurfs = sampleTurfs.filter((t) => {
+  const filteredTurfs = turfs.filter((t) => {
     const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || t.city.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSport = selectedSport === 'All' || t.sport === selectedSport;
     return matchesSearch && matchesSport;
@@ -734,7 +819,7 @@ export default function App() {
         {/* Tab 4: Nearby Map Finder */}
         {activeTab === 'nearby' && (
           <NearbyMap
-            turfs={sampleTurfs}
+            turfs={turfs}
             isDarkMode={isDarkMode}
             onSelectTurf={(turf) => {
               setSelectedTurf(turf);

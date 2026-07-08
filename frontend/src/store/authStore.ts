@@ -32,8 +32,9 @@ const getStoredUser = (): UserProfile | null => {
 export const useAuthStore = create<AuthState>((set) => ({
   user: getStoredUser(),
   token: localStorage.getItem('token'),
+  refreshToken: localStorage.getItem('refreshToken'),
   isAuthenticated: !!localStorage.getItem('token') && !!localStorage.getItem('user'),
-  login: (user, token) => {
+  login: (user, token, refreshToken) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
     if (refreshToken) localStorage.setItem('refreshToken', refreshToken);

@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-07 16:06 IST
+> Last updated: 2026-07-08 16:15 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -742,3 +742,86 @@ pnpm dev:backend      # start the server
 ### 61. `backend/src/modules/admin/admin.validators.ts` — Modified
 - Made the `status` field optional in `ownerApprovalSchema`.
 - **Why**: The frontend `/admin/owners/:id/reject` call only sends `{ rejectionReason: '...' }` in the body since status is implicit for this endpoint. Without making status optional, the Zod validator was failing with a validation error on reject.
+
+### 62. `mobile/app/owner/_layout.tsx` — Created
+- Tab navigator for the owner panel with 4 tabs: Dashboard, Bookings, Turfs, Profile.
+- Uses indigo accent (`#6366f1`) to visually distinguish owner context from customer app (`#10b981`).
+- **Why**: Entry point for the owner panel section of the mobile app.
+
+### 63. `mobile/app/owner/index.tsx` — Created (Owner Dashboard)
+- Shows stats cards: Today's Revenue, Today's Bookings, Total Revenue, Active Turfs.
+- Recent bookings list with customer name, turf, amount, status.
+- Quick action buttons to navigate to Bookings and Turfs tabs.
+- Pending reviews alert strip.
+- Connects to `GET /api/v1/owner/dashboard` with mock data fallback.
+- Role guard: redirects non-TURF_OWNER users to `/` or `/login`.
+- **Why**: Primary landing page for the owner after login.
+
+### 64. `mobile/app/owner/bookings.tsx` — Created (Owner Bookings)
+- Filter tabs: All / Confirmed / Completed / Cancelled.
+- Per-booking cancel action with confirmation dialog.
+- Pull-to-refresh support.
+- Connects to `GET /api/v1/owner/bookings` and `PUT /api/v1/owner/bookings/:id/cancel`.
+- Mock fallback data included.
+- **Why**: Lets owners manage all bookings for their turfs.
+
+### 65. `mobile/app/owner/turfs.tsx` — Created (Owner Turfs Management)
+- Lists all owner's turfs with active/inactive status indicator strip.
+- Add/Edit turf via slide-up bottom sheet modal with form: name, address, price/hr, sport selector, description, active toggle.
+- Delete turf with confirmation.
+- Connects to full CRUD: `GET/POST/PUT/DELETE /api/v1/owner/turfs`.
+- **Why**: Core owner management page for creating and updating turf listings.
+
+### 66. `mobile/app/owner/profile.tsx` — Created (Owner Profile)
+- Shows identity card with avatar initials, owner badge, contact info.
+- Stats: Total Turfs, Total Bookings, Total Revenue.
+- Inline edit form for name, phone, business name.
+- Quick nav menu to Turfs and Bookings.
+- Logout button.
+- Connects to `GET /api/v1/owner/profile` and `PUT /api/v1/owner/profile`.
+- **Why**: Lets owner view and edit their account and business details.
+
+### 67. `mobile/app/_layout.tsx` — Modified
+- Added `<Stack.Screen name="owner" options={{ headerShown: false }} />` to register the owner tab navigator route.
+- **Why**: Required for Expo Router to recognize `/owner/*` paths.
+
+### 68. `mobile/app/login.tsx` — Modified
+- Changed all 3 `router.replace('/')` calls after login/register to role-based routing:
+  `router.replace(role === 'TURF_OWNER' ? '/owner' : '/')`
+- **Why**: Implements Option B auto-routing — owners automatically land on their dashboard, customers land on the customer home screen.
+
+### 69. `frontend/src/pages/LoginPage.tsx` — Modified
+- Re-introduced the "⚡ Quick Demo Login" select dropdown.
+- Updated role selector tab button clicks to automatically pre-fill email and password inputs with corresponding seeded credentials.
+- **Why**: Allows instant testing/demo login without requiring manual typing.
+
+### 70. `frontend/src/vite-env.d.ts` — Created [NEW]
+- Added standard Vite client reference directives.
+- **Why**: Fixes a TypeScript compiler error regarding `import.meta.env` property references.
+
+### 71. `frontend/src/store/authStore.ts` — Modified
+- Declared the missing `refreshToken` state property in `useAuthStore` initialization.
+- Added `refreshToken` as an argument to the store's `login` function.
+- **Why**: Fixes TypeScript compiler type mismatches with the `AuthState` interface.
+
+### 72. `frontend/src/pages/owner/OwnerApp.tsx` — Modified
+- Replaced the duplicate api client import pointing to `store/api` with the standard default client in `services/api`.
+- Integrated a live **Weather Advisory** operational widget inside the "Quick Status" sidebar panel.
+- Developed an interactive **Surcharge Revenue Simulator** toolbar slider inside the revenue distribution tab to estimate weekly revenue growth.
+- **Why**: Standardizes Axios communication to allow auto-refresh token headers on 401, fixes the "Failed to save turf" expired token bug, and adds key operational business tools for owners.
+
+### 73. `frontend/src/store/api.ts` — Deleted [DELETE]
+- Removed the duplicate Axios client file.
+- **Why**: Redundant codebase asset that lacks JWT auto-refresh features and conflicts with `services/api`.
+
+### 74. `backend/src/database/seedFirebase.ts` — Modified
+- Updated user seeding block to call `.update()` on existing user documents in Firestore, ensuring their password hashes are updated to bcrypt and their status is active.
+- **Why**: Pre-existing users had plain text passwords stored in the database, causing authentication attempts to fail.
+
+### 75. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+- Replaced the static hardcoded mock `sampleTurfs` array with a dynamic `turfs` state loaded on mount from `GET /api/v1/turfs`.
+- Mapped backend sport IDs correctly to the human-readable sport labels used in the customer UI filters.
+- Replaced the static mock customer bookings log with live database bookings loaded from `GET /api/v1/bookings`.
+- Refactored `handleBookSlot` to make a real `POST /api/v1/bookings` call when completing customer checkouts.
+- Connected the Nearby map markers to the live database `turfs` coordinates state.
+- **Why**: Responds to user request to make sure turfs added in the Owner panel appear immediately in the Customer panel.
