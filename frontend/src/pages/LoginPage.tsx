@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore, UserRole } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import { Sun, Moon, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Sun, Moon, Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
+import api from '../services/api';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -10,35 +11,53 @@ export default function LoginPage() {
   const { isDarkMode, toggleTheme } = useThemeStore();
 
   const [role, setRole] = useState<UserRole>('customer');
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone || !password) {
+    if (!email || !password) {
       setError('Please fill in all fields');
       return;
     }
+    setError('');
+    setIsLoading(true);
+    try {
+      const res = await api.post('/auth/login', { email, password });
+      const { accessToken, refreshToken, user: backendUser } = res.data.data;
 
-    // Mock login — replace with real API call
-    const mockUser = {
-      id: '1',
-      email: `${role}@turfbook.com`,
-      role,
-      name: role === 'admin' ? 'Admin User' : role === 'owner' ? 'Turf Owner' : 'Customer',
-      phone,
-    };
+      // Map backend role to frontend role
+      const roleMap: Record<string, UserRole> = {
+        SUPER_ADMIN: 'admin',
+        TURF_OWNER: 'owner',
+        CUSTOMER: 'customer',
+      };
+      const mappedRole: UserRole = roleMap[backendUser.role] || 'customer';
 
-    login(mockUser, 'mock-token-' + role);
+      const userProfile = {
+        id: backendUser.id,
+        email: backendUser.email,
+        role: mappedRole,
+        name: backendUser.name || backendUser.email,
+        phone: backendUser.phone,
+      };
 
-    const redirects: Record<UserRole, string> = {
-      customer: '/customer',
-      owner: '/owner',
-      admin: '/admin',
-    };
-    navigate(redirects[role]);
+      login(userProfile, accessToken, refreshToken);
+
+      const redirects: Record<UserRole, string> = {
+        customer: '/customer',
+        owner: '/owner',
+        admin: '/admin',
+      };
+      navigate(redirects[mappedRole]);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Invalid email or password');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Dynamic theme colors based on role
@@ -123,23 +142,18 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
-          {/* Phone */}
+          {/* Email */}
           <div>
             <label className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              Phone Number
+              Email Address
             </label>
-            <div className={`flex rounded-xl border overflow-hidden ${isDarkMode ? 'border-slate-700' : 'border-slate-300'}`}>
-              <span className={`px-3 py-3 text-sm font-medium border-r ${isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-300'}`}>
-                +91
-              </span>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="9876543210"
-                className={`flex-1 px-3 py-3 text-sm outline-none ${isDarkMode ? 'bg-[#0f172a] text-white placeholder-slate-600' : 'bg-white text-slate-900 placeholder-slate-400'}`}
-              />
-            </div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@turfbook.com"
+              className={`w-full px-4 py-3 text-sm rounded-xl border outline-none transition-all ${isDarkMode ? 'bg-[#0f172a] text-white placeholder-slate-600 border-slate-700 focus:border-indigo-500' : 'bg-white text-slate-900 placeholder-slate-400 border-slate-300 focus:border-indigo-400'}`}
+            />
           </div>
 
           {/* Password */}
@@ -169,10 +183,11 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className={`w-full py-3.5 rounded-xl text-white font-semibold text-sm transition-all duration-300 shadow-lg mt-4 flex items-center justify-center gap-2 hover:-translate-y-0.5 ${themeColors.bgActive} ${themeColors.bgHover} ${themeColors.btnShadow}`}
+            disabled={isLoading}
+            className={`w-full py-3.5 rounded-xl text-white font-semibold text-sm transition-all duration-300 shadow-lg mt-4 flex items-center justify-center gap-2 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed ${themeColors.bgActive} ${themeColors.bgHover} ${themeColors.btnShadow}`}
           >
-            {isRoleAdmin && <ShieldCheck className="h-4 w-4" />}
-            Sign In as {role.charAt(0).toUpperCase() + role.slice(1)}
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isRoleAdmin ? <ShieldCheck className="h-4 w-4" /> : null}
+            {isLoading ? 'Signing in...' : `Sign In as ${role.charAt(0).toUpperCase() + role.slice(1)}`}
           </button>
         </form>
       </div>
