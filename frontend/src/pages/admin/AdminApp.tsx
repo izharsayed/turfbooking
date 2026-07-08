@@ -39,7 +39,7 @@ export default function App() {
 
   // --- MODAL STATES ---
   const [showAddOwnerModal, setShowAddOwnerModal] = useState(false);
-  const [newOwnerForm, setNewOwnerForm] = useState({ name: '', email: '', phone: '', password: '' });
+  const [newOwnerForm, setNewOwnerForm] = useState({ companyName: '', email: '', phone: '', password: '', businessRegisterNumber: '', businessAddress: '', billingEmail: '' });
 
   // --- API CALLS ---
   const fetchDashboardStats = async () => {
@@ -129,7 +129,7 @@ export default function App() {
       setIsLoading(true);
       await api.post('/auth/register-owner', newOwnerForm);
       setShowAddOwnerModal(false);
-      setNewOwnerForm({ name: '', email: '', phone: '', password: '' });
+      setNewOwnerForm({ companyName: '', email: '', phone: '', password: '', businessRegisterNumber: '', businessAddress: '', billingEmail: '' });
       fetchOwners(); // Refresh
       alert('Owner added successfully and is pending approval.');
     } catch (err: any) {
@@ -413,21 +413,35 @@ export default function App() {
           <div className={`w-full max-w-md p-6 rounded-2xl shadow-2xl ${isDarkMode ? 'bg-slate-900 border border-slate-700' : 'bg-white border border-slate-200'}`}>
             <h3 className={`text-xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Add New Owner</h3>
             <form onSubmit={handleAddOwner} className="space-y-4">
-              <div>
-                <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Name</label>
-                <input required type="text" value={newOwnerForm.name} onChange={e => setNewOwnerForm({...newOwnerForm, name: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
-              </div>
-              <div>
-                <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Email</label>
-                <input required type="email" value={newOwnerForm.email} onChange={e => setNewOwnerForm({...newOwnerForm, email: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
-              </div>
-              <div>
-                <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Phone</label>
-                <input required type="text" value={newOwnerForm.phone} onChange={e => setNewOwnerForm({...newOwnerForm, phone: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
-              </div>
-              <div>
-                <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Password</label>
-                <input required type="password" value={newOwnerForm.password} onChange={e => setNewOwnerForm({...newOwnerForm, password: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Company Name</label>
+                  <input required type="text" value={newOwnerForm.companyName} onChange={e => setNewOwnerForm({...newOwnerForm, companyName: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Email</label>
+                  <input required type="email" value={newOwnerForm.email} onChange={e => setNewOwnerForm({...newOwnerForm, email: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Phone</label>
+                  <input required type="text" value={newOwnerForm.phone} onChange={e => setNewOwnerForm({...newOwnerForm, phone: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Password</label>
+                  <input required type="password" value={newOwnerForm.password} onChange={e => setNewOwnerForm({...newOwnerForm, password: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Business Register Number</label>
+                  <input required type="text" value={newOwnerForm.businessRegisterNumber} onChange={e => setNewOwnerForm({...newOwnerForm, businessRegisterNumber: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Billing Email</label>
+                  <input required type="email" value={newOwnerForm.billingEmail} onChange={e => setNewOwnerForm({...newOwnerForm, billingEmail: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className={`block text-sm font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Business Address</label>
+                  <input required type="text" value={newOwnerForm.businessAddress} onChange={e => setNewOwnerForm({...newOwnerForm, businessAddress: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} />
+                </div>
               </div>
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="ghost" onClick={() => setShowAddOwnerModal(false)} className={isDarkMode ? 'text-slate-300' : 'text-slate-600'}>Cancel</Button>

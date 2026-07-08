@@ -685,3 +685,60 @@ pnpm dev:backend      # start the server
 - Created a `showAddOwnerModal` state and a corresponding form modal with fields for Name, Email, Phone, and Password.
 - Implemented `handleAddOwner` to send a `POST` request to `/auth/register-owner` with the form data.
 - **Why**: Fulfills the user's request to allow admins to directly register new owners from the Admin dashboard.
+
+### 53. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Updated the "Add New Owner" modal form to collect the exact fields required by the backend `registerOwnerSchema` (companyName, businessRegisterNumber, businessAddress, billingEmail).
+- **Why**: The form previously only collected name, email, phone, and password, which caused the backend to reject the request with validation errors, preventing the new owner data from reaching the database.
+
+### 54. `frontend/src/services/api.ts` — Modified
+- Changed baseURL from `http://localhost:5000/api` → `http://localhost:5000/api/v1`.
+- **Why**: All backend routes are mounted under `/api/v1/` (e.g. `/api/v1/auth`, `/api/v1/admin`). The frontend was sending every request to `/api/...` which hit a 404, causing "Failed to add owner" and all other API calls to silently fail. This was the root cause of the error.
+
+### 55. `frontend/src/pages/LoginPage.tsx` — Rewritten
+- Replaced the **mock login** (`login(mockUser, 'mock-token-' + role)`) with a **real API call** to `POST /api/v1/auth/login`.
+- Changed the login form field from `phone` to `email` (backend login uses email + password).
+- Maps backend roles (`SUPER_ADMIN`, `TURF_OWNER`, `CUSTOMER`) to frontend roles (`admin`, `owner`, `customer`).
+- Stores real `accessToken` and `refreshToken` from the backend response.
+- Added `isLoading` state with spinner and disabled button during API call.
+- Shows real error messages from the backend on failed login.
+- **Why**: The login page was using a hardcoded mock token which was never accepted by the backend. All admin API calls returned "Invalid or expired access token" because `mock-token-admin` is not a valid JWT.
+
+### 56. `frontend/src/store/authStore.ts` — Modified
+- Added `refreshToken` field to state, stored in `localStorage`.
+- Added `setToken()` action to update only the access token (used during token refresh).
+- Updated `login()` to accept an optional `refreshToken` parameter.
+- Updated `logout()` to clear `refreshToken` from localStorage.
+- **Why**: The authStore previously only stored the access token. The refresh token is needed by the API interceptor to auto-renew expired sessions.
+
+### 57. `frontend/src/services/api.ts` — Modified
+- Added **automatic token refresh** logic to the Axios 401 response interceptor.
+- When a 401 is received, checks for a stored `refreshToken` and calls `POST /api/v1/auth/refresh`.
+- If refresh succeeds, updates the access token via `setToken()` and retries the original request.
+- Queues multiple concurrent 401 requests and replays them after a single refresh.
+- If refresh fails, calls `logout()` and redirects to `/login`.
+- **Why**: Access tokens expire after 15 minutes. Without refresh logic, all admin API calls fail after 15 minutes and the user is silently stuck.
+
+### 58. `backend/seed-firebase-admin.js` — Created
+- New plain Node.js seed script (CommonJS, no TypeScript compilation needed).
+- Creates the `SUPER_ADMIN` user directly in Firestore with email `admin@turfbook.com` and password `Admin@12345`.
+- Also creates the `user_profiles` document for the admin.
+- Skips creation if admin already exists (idempotent).
+- **Why**: The existing `prisma/seed.ts` uses Prisma/PostgreSQL. Since the project runs on Firebase, the admin user was never seeded into Firestore, making admin login impossible.
+- **Run with**: `node seed-firebase-admin.js` from the `backend/` directory.
+
+### 59. `backend/reset-admin-password.js` — Created
+- Script that resets the admin user's `passwordHash` in Firestore with a freshly generated and pre-verified bcrypt hash.
+- New admin password set to `Admin123` (no special characters to avoid encoding issues).
+- **Why**: The original seed used `Admin@12345` with an `@` symbol. The bcrypt hash was generating correctly but `bcrypt.compare()` was failing at login, likely due to special character encoding differences on Windows between the seed and the runtime context.
+- **Admin credentials (Firebase)**: `admin@turfbook.com` / `Admin123`
+- **Run with**: `node reset-admin-password.js` from the `backend/` directory.
+
+### 60. `backend/src/repositories/firebase/FirebaseAdminRepository.ts` — Modified
+- Formatted `createdAt` and `updatedAt` to ISO string format in `listOwners()` to prevent "Invalid Date" from rendering on the frontend.
+- Added mapping of `ownerStatus` in `listOwners()` from `data.ownerStatus` or computed status from `isActive` status (e.g. `data.ownerStatus || (data.isActive ? 'APPROVED' : 'PENDING')`).
+- Handled third parameter `rejectionReason` in `updateOwnerApproval()` to write `ownerStatus` as well as `rejectionReason` fields into Firestore user documents.
+- **Why**: Fixes the Owner Approvals list UI state and actions so that clicking "Approve" or "Reject" successfully persists the status changes to Firestore and updates the buttons/badges accordingly.
+
+### 61. `backend/src/modules/admin/admin.validators.ts` — Modified
+- Made the `status` field optional in `ownerApprovalSchema`.
+- **Why**: The frontend `/admin/owners/:id/reject` call only sends `{ rejectionReason: '...' }` in the body since status is implicit for this endpoint. Without making status optional, the Zod validator was failing with a validation error on reject.

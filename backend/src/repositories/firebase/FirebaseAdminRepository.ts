@@ -9,63 +9,61 @@ export class FirebaseAdminRepository implements IAdminRepository {
 
   public async getDashboardStats(): Promise<any> {
     if (!firestoreDb) return {};
-    
+
     const [
-      totalUsersSnap,
-      totalOwnersSnap,
-      pendingOwnersSnap,
-      approvedOwnersSnap,
+      allUsersSnap,
       totalTurfsSnap,
       activeTurfsSnap,
       bookingsSnap,
     ] = await Promise.all([
-      this.collection.where('role', '==', 'CUSTOMER').get(),
-      this.collection.where('role', '==', 'TURF_OWNER').get(),
-      this.collection.where('role', '==', 'TURF_OWNER').where('isActive', '==', false).get(),
-      this.collection.where('role', '==', 'TURF_OWNER').where('isActive', '==', true).get(),
-      firestoreDb.collection('turfs').get(),
-      firestoreDb.collection('turfs').where('isActive', '==', true).get(),
-      firestoreDb.collection('bookings').get(),
+      this.collection.get(),                                            // All users
+      firestoreDb.collection('turfs').get(),                           // All turfs
+      firestoreDb.collection('turfs').where('isActive', '==', true).get(), // Active turfs
+      firestoreDb.collection('bookings').get(),                        // All bookings
     ]);
 
-    const totalUsers = totalUsersSnap.size;
-    const totalOwners = totalOwnersSnap.size;
-    const pendingOwners = pendingOwnersSnap.size;
-    const approvedOwners = approvedOwnersSnap.size;
+    // Client-side filter to avoid composite index requirements
+    const allUsers = allUsersSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+    const customers      = allUsers.filter(u => u.role === 'CUSTOMER'   && !u.deletedAt);
+    const allOwners      = allUsers.filter(u => u.role === 'TURF_OWNER' && !u.deletedAt);
+    const pendingOwners  = allOwners.filter(u => !u.isActive);
+    const approvedOwners = allOwners.filter(u =>  u.isActive);
+
     const totalTurfs = totalTurfsSnap.size;
     const activeTurfs = activeTurfsSnap.size;
     const todayBookings = bookingsSnap.size;
 
     return {
-      totalUsers,
-      totalTurfOwners: totalOwners,
-      pendingOwnerApprovals: pendingOwners,
-      approvedOwners,
-      rejectedOwners: 0,
-      blockedUsers: 0,
+      totalUsers:              customers.length,
+      totalTurfOwners:         allOwners.length,
+      pendingOwnerApprovals:   pendingOwners.length,
+      approvedOwners:          approvedOwners.length,
+      rejectedOwners:          0,
+      blockedUsers:            allUsers.filter(u => !u.isActive && u.role === 'CUSTOMER').length,
       totalTurfs,
       activeTurfs,
-      inactiveTurfs: totalTurfs - activeTurfs,
+      inactiveTurfs:           totalTurfs - activeTurfs,
       todayBookings,
-      todayRevenue: 0,
-      monthlyRevenue: 0,
-      platformRevenue: 0,
-      ownerRevenue: 0,
-      refundAmount: 0,
-      pendingRefunds: 0,
-      totalCoupons: 0,
-      activeCoupons: 0,
-      expiredCoupons: 0,
-      averageRating: 0.0,
-      mostPopularTurf: null,
-      mostPopularSport: null,
-      topCities: [],
-      peakBookingHours: [],
-      recentBookings: [],
-      recentRegisteredUsers: [],
-      recentRegisteredOwners: [],
+      todayRevenue:            0,
+      monthlyRevenue:          0,
+      platformRevenue:         0,
+      ownerRevenue:            0,
+      refundAmount:            0,
+      pendingRefunds:          0,
+      totalCoupons:            0,
+      activeCoupons:           0,
+      expiredCoupons:          0,
+      averageRating:           0.0,
+      mostPopularTurf:         null,
+      mostPopularSport:        null,
+      topCities:               [],
+      peakBookingHours:        [],
+      recentBookings:          [],
+      recentRegisteredUsers:   customers.slice(-5).reverse(),
+      recentRegisteredOwners:  allOwners.slice(-5).reverse(),
     };
   }
+
 
   public async listUsers(filters: {
     role?: string;
@@ -104,7 +102,16 @@ export class FirebaseAdminRepository implements IAdminRepository {
     snap.forEach((doc: any) => {
       const data = doc.data();
       if (!data.deletedAt) {
-        list.push({ id: doc.id, ...data });
+        const createdAt = data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAt).toISOString()) : new Date().toISOString();
+        const updatedAt = data.updatedAt ? (data.updatedAt.toDate ? data.updatedAt.toDate().toISOString() : new Date(data.updatedAt).toISOString()) : new Date().toISOString();
+        
+        list.push({ 
+          id: doc.id, 
+          ...data,
+          createdAt,
+          updatedAt,
+          ownerStatus: data.ownerStatus || (data.isActive ? 'APPROVED' : 'PENDING')
+        });
       }
     });
     return list;
@@ -112,11 +119,20 @@ export class FirebaseAdminRepository implements IAdminRepository {
 
   public async updateOwnerApproval(
     ownerId: string,
-    status: 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED'
+    status: 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED',
+    rejectionReason?: string
   ): Promise<any> {
     const docRef = this.collection.doc(ownerId);
     const isActive = status === 'APPROVED';
-    await docRef.update({ isActive, updatedAt: new Date() });
+    const updateData: any = { 
+      isActive, 
+      ownerStatus: status, 
+      updatedAt: new Date() 
+    };
+    if (rejectionReason !== undefined) {
+      updateData.rejectionReason = rejectionReason;
+    }
+    await docRef.update(updateData);
     const doc = await docRef.get();
     return { id: doc.id, ...doc.data() };
   }

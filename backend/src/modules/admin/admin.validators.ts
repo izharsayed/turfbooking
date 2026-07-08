@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const ownerApprovalSchema = z.object({
-  status: z.enum(['PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED']),
+  status: z.enum(['PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED']).optional(),
   rejectionReason: z.string().optional(),
 });
 
