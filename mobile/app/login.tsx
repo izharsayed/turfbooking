@@ -12,15 +12,17 @@ import {
   Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { apiFetch } from '../utils/api';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { login } = useAuthStore();
-  const { isDarkMode } = useThemeStore();
+  const { isDarkMode, toggleTheme } = useThemeStore();
 
   const theme = {
     bg: isDarkMode ? '#030712' : '#f8fafc',
@@ -39,18 +41,49 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
-  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
+  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('otp');
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [devDropdownOpen, setDevDropdownOpen] = useState(false);
 
   // ── Dummy accounts for quick dev testing ──────────────────────────────
   const DUMMY_ACCOUNTS = [
-    { label: '👤 Customer', phone: '9000000001', email: 'customer@turfbook.com', password: 'Customer@123', role: 'CUSTOMER',    name: 'Demo Customer' },
-    { label: '🏟️ Owner',    phone: '9000000002', email: 'owner@turfbook.com',    password: 'Owner@123',    role: 'TURF_OWNER', name: 'Demo Owner'    },
+    { label: '👤 Customer', phone: '9876543210', email: 'customer@turfbook.com', password: 'password', role: 'CUSTOMER',    name: 'Demo Customer' },
+    { label: '🏟️ Owner',    phone: '9999988888', email: 'owner@turfbook.com',    password: 'password',    role: 'TURF_OWNER', name: 'Ahmednagar Sports Arena' },
   ];
 
-  const applyDummyLogin = (account: typeof DUMMY_ACCOUNTS[0]) => {
-    // Bypass API — directly set auth store with a fake token (dev only)
+  const applyDummyLogin = async (account: typeof DUMMY_ACCOUNTS[0]) => {
+    try {
+      // 1. Send OTP
+      await apiFetch('/auth/send-otp', {
+        method: 'POST',
+        body: { phone: account.phone },
+      });
+      // 2. Verify OTP with our dev bypass code (123456)
+      const res = await apiFetch('/auth/verify-otp', {
+        method: 'POST',
+        body: { phone: account.phone, code: '123456' },
+      });
+
+      if (res.success && res.data) {
+        login(
+          {
+            id: res.data.user.id,
+            email: res.data.user.email,
+            name: `${res.data.user.profile?.firstName || ''} ${res.data.user.profile?.lastName || ''}`.trim() || res.data.user.name || account.name,
+            phone: res.data.user.phone,
+            role: res.data.user.role,
+          },
+          res.data.accessToken
+        );
+        setDevDropdownOpen(false);
+        router.replace(res.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
+        return;
+      }
+    } catch (e) {
+      console.log('Real dev OTP login failed, falling back to bypass mode', e);
+    }
+
+    // Offline / Backend Unavailable Fallback: Directly set store state
     login(
       {
         id: `dev-${account.role.toLowerCase()}`,
@@ -95,14 +128,9 @@ export default function LoginScreen() {
         Alert.alert('Error', 'Please enter your name');
         return;
       }
-      if (!email || !email.includes('@')) {
-        Alert.alert('Error', 'Please enter a valid email address');
-        return;
-      }
-      if (!password || password.length < 8) {
-        Alert.alert('Error', 'Password must be at least 8 characters long');
-        return;
-      }
+      
+      const generatedEmail = `${phone}@turfbook.com`;
+      const generatedPassword = `TurfBookPass@123`;
 
       const [firstName, ...lastNameParts] = name.trim().split(' ');
       const lastName = lastNameParts.join(' ') || ' ';
@@ -111,9 +139,9 @@ export default function LoginScreen() {
         const payload = {
           firstName,
           lastName,
-          email,
+          email: generatedEmail,
           phone,
-          password,
+          password: generatedPassword,
           acceptTerms: true,
         };
         await apiFetch('/auth/register', {
@@ -124,7 +152,7 @@ export default function LoginScreen() {
         // Automatically log them in after registration
         const loginRes = await apiFetch('/auth/login', {
           method: 'POST',
-          body: { email, password },
+          body: { email: generatedEmail, password: generatedPassword },
         });
 
         login(
@@ -213,6 +241,32 @@ export default function LoginScreen() {
       />
       <View style={[styles.overlay, { backgroundColor: theme.overlayBg }]} />
 
+      <TouchableOpacity
+        onPress={toggleTheme}
+        style={{
+          position: 'absolute',
+          top: insets.top + 10,
+          right: 20,
+          width: 42,
+          height: 42,
+          borderRadius: 14,
+          borderWidth: 1.5,
+          borderColor: theme.border,
+          backgroundColor: theme.card,
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
+        }}
+        activeOpacity={0.7}
+      >
+        <Ionicons name={isDarkMode ? 'sunny' : 'moon'} size={20} color={isDarkMode ? '#fbbf24' : '#6366f1'} />
+      </TouchableOpacity>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -276,43 +330,7 @@ export default function LoginScreen() {
               : 'Sign in to continue to your bookings'}
           </Text>
 
-          {/* Login method tabs */}
-          {!isRegisterMode && (
-            <View style={[styles.tabContainer, { backgroundColor: theme.bg, borderColor: theme.border }]}>
-              <TouchableOpacity
-                onPress={() => {
-                  setLoginMethod('password');
-                  setOtpSent(false);
-                  setOtp('');
-                }}
-                style={[styles.authTabButton, loginMethod === 'password' && styles.tabButtonActive]}
-              >
-                <Text
-                  style={[
-                    styles.authTabButtonText,
-                    { color: loginMethod === 'password' ? '#030712' : theme.textMuted }
-                  ]}
-                >
-                  Password
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setLoginMethod('otp')}
-                style={[styles.authTabButton, loginMethod === 'otp' && styles.tabButtonActive]}
-              >
-                <Text
-                  style={[
-                    styles.authTabButtonText,
-                    { color: loginMethod === 'otp' ? '#030712' : theme.textMuted }
-                  ]}
-                >
-                  OTP Login
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={{ gap: 14 }}>
+          <View style={{ gap: 14, marginTop: 16 }}>
             {/* Register: Name */}
             {isRegisterMode && (
               <View>
@@ -346,48 +364,18 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Register: Email (optional) */}
-            {isRegisterMode && (
+            {/* OTP Code */}
+            {!isRegisterMode && otpSent && (
               <View>
-                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>EMAIL ADDRESS (OPTIONAL)</Text>
+                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>6-DIGIT OTP CODE</Text>
                 <TextInput
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="name@example.com"
+                  value={otp}
+                  onChangeText={(val) => setOtp(val.replace(/[^0-9]/g, ''))}
+                  placeholder="------"
                   placeholderTextColor={theme.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text }]}
-                />
-              </View>
-            )}
-
-            {/* Password or OTP */}
-            {!isRegisterMode && loginMethod === 'otp' ? (
-              otpSent && (
-                <View>
-                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>6-DIGIT OTP CODE</Text>
-                  <TextInput
-                    value={otp}
-                    onChangeText={(val) => setOtp(val.replace(/[^0-9]/g, ''))}
-                    placeholder="------"
-                    placeholderTextColor={theme.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    style={[styles.input, styles.otpInput, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text }]}
-                  />
-                </View>
-              )
-            ) : (
-              <View>
-                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>PASSWORD</Text>
-                <TextInput
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="••••••••"
-                  placeholderTextColor={theme.textMuted}
-                  secureTextEntry
-                  style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text }]}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  style={[styles.input, styles.otpInput, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text }]}
                 />
               </View>
             )}
@@ -398,11 +386,9 @@ export default function LoginScreen() {
             <Text style={styles.submitButtonText}>
               {isRegisterMode
                 ? 'Sign Up & Create Account'
-                : loginMethod === 'otp'
-                  ? otpSent
-                    ? 'Verify & Login'
-                    : 'Send Verification OTP'
-                  : 'Login'}
+                : otpSent
+                  ? 'Verify & Login'
+                  : 'Send Verification OTP'}
             </Text>
           </TouchableOpacity>
 

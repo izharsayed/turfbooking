@@ -23,7 +23,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated, updateUser, logout } = useAuthStore();
-  const { isDarkMode } = useThemeStore();
+  const { isDarkMode, toggleTheme } = useThemeStore();
 
   const theme = {
     bg: isDarkMode ? '#030712' : '#f8fafc',
@@ -154,15 +154,24 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>My Profile</Text>
         </View>
-        {!isEditing && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TouchableOpacity
-            onPress={() => setIsEditing(true)}
+            onPress={toggleTheme}
             style={[styles.iconButton, { borderColor: theme.border }]}
             hitSlop={8}
           >
-            <MaterialCommunityIcons name="pencil" size={20} color={ACCENT} />
+            <Ionicons name={isDarkMode ? 'sunny' : 'moon'} size={20} color={isDarkMode ? '#fbbf24' : '#6366f1'} />
           </TouchableOpacity>
-        )}
+          {!isEditing && (
+            <TouchableOpacity
+              onPress={() => setIsEditing(true)}
+              style={[styles.iconButton, { borderColor: theme.border }]}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons name="pencil" size={20} color={ACCENT} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView

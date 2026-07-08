@@ -36,15 +36,11 @@ We follow the Git Flow branching model:
 4. **Run Pre-Commit Checks**:
    Lint and format scripts will be verified during commit steps via `Husky` and `lint-staged`. You can test them manually:
    ```bash
-   # Lint check (all packages)
-   pnpm run lint
-
-   # Lint check (single package)
-   pnpm --filter turfbook-backend lint
-   pnpm --filter turfbook-frontend lint
-
+   # Lint check
+   npm run lint:all
+   
    # Format code
-   pnpm run format
+   npm run format
    ```
 
 ---

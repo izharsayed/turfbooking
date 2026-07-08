@@ -178,8 +178,8 @@ export default function HomeScreen() {
         <View style={styles.headerLeft}>
           <Text style={[styles.headerTitle, { color: theme.text }]}>TurfBook</Text>
           <View style={styles.headerDot} />
-          <TouchableOpacity onPress={toggleTheme} style={styles.themeToggle}>
-            <Text style={styles.themeToggleText}>{isDarkMode ? '☀️' : '🌙'}</Text>
+          <TouchableOpacity onPress={toggleTheme} style={[styles.themeToggle, { borderColor: theme.border }]}>
+            <Ionicons name={isDarkMode ? 'sunny' : 'moon'} size={15} color={isDarkMode ? '#fbbf24' : '#6366f1'} />
           </TouchableOpacity>
         </View>
         

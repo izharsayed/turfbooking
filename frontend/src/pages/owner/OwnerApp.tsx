@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useThemeStore } from '../../store/themeStore';
+import { useAuthStore } from '../../store/authStore';
 import api from '../../services/api';
 
 // Inlined from @turf-booking/ui
@@ -92,6 +94,8 @@ interface StaffMember {
 }
 
 export default function App() {
+  const navigate = useNavigate();
+  const { logout } = useAuthStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'turfs' | 'slots' | 'bookings' | 'reviews' | 'staff'>('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -783,7 +787,10 @@ export default function App() {
             </button>
             
             <button 
-              onClick={() => alert('Sign Out Action Triggered!')}
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
               className={`w-full flex items-center text-rose-450 hover:text-rose-350 hover:bg-rose-500/5 transition-all text-xs font-bold ${
                 isSidebarCollapsed ? 'md:justify-center p-3 md:p-2' : 'gap-2 px-3 py-2 rounded-lg'
               }`}

@@ -94,19 +94,19 @@ FIREBASE_STORAGE_BUCKET="your-firebase-project.appspot.com"
 ### 1. Bootstrap Workspace
 Install all dependencies across the monorepo apps:
 ```bash
-pnpm install
+npm install
 ```
 
 ### 2. Infrastructure Setup
 
 #### PostgreSQL Setup (Docker)
-Start the local PostgreSQL, Redis, and PgAdmin containers from the project root:
+Start the local PostgreSQL, Redis, and PgAdmin containers:
 ```bash
 docker-compose up -d
 ```
 Generate the Prisma Client mapping:
 ```bash
-pnpm run db:generate
+npm run db:generate --prefix backend
 ```
 
 #### Firebase Setup (Optional)
@@ -116,13 +116,13 @@ If running Firebase Firestore, ensure `DATABASE_PROVIDER=firebase` is set in you
 Start workspace applications in development mode from the root directory:
 ```bash
 # Run backend development server
-pnpm run dev:backend
+npm run dev:backend
 
 # Run frontend web client
-pnpm run dev:web
+npm run dev:web
 
 # Run mobile app (Expo Go)
-pnpm run dev:mobile   # Or simply: pnpm run mobile
+npm run dev:mobile   # Or simply: npm run mobile
 ```
 
 ---

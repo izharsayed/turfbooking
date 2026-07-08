@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore, UserRole } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import { Sun, Moon, Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
+import { Sun, Moon, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
 export default function LoginPage() {
@@ -10,23 +10,42 @@ export default function LoginPage() {
   const { login } = useAuthStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
 
-  const [role, setRole] = useState<UserRole>('customer');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      setError('Please fill in all fields');
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!phone || phone.length < 10) {
+      setError('Please enter a valid phone number');
+      return;
+    }
+    setError('');
+    setOtpLoading(true);
+    try {
+      await api.post('/auth/send-otp', { phone });
+      setOtpSent(true);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to send OTP. Ensure number is registered.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e?: React.FormEvent, directOtp?: string) => {
+    if (e) e.preventDefault();
+    const verificationCode = directOtp || otp;
+    if (!verificationCode || verificationCode.length !== 6) {
+      setError('Please enter a 6-digit OTP code');
       return;
     }
     setError('');
     setIsLoading(true);
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post('/auth/verify-otp', { phone, code: verificationCode });
       const { accessToken, refreshToken, user: backendUser } = res.data.data;
 
       // Map backend role to frontend role
@@ -54,28 +73,72 @@ export default function LoginPage() {
       };
       navigate(redirects[mappedRole]);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid email or password');
+      setError(err.response?.data?.message || 'Invalid verification code');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Dynamic theme colors based on role
-  const isRoleAdmin = role === 'admin';
+  const handleQuickDemoSelect = async (val: string) => {
+    let targetPhone = '';
+    if (val === 'customer') {
+      targetPhone = '9876543210';
+    } else if (val === 'owner') {
+      targetPhone = '9999988888';
+    } else if (val === 'admin') {
+      targetPhone = '8888877777';
+    }
+
+    if (targetPhone) {
+      setPhone(targetPhone);
+      setOtp('123456');
+      setError('');
+      setIsLoading(true);
+      try {
+        await api.post('/auth/send-otp', { phone: targetPhone });
+        setOtpSent(true);
+        // Call verification immediately
+        const res = await api.post('/auth/verify-otp', { phone: targetPhone, code: '123456' });
+        const { accessToken, refreshToken, user: backendUser } = res.data.data;
+        const roleMap: Record<string, UserRole> = {
+          SUPER_ADMIN: 'admin',
+          TURF_OWNER: 'owner',
+          CUSTOMER: 'customer',
+        };
+        const mappedRole: UserRole = roleMap[backendUser.role] || 'customer';
+        const userProfile = {
+          id: backendUser.id,
+          email: backendUser.email,
+          role: mappedRole,
+          name: backendUser.name || backendUser.email,
+          phone: backendUser.phone,
+        };
+        login(userProfile, accessToken, refreshToken);
+        const redirects: Record<UserRole, string> = {
+          customer: '/customer',
+          owner: '/owner',
+          admin: '/admin',
+        };
+        navigate(redirects[mappedRole]);
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Quick login failed');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  // Dynamic theme colors
   const themeColors = {
-    bgActive: isRoleAdmin ? 'bg-indigo-600' : 'bg-emerald-600',
-    bgHover: isRoleAdmin ? 'hover:bg-indigo-500' : 'hover:bg-emerald-500',
-    text: isRoleAdmin ? 'text-indigo-600' : 'text-emerald-600',
-    textDark: isRoleAdmin ? 'text-indigo-400' : 'text-emerald-400',
-    borderGlow: isRoleAdmin ? 'border-indigo-500/30' : 'border-emerald-500/20',
-    shadowGlow: isRoleAdmin ? 'shadow-[0_0_60px_-15px_rgba(79,70,229,0.3)]' : 'shadow-[0_0_60px_-15px_rgba(16,185,129,0.25)]',
-    btnShadow: isRoleAdmin ? 'shadow-indigo-900/40' : 'shadow-emerald-900/30',
-    gradientDark: isRoleAdmin 
-      ? 'linear-gradient(to bottom, rgba(3,7,18,0.7) 0%, rgba(31,41,55,0.4) 50%, rgba(3,7,18,0.8) 100%)' 
-      : 'linear-gradient(to bottom, rgba(3,7,18,0.7) 0%, rgba(3,7,18,0.5) 50%, rgba(3,7,18,0.8) 100%)',
-    gradientLight: isRoleAdmin
-      ? 'linear-gradient(to bottom, rgba(241,245,249,0.7) 0%, rgba(224,231,255,0.4) 50%, rgba(241,245,249,0.8) 100%)'
-      : 'linear-gradient(to bottom, rgba(241,245,249,0.7) 0%, rgba(241,245,249,0.5) 50%, rgba(241,245,249,0.8) 100%)',
+    bgActive: 'bg-emerald-600',
+    bgHover: 'hover:bg-emerald-500',
+    text: 'text-emerald-600',
+    textDark: 'text-emerald-400',
+    borderGlow: 'border-emerald-500/20',
+    shadowGlow: 'shadow-[0_0_60px_-15px_rgba(16,185,129,0.25)]',
+    btnShadow: 'shadow-emerald-900/30',
+    gradientDark: 'linear-gradient(to bottom, rgba(3,7,18,0.7) 0%, rgba(3,7,18,0.5) 50%, rgba(3,7,18,0.8) 100%)',
+    gradientLight: 'linear-gradient(to bottom, rgba(241,245,249,0.7) 0%, rgba(241,245,249,0.5) 50%, rgba(241,245,249,0.8) 100%)',
   };
 
   return (
@@ -85,8 +148,8 @@ export default function LoginPage() {
       <img
         src="/images/turf-bg.jpg"
         alt="turf background"
-        className={`fixed inset-0 w-full h-full object-cover pointer-events-none select-none transition-all duration-700 ${isRoleAdmin ? 'grayscale mix-blend-luminosity' : ''}`}
-        style={{ opacity: isDarkMode ? (isRoleAdmin ? 0.12 : 0.18) : 0.10 }}
+        className="fixed inset-0 w-full h-full object-cover pointer-events-none select-none transition-all duration-700"
+        style={{ opacity: isDarkMode ? 0.18 : 0.10 }}
       />
       <div
         className="fixed inset-0 pointer-events-none transition-all duration-700"
@@ -121,7 +184,7 @@ export default function LoginPage() {
         </div>
 
         <h1 className={`text-2xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Welcome back</h1>
-        <p className={`text-sm mb-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Sign in to your account</p>
+        <p className={`text-sm mb-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Sign in to your account with mobile OTP</p>
 
         {/* Quick Demo Login Dropdown */}
         <div className="mb-6">
@@ -129,115 +192,87 @@ export default function LoginPage() {
             ⚡ Quick Demo Login
           </label>
           <select
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === 'customer') {
-                setRole('customer');
-                setEmail('customer@turfbook.com');
-                setPassword('password');
-              } else if (val === 'owner') {
-                setRole('owner');
-                setEmail('owner@turfbook.com');
-                setPassword('password');
-              } else if (val === 'admin') {
-                setRole('admin');
-                setEmail('admin@turfbook.com');
-                setPassword('password');
-              }
-            }}
+            onChange={(e) => handleQuickDemoSelect(e.target.value)}
             defaultValue=""
             className={`w-full px-3 py-3 rounded-xl border text-sm outline-none font-semibold transition-all ${
               isDarkMode 
-                ? 'bg-[#0f172a] border-slate-700 text-slate-350 focus:border-indigo-500/50' 
+                ? 'bg-[#0f172a] border-slate-700 text-slate-350 focus:border-emerald-500/50' 
                 : 'bg-white border-slate-300 text-slate-700 focus:border-emerald-500/50 shadow-sm'
             }`}
           >
             <option value="" disabled>-- Select a Demo User --</option>
-            <option value="customer">👤 Customer (customer@turfbook.com)</option>
-            <option value="owner">🏟️ Turf Owner (owner@turfbook.com)</option>
-            <option value="admin">🛠️ System Admin (admin@turfbook.com)</option>
+            <option value="customer">👤 Customer (9876543210)</option>
+            <option value="owner">🏟️ Turf Owner (9999988888)</option>
+            <option value="admin">🛠️ System Admin (8888877777)</option>
           </select>
         </div>
 
-        {/* Role selector */}
-        <div className={`flex rounded-xl p-1 mb-6 gap-1 ${isDarkMode ? 'bg-slate-800/60' : 'bg-slate-100'}`}>
-          {(['customer', 'owner', 'admin'] as UserRole[]).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => {
-                setRole(r);
-                if (r === 'customer') {
-                  setEmail('customer@turfbook.com');
-                  setPassword('password');
-                } else if (r === 'owner') {
-                  setEmail('owner@turfbook.com');
-                  setPassword('password');
-                } else if (r === 'admin') {
-                  setEmail('admin@turfbook.com');
-                  setPassword('password');
-                }
-              }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold capitalize transition-all duration-300 ${
-                role === r
-                  ? `${themeColors.bgActive} text-white shadow-md transform scale-[1.02]`
-                  : isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-700/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
-              }`}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          {/* Email */}
-          <div>
-            <label className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@turfbook.com"
-              className={`w-full px-4 py-3 text-sm rounded-xl border outline-none transition-all ${isDarkMode ? 'bg-[#0f172a] text-white placeholder-slate-600 border-slate-700 focus:border-indigo-500' : 'bg-white text-slate-900 placeholder-slate-400 border-slate-300 focus:border-indigo-400'}`}
-            />
-          </div>
-
-          {/* Password */}
-          <div>
-            <label className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              Password
-            </label>
-            <div className={`flex rounded-xl border overflow-hidden ${isDarkMode ? 'border-slate-700' : 'border-slate-300'}`}>
+        {!otpSent ? (
+          <form onSubmit={handleSendOtp} className="space-y-4">
+            {/* Phone Number */}
+            <div>
+              <label className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Phone Number
+              </label>
               <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className={`flex-1 px-3 py-3 text-sm outline-none ${isDarkMode ? 'bg-[#0f172a] text-white placeholder-slate-600' : 'bg-white text-slate-900 placeholder-slate-400'}`}
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="Enter 10-digit number"
+                maxLength={15}
+                className={`w-full px-4 py-3 text-sm rounded-xl border outline-none transition-all ${isDarkMode ? 'bg-[#0f172a] text-white placeholder-slate-600 border-slate-700 focus:border-emerald-500' : 'bg-white text-slate-900 placeholder-slate-400 border-slate-300 focus:border-emerald-400'}`}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className={`px-3 ${isDarkMode ? 'bg-[#0f172a] text-slate-500' : 'bg-white text-slate-400'}`}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
             </div>
-          </div>
 
-          {error && <p className="text-red-400 text-xs">{error}</p>}
+            {error && <p className="text-red-400 text-xs">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className={`w-full py-3.5 rounded-xl text-white font-semibold text-sm transition-all duration-300 shadow-lg mt-4 flex items-center justify-center gap-2 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed ${themeColors.bgActive} ${themeColors.bgHover} ${themeColors.btnShadow}`}
-          >
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isRoleAdmin ? <ShieldCheck className="h-4 w-4" /> : null}
-            {isLoading ? 'Signing in...' : `Sign In as ${role.charAt(0).toUpperCase() + role.slice(1)}`}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={otpLoading}
+              className={`w-full py-3.5 rounded-xl text-white font-semibold text-sm transition-all duration-300 shadow-lg mt-4 flex items-center justify-center gap-2 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed ${themeColors.bgActive} ${themeColors.bgHover} ${themeColors.btnShadow}`}
+            >
+              {otpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {otpLoading ? 'Sending OTP...' : 'Send Verification OTP'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={(e) => handleVerifyOtp(e)} className="space-y-4">
+            {/* Verification Code */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className={`block text-xs font-semibold uppercase tracking-wider ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Enter 6-Digit OTP
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setOtpSent(false)}
+                  className="text-xs text-emerald-500 hover:underline font-semibold"
+                >
+                  Edit Phone
+                </button>
+              </div>
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="123456"
+                maxLength={6}
+                className={`w-full px-4 py-3 text-sm rounded-xl border outline-none transition-all ${isDarkMode ? 'bg-[#0f172a] text-white placeholder-slate-600 border-slate-700 focus:border-emerald-500' : 'bg-white text-slate-900 placeholder-slate-400 border-slate-300 focus:border-emerald-400'}`}
+              />
+            </div>
+
+            {error && <p className="text-red-400 text-xs">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full py-3.5 rounded-xl text-white font-semibold text-sm transition-all duration-300 shadow-lg mt-4 flex items-center justify-center gap-2 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed ${themeColors.bgActive} ${themeColors.bgHover} ${themeColors.btnShadow}`}
+            >
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {isLoading ? 'Verifying...' : 'Verify & Sign In'}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

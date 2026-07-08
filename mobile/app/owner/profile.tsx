@@ -30,7 +30,7 @@ interface OwnerProfile {
 
 export default function OwnerProfileScreen() {
   const { user, isAuthenticated, updateUser, logout } = useAuthStore();
-  const { isDarkMode } = useThemeStore();
+  const { isDarkMode, toggleTheme } = useThemeStore();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -140,12 +140,21 @@ export default function OwnerProfileScreen() {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.headerBg, paddingTop: insets.top + 12, borderBottomColor: theme.cardBorder }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Profile</Text>
-        {!isEditing && (
-          <TouchableOpacity style={[styles.editBtn, { borderColor: theme.cardBorder }]} onPress={() => setIsEditing(true)}>
-            <Ionicons name="pencil-outline" size={16} color={ACCENT} />
-            <Text style={[styles.editBtnText, { color: ACCENT }]}>Edit</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            onPress={toggleTheme}
+            style={[styles.editBtn, { borderColor: theme.cardBorder, paddingHorizontal: 10 }]}
+            hitSlop={8}
+          >
+            <Ionicons name={isDarkMode ? 'sunny' : 'moon'} size={16} color={isDarkMode ? '#fbbf24' : '#6366f1'} />
           </TouchableOpacity>
-        )}
+          {!isEditing && (
+            <TouchableOpacity style={[styles.editBtn, { borderColor: theme.cardBorder }]} onPress={() => setIsEditing(true)}>
+              <Ionicons name="pencil-outline" size={16} color={ACCENT} />
+              <Text style={[styles.editBtnText, { color: ACCENT }]}>Edit</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

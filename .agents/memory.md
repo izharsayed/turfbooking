@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-08 16:15 IST
+> Last updated: 2026-07-08 18:30 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -825,3 +825,55 @@ pnpm dev:backend      # start the server
 - Refactored `handleBookSlot` to make a real `POST /api/v1/bookings` call when completing customer checkouts.
 - Connected the Nearby map markers to the live database `turfs` coordinates state.
 - **Why**: Responds to user request to make sure turfs added in the Owner panel appear immediately in the Customer panel.
+
+### 76. `frontend/src/pages/owner/OwnerApp.tsx` — Modified
+- Imported and integrated `useNavigate` from `react-router-dom` and `useAuthStore` from authStore.
+- Replaced mock `alert()` statement in the sidebar "Sign Out" button handler with actual state cleanup (`logout()`) and redirect to the `/login` route.
+- **Why**: Responds to user request to fix the non-functional "Sign Out" button in the owner panel.
+
+### 77. `frontend/src/pages/LoginPage.tsx` — Rewritten
+- Removed email and password inputs and the associated role selector tabs.
+- Implemented phone number input that requests a 6-digit OTP verification code via `api.post('/auth/send-otp')`.
+- Implemented OTP code verification and session creation via `api.post('/auth/verify-otp')`.
+- Updated the Quick Demo Login dropdown to set the respective registered phone number, request the OTP, auto-fill the dev bypass code `123456`, and verify to sign in with a single click.
+- **Why**: Responds to user request to only have number/OTP login on the login screen.
+
+### 78. `backend/src/database/seedFirebase.ts` — Modified
+- Extended user update seeding query to also sync `phone` and `role` fields on existing Firestore documents.
+- **Why**: Pre-existing admin account had an old phone number (`9999999999`) in the database, causing OTP requests for the standard quick-login number (`8888877777`) to throw a "No user found" error.
+
+### 79. `mobile/app/login.tsx` — Modified
+- Added a collapsible "Dev Quick Login" dropdown simulating Customer/Owner login using pure client state bypass.
+- Added a floating Theme Toggle button in the top right corner using vector icons.
+- Removed the "Password" and "OTP Login" tabs, forcing the login screen to be phone number + OTP-only.
+- Removed Email and Password inputs from Register and Login screens.
+- Auto-generates the email (`${phone}@turfbook.com`) and password (`TurfBookPass@123`) behind the scenes during registration.
+- **Why**: Allows offline dev quick login with a single click, bypasses email/password fields completely, and forces OTP-only authentication for a seamless mobile experience.
+
+### 80. `mobile/app/profile.tsx` — Modified
+- Added a Theme Toggle button in the header right next to the edit profile button.
+- **Why**: Provides a simple way for customer profiles to switch between dark and light themes dynamically.
+
+### 81. `mobile/app/owner/profile.tsx` — Modified
+- Added a Theme Toggle button in the header next to the edit profile button.
+- **Why**: Enables turf owners to toggle dark and light modes directly from their profile screen.
+
+### 82. `mobile/app/index.tsx` — Modified
+- Replaced the text emoji toggle with a vector icon (`Ionicons` sun/moon) for a polished appearance.
+- **Why**: Enhances the UI look and feel of the primary theme switcher.
+
+### 83. `backend/src/shared/utils/sessionManager.ts` — Modified
+- Enabled a developer bypass code (`123456`) in the `verifyOTP` logic when running in non-production environments.
+- **Why**: Allows instant OTP verification during development and enables one-click automated logins.
+
+### 84. `mobile/app/login.tsx` — Modified
+- Mapped the collapsible "Dev Quick Login" dropdown options directly to the database seeded users (`9876543210` for Customer and `9999988888` for Owner).
+- Programmed the dropdown's "Fill" action to dynamically dispatch `/auth/send-otp` and verify it using `/auth/verify-otp` with the dev bypass code `123456`.
+- Bypasses with mock state as a fallback if the API server is offline.
+- **Why**: Ensures quick login generates real, authenticated session tokens so that owner dashboard, turfs, and customer booking logs retrieve genuine dynamic database records.
+
+### 85. Metro Server Process — Stopped & Cleaned
+- Found a stale `npx expo start` process (PID 33232) listening on port 8081 serving cached outdated code (email-login tabs).
+- Terminated both port 8081 and port 8082 processes and ran `npx expo start --clear` on the default port.
+- **Why**: Forces the mobile emulator/device to download the fresh Javascript bundle containing OTP-only login and registration flows.
+
