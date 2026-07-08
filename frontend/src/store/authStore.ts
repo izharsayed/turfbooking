@@ -13,23 +13,34 @@ interface UserProfile {
 interface AuthState {
   user: UserProfile | null;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
-  login: (user: UserProfile, token: string) => void;
+  login: (user: UserProfile, token: string, refreshToken?: string) => void;
+  setToken: (token: string) => void;
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
+  user: (() => {
+    try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; }
+  })(),
   token: localStorage.getItem('token'),
+  refreshToken: localStorage.getItem('refreshToken'),
   isAuthenticated: !!localStorage.getItem('token'),
-  login: (user, token) => {
+  login: (user, token, refreshToken) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
-    set({ user, token, isAuthenticated: true });
+    if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+    set({ user, token, refreshToken: refreshToken ?? null, isAuthenticated: true });
+  },
+  setToken: (token) => {
+    localStorage.setItem('token', token);
+    set({ token });
   },
   logout: () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
-    set({ user: null, token: null, isAuthenticated: false });
+    set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
   },
 }));
