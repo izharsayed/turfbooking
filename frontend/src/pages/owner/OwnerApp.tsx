@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useThemeStore } from '../../store/themeStore';
+import { api } from '../../store/api';
 
 // Inlined from @turf-booking/ui
 function Button({ children, onClick, className = '', variant = 'primary', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) {
@@ -95,76 +96,20 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Sample Turfs under Owner Management (placed in Ahmednagar, Maharashtra)
-  const [ownerTurfs, setOwnerTurfs] = useState<Turf[]>([
-    {
-      id: '1',
-      name: 'Old Trafford Arena',
-      description: 'Premier indoor turf with professional lighting, FIFA-grade grass pitch, and standard changing rooms.',
-      city: 'Ahmednagar',
-      area: 'Savedi',
-      price: 1200,
-      sport: 'Football',
-      rating: 4.8,
-      image: 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
-      amenities: ['Washroom', 'Parking', 'Flood Lights', 'Changing Room'],
-      lat: 19.1158,
-      lng: 74.7420
-    },
-    {
-      id: '4',
-      name: 'Camp Nou Arena',
-      description: 'Elite turf with professional coaching, premium synthetic grass, and fully featured changing zones.',
-      city: 'Ahmednagar',
-      area: 'Gulmohar Road',
-      price: 1800,
-      sport: 'Football',
-      rating: 4.9,
-      image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60',
-      amenities: ['Washroom', 'Parking', 'Flood Lights', 'Locker Room'],
-      lat: 19.1235,
-      lng: 74.7485
-    }
-  ]);
+  // Loading and Error States for API
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
+
+  // Turfs under Owner Management
+  const [ownerTurfs, setOwnerTurfs] = useState<Turf[]>([]);
 
   // Bookings list state
-  const [bookings, setBookings] = useState<Booking[]>([
-    {
-      id: 'B-1002',
-      customerName: 'Rahul Shinde',
-      customerPhone: '9822334455',
-      turfName: 'Old Trafford Arena',
-      date: '2026-07-06',
-      timeSlot: '17:00 - 18:00',
-      sport: 'Football',
-      amount: 1200,
-      status: 'CONFIRMED'
-    },
-    {
-      id: 'B-1003',
-      customerName: 'Amit Patil',
-      customerPhone: '9088776655',
-      turfName: 'Camp Nou Arena',
-      date: '2026-07-06',
-      timeSlot: '18:00 - 19:00',
-      sport: 'Football',
-      amount: 1800,
-      status: 'COMPLETED'
-    },
-    {
-      id: 'B-1004',
-      customerName: 'Vikas Kale',
-      customerPhone: '9122334455',
-      turfName: 'Old Trafford Arena',
-      date: '2026-07-07',
-      timeSlot: '08:00 - 09:00',
-      sport: 'Football',
-      amount: 1200,
-      status: 'CONFIRMED'
-    }
-  ]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
-  // Slots State
+  // Reviews State
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [replyText, setReplyText] = useState<{ [reviewId: string]: string }>({});
+
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const hourlySlots = Array.from({ length: 24 }, (_, i) => {
     const start = String(i).padStart(2, '0');
@@ -172,21 +117,109 @@ export default function App() {
     return `${start}:00 - ${end}:00`;
   });
 
-  const initialSlots: Slot[] = [];
-  daysOfWeek.forEach(day => {
-    hourlySlots.forEach((time, index) => {
-      initialSlots.push({
-        id: `${day}-${index}`,
-        time,
-        day,
-        price: 1200,
-        status: index % 5 === 0 ? 'BOOKED' : index % 8 === 0 ? 'BLOCKED' : 'OPEN',
-        blockReason: index % 8 === 0 ? 'Scheduled maintenance check' : undefined
+  // Fetch Data from Backend
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [turfsRes, bookingsRes, reviewsRes] = await Promise.all([
+          api.get('/owner/turfs'),
+          api.get('/owner/bookings'),
+          api.get('/owner/reviews')
+        ]);
+
+        const backendTurfs = turfsRes.data?.data || [];
+        const backendBookings = bookingsRes.data?.data || [];
+        const backendReviews = reviewsRes.data?.data || [];
+
+        // Map turfs
+        const mappedTurfs: Turf[] = backendTurfs.map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          description: t.description || '',
+          city: t.location?.city || 'Ahmednagar',
+          area: t.location?.area || 'Savedi',
+          price: t.pricePerHour || 1200,
+          sport: t.sports?.[0] || 'Football',
+          rating: t.rating || 5.0,
+          image: t.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
+          amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
+          lat: t.location?.latitude || 19.0948,
+          lng: t.location?.longitude || 74.7480
+        }));
+
+        // Map bookings
+        const mappedBookings: Booking[] = backendBookings.map((b: any) => ({
+          id: b.id,
+          customerName: b.customerName || 'Offline Customer',
+          customerPhone: b.customerPhone || '',
+          turfName: b.turfName || (mappedTurfs.find(t => t.id === b.turfId)?.name || 'Ahmednagar Sports Arena'),
+          date: b.date ? b.date.split('T')[0] : new Date().toISOString().split('T')[0],
+          timeSlot: b.timeSlot || '17:00 - 18:00',
+          sport: b.sport || 'Football',
+          amount: b.totalAmount || b.amount || 1200,
+          status: b.status || 'CONFIRMED',
+          rentedAddons: b.rentedAddons || []
+        }));
+
+        // Map reviews
+        const mappedReviews: Review[] = backendReviews.map((r: any) => ({
+          id: r.id,
+          customerName: r.customerName || 'Anonymous',
+          turfName: r.turfName || (mappedTurfs.find(t => t.id === r.turfId)?.name || 'Old Trafford Arena'),
+          rating: r.rating || 5,
+          comment: r.comment || '',
+          date: r.date || new Date().toISOString().split('T')[0],
+          ownerReply: r.ownerReply
+        }));
+
+        setOwnerTurfs(mappedTurfs);
+        setBookings(mappedBookings);
+        setReviews(mappedReviews);
+      } catch (err: any) {
+        console.error('Error fetching owner data:', err);
+        setApiError('Failed to load data from backend.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Slots State derived dynamically from Bookings & Turfs
+  const slots = useMemo(() => {
+    const dayToDateMap: Record<string, string> = {
+      Monday: '2026-07-06',
+      Tuesday: '2026-07-07',
+      Wednesday: '2026-07-08',
+      Thursday: '2026-07-09',
+      Friday: '2026-07-10',
+      Saturday: '2026-07-11',
+      Sunday: '2026-07-12'
+    };
+
+    const list: Slot[] = [];
+    daysOfWeek.forEach(day => {
+      hourlySlots.forEach((time, index) => {
+        const bookingDate = dayToDateMap[day];
+        const isBooked = bookings.some(
+          b => b.date === bookingDate && b.timeSlot === time && b.status !== 'CANCELLED'
+        );
+
+        list.push({
+          id: `${day}-${index}`,
+          time,
+          day,
+          price: ownerTurfs[0]?.price || 1200,
+          status: isBooked ? 'BOOKED' : (index % 8 === 0 ? 'BLOCKED' : 'OPEN'),
+          blockReason: index % 8 === 0 ? 'Scheduled maintenance check' : undefined
+        });
       });
     });
-  });
+    return list;
+  }, [bookings, ownerTurfs]);
 
-  const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [selectedDayFilter, setSelectedDayFilter] = useState<string>('Monday');
 
   // Add Turf Form States
@@ -239,14 +272,6 @@ export default function App() {
     { id: 'Water Crate (12 bottles)', name: 'Water Crate (12 bottles)', price: 120 }
   ];
 
-  // Customer Reviews State
-  const [reviews, setReviews] = useState<Review[]>([
-    { id: 'R-1', customerName: 'Rohan Deshmukh', turfName: 'Old Trafford Arena', rating: 5, comment: 'Superb grass quality and amazing floodlights! Changing rooms were clean too.', date: '2026-07-05' },
-    { id: 'R-2', customerName: 'Sanjay More', turfName: 'Camp Nou Arena', rating: 4, comment: 'Coaching staff was professional. Pitch is slightly fast but great fun.', date: '2026-07-04' },
-    { id: 'R-3', customerName: 'Anil Kadam', turfName: 'Old Trafford Arena', rating: 3, comment: 'Pitches are good but parking was a bit crowded during the evening peak hours.', date: '2026-07-03', ownerReply: 'Thanks for the feedback Anil. We are expanding our parking spaces this week!' }
-  ]);
-  const [replyText, setReplyText] = useState<{ [reviewId: string]: string }>({});
-
   // Calculate Metrics
   const totalRevenue = bookings
     .filter(b => b.status !== 'CANCELLED')
@@ -259,42 +284,62 @@ export default function App() {
   const fillRate = Math.round((bookedSlotsCount / totalSlotsCount) * 100) || 0;
 
   // Add/Edit Turf Handlers
-  const handleSaveTurf = (e: React.FormEvent) => {
+  const handleSaveTurf = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingTurfId) {
-      setOwnerTurfs(ownerTurfs.map(t => t.id === editingTurfId ? {
-        ...t,
-        name: turfName,
-        description: turfDesc,
-        area: turfArea,
-        price: Number(turfPrice),
-        sport: turfSport,
-        lat: Number(turfLat),
-        lng: Number(turfLng),
-        image: turfImage
-      } : t));
-      setEditingTurfId(null);
-    } else {
-      const newTurf: Turf = {
-        id: `T-${Math.floor(100 + Math.random() * 900)}`,
-        name: turfName,
-        description: turfDesc,
-        city: 'Ahmednagar',
-        area: turfArea,
-        price: Number(turfPrice),
-        sport: turfSport,
-        rating: 5.0,
-        image: turfImage,
-        amenities: ['Washroom', 'Parking', 'Flood Lights'],
-        lat: Number(turfLat),
-        lng: Number(turfLng)
-      };
-      setOwnerTurfs([...ownerTurfs, newTurf]);
+    const turfData = {
+      name: turfName,
+      description: turfDesc,
+      address: "Savedi Road, Ahmednagar",
+      latitude: Number(turfLat),
+      longitude: Number(turfLng),
+      pricePerHour: Number(turfPrice),
+      cityId: "FVS82Xy9TSPMaR2445eX", // Ahmednagar City
+      areaId: "9nVaAGTPMuCe1hjlkCoK", // Savedi Area
+      sports: ["NHQKZB3YRCRhWBL95sUE"], // Football Sport
+      amenities: ["Washroom", "Parking", "Flood Lights"]
+    };
+
+    try {
+      if (editingTurfId) {
+        const res = await api.put(`/owner/turfs/${editingTurfId}`, {
+          name: turfName,
+          description: turfDesc,
+          pricePerHour: Number(turfPrice)
+        });
+        const updated = res.data.data;
+        setOwnerTurfs(ownerTurfs.map(t => t.id === editingTurfId ? {
+          ...t,
+          name: updated.name,
+          description: updated.description || '',
+          price: updated.pricePerHour || 1200
+        } : t));
+        setEditingTurfId(null);
+      } else {
+        const res = await api.post('/owner/turfs', turfData);
+        const created = res.data.data;
+        const newTurf: Turf = {
+          id: created.id,
+          name: created.name,
+          description: created.description || '',
+          city: 'Ahmednagar',
+          area: 'Savedi',
+          price: created.pricePerHour || 1200,
+          sport: 'Football',
+          rating: 5.0,
+          image: created.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
+          amenities: created.amenities || ['Washroom', 'Parking', 'Flood Lights'],
+          lat: created.location?.latitude || 19.0948,
+          lng: created.location?.longitude || 74.7480
+        };
+        setOwnerTurfs([...ownerTurfs, newTurf]);
+      }
+      setTurfName('');
+      setTurfDesc('');
+      setIsAddingTurf(false);
+    } catch (err) {
+      console.error('Error saving turf:', err);
+      alert('Failed to save turf.');
     }
-    // Clear forms
-    setTurfName('');
-    setTurfDesc('');
-    setIsAddingTurf(false);
   };
 
   const handleEditClick = (turf: Turf) => {
@@ -310,9 +355,15 @@ export default function App() {
     setIsAddingTurf(true);
   };
 
-  const handleDeleteTurf = (id: string) => {
+  const handleDeleteTurf = async (id: string) => {
     if (confirm('Are you sure you want to delete this turf listing?')) {
-      setOwnerTurfs(ownerTurfs.filter(t => t.id !== id));
+      try {
+        await api.delete(`/owner/turfs/${id}`);
+        setOwnerTurfs(ownerTurfs.filter(t => t.id !== id));
+      } catch (err) {
+        console.error('Error deleting turf:', err);
+        alert('Failed to delete turf.');
+      }
     }
   };
 
@@ -344,38 +395,36 @@ export default function App() {
   };
 
   // CSV Report Generator
-  const handleDownloadCSV = () => {
-    const headers = ['Booking ID', 'Customer Name', 'Phone', 'Turf Venue', 'Sport', 'Date', 'Time Slot', 'Amount Paid', 'Status', 'Add-ons Rented'];
-    const rows = bookings.map(b => [
-      b.id,
-      b.customerName,
-      b.customerPhone,
-      b.turfName,
-      b.sport,
-      b.date,
-      b.timeSlot,
-      `Rs. ${b.amount}`,
-      b.status,
-      b.rentedAddons ? b.rentedAddons.join('; ') : 'None'
-    ]);
-    const csvContent = [headers.join(','), ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `TurfBook_Financial_Report_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadCSV = async () => {
+    try {
+      const response = await api.get('/owner/reports?type=revenue&format=csv', {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `TurfBook_Financial_Report_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('Error downloading CSV:', err);
+      alert('Failed to download report.');
+    }
   };
 
   // Reviews Reply Save Handler
-  const handleSaveReviewReply = (reviewId: string) => {
+  const handleSaveReviewReply = async (reviewId: string) => {
     const reply = replyText[reviewId];
     if (!reply || !reply.trim()) return;
-    setReviews(reviews.map(r => r.id === reviewId ? { ...r, ownerReply: reply } : r));
-    setReplyText({ ...replyText, [reviewId]: '' });
+    try {
+      await api.post(`/owner/reviews/${reviewId}/reply`, { reply });
+      setReviews(reviews.map(r => r.id === reviewId ? { ...r, ownerReply: reply } : r));
+      setReplyText({ ...replyText, [reviewId]: '' });
+    } catch (err) {
+      console.error('Error saving reply:', err);
+      alert('Failed to save reply.');
+    }
   };
 
   // Staff Modification Handlers
@@ -402,19 +451,7 @@ export default function App() {
   // Toggle Slot Status Handler (available for future direct toggle UI)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _toggleSlotStatus = (id: string) => {
-    setSlots(slots.map(s => {
-      if (s.id === id) {
-        let nextStatus: 'OPEN' | 'BOOKED' | 'BLOCKED' = 'OPEN';
-        if (s.status === 'OPEN') nextStatus = 'BLOCKED';
-        else if (s.status === 'BLOCKED') nextStatus = 'OPEN';
-        return {
-          ...s,
-          status: nextStatus,
-          blockReason: nextStatus === 'BLOCKED' ? 'Closed for maintenance' : undefined
-        };
-      }
-      return s;
-    }));
+    // Left as stub
   };
 
   // Handle slot card click to open offline booking form
@@ -436,7 +473,7 @@ export default function App() {
   };
 
   // Create Manual Booking Handler
-  const handleSaveManualBooking = (e: React.FormEvent) => {
+  const handleSaveManualBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     const turf = ownerTurfs.find(t => t.name === manualTurf);
     
@@ -448,47 +485,77 @@ export default function App() {
     }, 0);
     const finalAmount = basePrice + addonsPrice;
 
-    const newBooking: Booking = {
-      id: `B-${Math.floor(1000 + Math.random() * 9000)}`,
+    // Convert date + timeslot to backend ISO dates
+    const [startH, startM] = manualSlot.split(' - ')[0].split(':');
+    const [endH, endM] = manualSlot.split(' - ')[1].split(':');
+    const dateBase = manualDate; // e.g. "2026-07-06"
+    const startTime = new Date(`${dateBase}T${startH}:${startM}:00.000Z`).toISOString();
+    const endTime = new Date(`${dateBase}T${endH}:${endM}:00.000Z`).toISOString();
+    const dateIso = new Date(`${dateBase}T00:00:00.000Z`).toISOString();
+
+    const bookingPayload = {
+      turfId: turf?.id || "2WDrQqjNtcQds11ZqIee",
+      sportId: "NHQKZB3YRCRhWBL95sUE", // Seeded Football Sport
+      date: dateIso,
+      startTime: startTime,
+      endTime: endTime,
       customerName: manualName,
       customerPhone: manualPhone,
-      turfName: manualTurf,
-      date: manualDate,
-      timeSlot: manualSlot,
-      sport: turf?.sport || 'Football',
-      amount: finalAmount,
-      status: 'CONFIRMED',
-      rentedAddons: selectedAddons.length > 0 ? selectedAddons : undefined
+      finalAmount: finalAmount
     };
-    setBookings([newBooking, ...bookings]);
 
-    // Also update slots list status to BOOKED
-    const [year, month, day] = manualDate.split('-').map(Number);
-    const dateObj = new Date(year, month - 1, day);
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const bookingDay = dayNames[dateObj.getDay()];
+    try {
+      const res = await api.post('/owner/bookings/offline', bookingPayload);
+      const created = res.data.data;
 
-    setSlots(prevSlots => prevSlots.map(s => {
-      if (s.day === bookingDay && s.time === manualSlot) {
-        return {
-          ...s,
-          status: 'BOOKED'
-        };
-      }
-      return s;
-    }));
+      const newBooking: Booking = {
+        id: created.id,
+        customerName: manualName,
+        customerPhone: manualPhone,
+        turfName: manualTurf,
+        date: manualDate,
+        timeSlot: manualSlot,
+        sport: turf?.sport || 'Football',
+        amount: finalAmount,
+        status: 'CONFIRMED',
+        rentedAddons: selectedAddons.length > 0 ? selectedAddons : undefined
+      };
+      setBookings([newBooking, ...bookings]);
 
-    setIsAddingBooking(false);
-    setManualName('');
-    setManualPhone('');
-    setSelectedAddons([]);
-  };
-
-  const handleCancelBooking = (id: string) => {
-    if (confirm('Cancel this confirmed booking? Refund workflow will be initialized.')) {
-      setBookings(bookings.map(b => b.id === id ? { ...b, status: 'CANCELLED' } : b));
+      setIsAddingBooking(false);
+      setManualName('');
+      setManualPhone('');
+      setSelectedAddons([]);
+    } catch (err) {
+      console.error('Error creating offline booking:', err);
+      alert('Failed to save manual booking.');
     }
   };
+
+  const handleCancelBooking = async (id: string) => {
+    if (confirm('Cancel this confirmed booking? Refund workflow will be initialized.')) {
+      try {
+        await api.put(`/owner/bookings/${id}/cancel`);
+        setBookings(bookings.map(b => b.id === id ? { ...b, status: 'CANCELLED' } : b));
+      } catch (err) {
+        console.error('Error cancelling booking:', err);
+        alert('Failed to cancel booking.');
+      }
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen bg-[#030712] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold text-2xl animate-pulse">
+            T
+          </div>
+          <p className="text-emerald-400 text-sm font-medium animate-pulse">Loading Owner Panel...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`h-screen flex flex-col md:flex-row transition-colors duration-300 relative overflow-hidden ${

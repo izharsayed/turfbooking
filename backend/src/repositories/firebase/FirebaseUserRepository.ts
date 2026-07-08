@@ -1,4 +1,4 @@
-import { User } from '@turf-booking/types';
+import { User } from '../../shared/types/domain.js';
 import { IUserRepository } from '../interfaces/IUserRepository.js';
 import { firestoreDb } from '../../config/firebase.js';
 
@@ -147,6 +147,7 @@ export class FirebaseUserRepository implements IUserRepository {
     };
     if (userData.email !== undefined) updateData.email = userData.email;
     if (userData.phone !== undefined) updateData.phone = userData.phone;
+    if (userData.avatarUrl !== undefined) updateData.avatarUrl = userData.avatarUrl;
     if (userData.role !== undefined) updateData.role = userData.role;
     if (userData.isActive !== undefined) updateData.isActive = userData.isActive;
     if (userData.deletedAt !== undefined) updateData.deletedAt = userData.deletedAt;
@@ -194,6 +195,7 @@ export class FirebaseUserRepository implements IUserRepository {
       name: data.name || data.email,
       email: data.email,
       phone: data.phone,
+      avatarUrl: data.avatarUrl || undefined,
       role: data.role,
       isActive: data.isActive,
       createdAt: data.createdAt instanceof Date ? data.createdAt : data.createdAt?.toDate?.() || new Date(),

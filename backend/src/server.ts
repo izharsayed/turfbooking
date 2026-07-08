@@ -1,7 +1,7 @@
 import http from 'http';
 import { Server } from 'socket.io';
-import app from './app.js';
 import { env } from './config/env.js';
+import app from './app.js';
 import { logger } from './config/logger.js';
 import { prisma } from './database/index.js';
 
@@ -54,7 +54,7 @@ process.on('unhandledRejection', (err: Error) => {
 
 process.on('uncaughtException', (err: Error) => {
   logger.error('🔴 UNCAUGHT EXCEPTION! Shutting down...');
-  logger.error(err.name, err.message);
+  logger.error(err.stack || err.message || String(err));
   process.exit(1);
 });
 

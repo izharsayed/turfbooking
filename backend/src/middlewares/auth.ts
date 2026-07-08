@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { UserRole } from '@turf-booking/types';
+import { UserRole } from '../shared/types/domain.js';
 import { AuthenticationError } from '../shared/utils/errors.js';
 import { verifyAccessToken } from '../shared/utils/token.js';
 import { sessionManager } from '../shared/utils/sessionManager.js';

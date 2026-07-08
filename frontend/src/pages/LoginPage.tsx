@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore, UserRole } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { Sun, Moon, Eye, EyeOff } from 'lucide-react';
+import { api } from '../store/api';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -10,35 +11,57 @@ export default function LoginPage() {
   const { isDarkMode, toggleTheme } = useThemeStore();
 
   const [role, setRole] = useState<UserRole>('customer');
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('9876543210');
+  const [password, setPassword] = useState('password');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone || !password) {
       setError('Please fill in all fields');
       return;
     }
 
-    // Mock login — replace with real API call
-    const mockUser = {
-      id: '1',
-      email: `${role}@turfbook.com`,
-      role,
-      name: role === 'admin' ? 'Admin User' : role === 'owner' ? 'Turf Owner' : 'Customer',
-      phone,
-    };
+    let email = `${role}@turfbook.com`;
+    if (phone === '9876543210') email = 'customer@turfbook.com';
+    if (phone === '9999988888') email = 'owner@turfbook.com';
+    if (phone === '8888877777') email = 'admin@turfbook.com';
 
-    login(mockUser, 'mock-token-' + role);
+    try {
+      setError('');
+      const response = await api.post('/auth/login', { email, password });
+      const payload = response.data;
+      if (payload && payload.success && payload.data) {
+        const { accessToken, user } = payload.data;
+        const userRoleMap: Record<string, UserRole> = {
+          CUSTOMER: 'customer',
+          TURF_OWNER: 'owner',
+          SUPER_ADMIN: 'admin',
+          ADMIN: 'admin',
+        };
+        const mappedUser = {
+          id: user.id,
+          email: user.email,
+          role: userRoleMap[user.role] || 'customer',
+          name: user.name,
+          phone: user.phone,
+        };
 
-    const redirects: Record<UserRole, string> = {
-      customer: '/customer',
-      owner: '/owner',
-      admin: '/admin',
-    };
-    navigate(redirects[role]);
+        login(mappedUser, accessToken);
+
+        const redirects: Record<UserRole, string> = {
+          customer: '/customer',
+          owner: '/owner',
+          admin: '/admin',
+        };
+        navigate(redirects[mappedUser.role]);
+      } else {
+        setError(payload.message || 'Login failed');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+    }
   };
 
   return (
@@ -87,11 +110,23 @@ export default function LoginPage() {
         <p className={`text-sm mb-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Sign in to your account</p>
 
         {/* Role selector */}
-        <div className={`flex rounded-xl p-1 mb-6 gap-1 ${isDarkMode ? 'bg-slate-800/60' : 'bg-slate-100'}`}>
+        <div className={`flex rounded-xl p-1 mb-4 gap-1 ${isDarkMode ? 'bg-slate-800/60' : 'bg-slate-100'}`}>
           {(['customer', 'owner', 'admin'] as UserRole[]).map((r) => (
             <button
               key={r}
-              onClick={() => setRole(r)}
+              onClick={() => {
+                setRole(r);
+                if (r === 'customer') {
+                  setPhone('9876543210');
+                  setPassword('password');
+                } else if (r === 'owner') {
+                  setPhone('9999988888');
+                  setPassword('password');
+                } else if (r === 'admin') {
+                  setPhone('8888877777');
+                  setPassword('password');
+                }
+              }}
               className={`flex-1 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${
                 role === r
                   ? 'bg-emerald-600 text-white shadow'
@@ -101,6 +136,39 @@ export default function LoginPage() {
               {r}
             </button>
           ))}
+        </div>
+
+        {/* Quick Demo Login Dropdown */}
+        <div className="mb-6">
+          <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+            ⚡ Quick Demo Login
+          </label>
+          <select
+            onChange={(e) => {
+              const val = e.target.value as UserRole;
+              setRole(val);
+              if (val === 'customer') {
+                setPhone('9876543210');
+                setPassword('password');
+              } else if (val === 'owner') {
+                setPhone('9999988888');
+                setPassword('password');
+              } else if (val === 'admin') {
+                setPhone('8888877777');
+                setPassword('password');
+              }
+            }}
+            value={role}
+            className={`w-full px-3 py-3 rounded-xl border text-sm outline-none font-semibold transition-all ${
+              isDarkMode 
+                ? 'bg-[#0f172a] border-slate-700 text-slate-300 focus:border-emerald-500/50' 
+                : 'bg-white border-slate-300 text-slate-700 focus:border-emerald-500/50 shadow-sm'
+            }`}
+          >
+            <option value="customer">👤 Customer (9876543210)</option>
+            <option value="owner">🏟️ Turf Owner (9999988888)</option>
+            <option value="admin">🛠️ System Admin (8888877777)</option>
+          </select>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">

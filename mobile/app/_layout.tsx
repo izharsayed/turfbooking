@@ -1,30 +1,36 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useThemeStore } from '../store/themeStore';
 
 const queryClient = new QueryClient();
 
 export default function RootLayout() {
+  const { isDarkMode } = useThemeStore();
+
+  const headerBg = isDarkMode ? '#020617' : '#ffffff';
+  const textColor = isDarkMode ? '#ffffff' : '#0f172a';
+
   return (
     <QueryClientProvider client={queryClient}>
-      <StatusBar style="light" />
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#020617', // Slate 950
+            backgroundColor: headerBg,
           },
-          headerTintColor: '#fff',
+          headerTintColor: textColor,
           headerTitleStyle: {
             fontWeight: 'bold',
           },
           contentStyle: {
-            backgroundColor: '#020617',
+            backgroundColor: isDarkMode ? '#030712' : '#f8fafc',
           },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'TurfBook' }} />
+        <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="profile" options={{ title: 'My Profile' }} />
+        <Stack.Screen name="profile" options={{ headerShown: false }} />
       </Stack>
     </QueryClientProvider>
   );

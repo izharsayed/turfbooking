@@ -1,4 +1,4 @@
-import { User } from '@turf-booking/types';
+import { User } from '../../shared/types/domain.js';
 
 export interface IUserRepository {
   findById(id: string): Promise<User | null>;

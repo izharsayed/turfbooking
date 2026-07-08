@@ -1,4 +1,4 @@
-import { User } from '@turf-booking/types';
+import { User } from '../../shared/types/domain.js';
 import { IUserRepository } from '../interfaces/IUserRepository.js';
 import { prisma } from '../../database/index.js';
 
@@ -105,6 +105,7 @@ export class PrismaUserRepository implements IUserRepository {
       data: {
         email: userData.email,
         phone: userData.phone,
+        avatarUrl: userData.avatarUrl,
         role: userData.role as any,
         isActive: userData.isActive,
         deletedAt: userData.deletedAt,
@@ -148,6 +149,7 @@ export class PrismaUserRepository implements IUserRepository {
         : prismaUser.ownerProfile?.companyName || 'Turf Owner',
       email: prismaUser.email,
       phone: prismaUser.phone,
+      avatarUrl: prismaUser.avatarUrl || undefined,
       role: prismaUser.role as any,
       isActive: prismaUser.isActive,
       createdAt: prismaUser.createdAt,

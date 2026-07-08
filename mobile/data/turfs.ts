@@ -51,7 +51,7 @@ export const turfs: Turf[] = [
     price: 1000,
     rating: 4.7,
     area: 'Kedgaon, Ahmednagar',
-    image: 'https://images.unsplash.com/photo-1518605076385-7bf7b1f54411?w=600&auto=format&fit=crop&q=60',
+    image: 'https://images.unsplash.com/photo-1531415080290-bc98513989fe?w=600&auto=format&fit=crop&q=60',
     latitude: 19.0745,
     longitude: 74.7335,
     description:
@@ -66,7 +66,7 @@ export const turfs: Turf[] = [
     price: 1800,
     rating: 4.9,
     area: 'Gulmohar Road, Ahmednagar',
-    image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60',
+    image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&auto=format&fit=crop&q=60',
     latitude: 19.1235,
     longitude: 74.7485,
     description:

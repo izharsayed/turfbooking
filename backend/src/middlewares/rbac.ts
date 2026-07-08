@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth.js';
 import { AuthorizationError } from '../shared/utils/errors.js';
-import { UserRole } from '@turf-booking/types';
+import { UserRole } from '../shared/types/domain.js';
 
 export const authorizeRoles = (...allowedRoles: UserRole[]) => {
   return (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {

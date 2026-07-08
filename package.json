@@ -5,20 +5,13 @@
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "scripts": {
-    "dev": "turbo dev",
-    "dev:web": "turbo dev --filter=@turf-booking/backend --filter=@turf-booking/admin-web --filter=@turf-booking/customer-web",
-    "dev:backend": "turbo dev --filter=@turf-booking/backend",
-    "dev:admin": "turbo dev --filter=@turf-booking/admin-web",
-    "dev:customer": "turbo dev --filter=@turf-booking/customer-web",
-    "dev:mobile": "turbo dev --filter=@turf-booking/mobile-app",
-    "dev:owner": "turbo dev --filter=@turf-booking/owner-web",
-    "build:all": "turbo build",
-    "lint:all": "turbo lint",
+    "dev:web": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:mobile": "npm --prefix mobile run start",
+    "mobile": "npm --prefix mobile run start",
+    "start": "npm --prefix mobile run start",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
-    "prepare": "husky",
-    "db:migrate": "pnpm --filter=@turf-booking/backend prisma:migrate",
-    "db:generate": "pnpm --filter=@turf-booking/backend prisma:generate",
-    "db:seed": "pnpm --filter=@turf-booking/backend prisma:seed"
+    "prepare": "husky"
   },
   "keywords": [
     "turf",
@@ -32,6 +25,7 @@
   "devDependencies": {
     "@commitlint/cli": "^19.3.0",
     "@commitlint/config-conventional": "^19.2.2",
+    "@types/react": "~19.2.4",
     "@typescript-eslint/eslint-plugin": "^7.15.0",
     "@typescript-eslint/parser": "^7.15.0",
     "eslint": "^8.57.0",

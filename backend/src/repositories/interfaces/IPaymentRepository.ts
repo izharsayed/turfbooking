@@ -1,4 +1,4 @@
-import { Payment } from '@turf-booking/types';
+import { Payment } from '../../shared/types/domain.js';
 
 export interface IPaymentRepository {
   findById(id: string): Promise<Payment | null>;

@@ -437,16 +437,141 @@ pnpm dev:backend      # start the server
 - Enabled standard hover pointer scales and clicks for staff members on the slot planner list.
 - **Why**: Responds to user request to make sure the slot button clicks successfully open the offline booking form when logged in as a STAFF role.
 
+### 61. `mobile/app/index.tsx` — Modified
+- Redesigned the Explore tab search bar, category chips, and card layouts.
+- Integrated vector icons inside index.tsx header and tab button components.
+- Overlaid the Sport Tag and Rating badges directly on top of the turf cover image, and updated details positioning.
+- Refined background image opacity to `0.22` in light mode (with a 60% light mask overlay) and `0.35` in dark mode (with a 50% dark mask overlay) to match the Web UI's visible grass texture.
+- **Why**: Responds to user request to fix the home/explore screen layout and make it look professional, and resolves the issue where the dark background image made light mode look dark.
 
+### 62. `mobile/app/login.tsx` — Modified
+- Imported `useThemeStore` and integrated theme attributes.
+- Themed all welcome titles, subtitles, inputs, buttons, and bottom guest text/links.
+- Refined background image opacity to `0.22` in light mode (with a 60% light mask overlay) and `0.35` in dark mode (with a 50% dark mask overlay) to match the Web UI.
+- **Why**: Responds to user request to fix the login screen layout, and resolves the issue where the login page background remained dark in light mode.
 
+### 63. `mobile/app/profile.tsx` & `mobile/app/turf/[id].tsx` — Modified
+- Refined background image opacity to `0.22` in light mode (with a 60% light mask overlay) and `0.35` in dark mode (with a 50% dark mask overlay).
+- **Why**: Standardizes background image opacity and mask overlay behavior across all screens in the mobile application.
 
+### 64. `mobile/app/index.tsx` — Modified
+- Removed the old horizontal top navigation tab bar.
+- Implemented a floating, absolute-positioned bottom tab bar (footer navbar) containing vertical layouts (icon on top, text label below) with native style animations.
+- Bound active and inactive tab colors (emerald green and muted gray) to the footer container dynamically.
+- Added a `paddingBottom: 100` content container padding style to the main ScrollView to ensure list items are never cut off.
+- **Why**: Responds to user request to add a footer navbar, cleaning up the top header and standardizing standard mobile design guidelines.
 
+### 65. `mobile/app/index.tsx` — Modified
+- Upgraded the Map tab view markers to display dynamic sport emojis matching the turf type (`⚽` for Football, `🏏` for Cricket, `🥅` for Box Cricket) instead of just soccer balls.
+- Bound dynamic theme colors (`theme.card`, `theme.border`, `theme.text`, `theme.textMuted`) to both the Map callout bubble and selected turf details card at the bottom.
+- Relocated the selected turf details card bottom offset to sit floating above the footer tab bar, preventing layout overlaps.
+- Swapped the plain text close button with a custom vector Ionicons `close-circle-outline` icon button.
+- **Why**: Responds to user request to start working on the map view features, enhancing styling consistency across light and dark modes, and fixing tab bar layout blocking issues.
 
+### 66. `mobile/app/index.tsx` — Modified
+- Installed `expo-location` package and imported Location handlers inside the index.tsx file.
+- Enabled standard user GPS location marker updates (`showsUserLocation={true}`) on the MapView canvas.
+- Integrated a custom, floating circular Locate action button containing an Ionicons target icon.
+- Wired Locate click handlers to trigger Expo permission alerts and smoothly animate the MapView camera to center directly on user location coordinates.
+- Dynamic layout: configured locate button `bottom` style in JSX to slide upwards when a map card details sheet is open to prevent navigation overlays.
+- **Why**: Responds to user request to fix the map layout, enhance the UI, and add live location features.
 
+### 67. `mobile/app/login.tsx` & `index.tsx` — Modified
+- Logo redesign: replaced flat football emoji `⚽` on the login page welcome brand header with a high-fidelity vector `soccer` icon from `MaterialCommunityIcons` nested in a geometric double-bordered square container shape.
+- Pin marker upgrade: designed a custom **pointed-arrow map pin** consisting of a circular vector icon container (`pinCircle`) stacked on top of a pointing triangle pointer (`pinArrow`) indicating the coordinates exactly.
+- Dynamic theme pins: wired theme-reactive background colors and sport-specific border colors (emerald green for football, gold-yellow for cricket) to ensure high visibility and alignment across light and dark modes.
+- **Why**: Responds to user request to work on the football icon, upgrade the shape, and replace the chunky diamond markers with a cleaner pointing-arrow style.
 
+### 68. `mobile/app/turf/[id].tsx` — Modified
+- Enabled full 24-hour schedules with 24 booking slots generated dynamically per day.
+- Upgraded the slots display layout to a compact 4-column grid (`width: 23%`, `aspectRatio: 1.25`) with a denser typeface size, making all 24 slots look extremely premium and accessible.
+- Fixed theme styling bugs by removing hardcoded dark background colors from the date selection cards, sport tabs, court chips, and timeline ruler marks.
+- Bound dynamic theme colors (`theme.card`, `theme.border`, `theme.text`, `theme.textMuted`) so the booking inputs and selector panels adapt when switching to light mode.
+- **Why**: Responds to user request to fix the booking page layout, make it look professional, and add 24 booking slots.
 
+### 69. `mobile/app/_layout.tsx` — Modified
+- Imported `useThemeStore` and mapped its state dynamically inside the root stack router navigation.
+- Configured dynamic theme bindings to change screen header colors (`headerStyle`), title font colors (`headerTintColor`), page body background colors (`contentStyle`), and Status Bar styles (`light` vs. `dark`) reactively.
+- **Why**: Removes hardcoded dark styling on root stack headers to ensure cohesive light mode integration.
 
+### 70. `mobile/app/booking/[id].tsx` — Created [NEW]
+- Programmed a custom, premium booking ticket confirmation screen matching boarding pass layout guidelines.
+- Features: double-nested circular status checking headers, dashed divider separators with left/right circular cutouts, and dynamic vector QR Code mock grids that display scanning instructions.
+- Connected database state store checks to look up booking structures and turf contexts, displaying complete summaries (Booking ID, Turf Name, GPS locations, selected sport, slot time, and currency fees).
+- Configured dynamic cancellation features that trigger confirmation prompts, update backend database logs, void tickets, and hide QR grids gracefully.
+- **Why**: Responds to user request to work on the next page in the booking flow.
 
+### 71. `mobile/app/payment/index.tsx` — Created [NEW]
+- Created a secure checkout page displaying selected turf details, slot timing summaries, convenience fees, and a dynamic grand total.
+- Integrated a Playcoins reward switch that checks and redeems balance coins, dynamically updating discount totals and fees.
+- Configured selectable payment methods (UPI Apps, credit/debit cards, net banking) styled with custom radio buttons and icons.
+- Built a simulated payment gateway loading overlay that displays secure processing indicators before finalizing the booking and routing to the ticket screen.
+- **Why**: Responds to user request to add a payment page instead of skipping it.
 
+### 72. `mobile/app/turf/[id].tsx` — Modified
+- Redirected the book button click action to route to the new `/payment` checkout path with booking arguments (turfId, date, time, court, sport) instead of immediately saving the booking.
+- **Why**: Integrates the checkout phase sequentially before confirming reservations.
 
+### 73. `mobile/app/payment/index.tsx` — Modified
+- Integrated an expandable UPI Apps panel inside the UPI payment card selection.
+- Created selection chips for Google Pay, PhonePe, Paytm, and BHIM with matching vector icons, toggling selection states.
+- Implemented a custom UPI ID text input box (e.g. user@okhdfcbank) containing automatic validation indicators (checks for `@` substring, shows a green "Valid ID" badge).
+- Programmed payment submission safety checks requiring either an active UPI App chip selection or a validated UPI ID to successfully execute checkouts.
+- **Why**: Responds to user request to work on the UPI apps flow.
 
+### 74. `mobile/app/payment/index.tsx` — Modified
+- Replaced the mockup internal overlay portals with actual React Native `Linking.openURL()` deep links.
+- Programmed custom URI intent targets for **Google Pay** (`gpay://upi/pay`), **PhonePe** (`phonepe://upi/pay`), **Paytm** (`paytmmp://upi/pay`), and **BHIM** (`bhim://upi/pay`) containing structured parameters (merchant VPA, payee name, amount total, currency, and transaction reference).
+- Added fallback hooks: if specific app schemes fail, it attempts generic `upi://pay` launcher routing.
+- **Why**: Responds to user request to launch the actual, external mobile payment app (Google Pay, PhonePe, Paytm, etc.) installed on the device for transaction confirmation.
+
+### 75. `mobile/app/payment/index.tsx` — Modified
+- Implemented `verifyTransaction` status-outcome check prompts.
+- Integrated a component-level `useEffect` hook listening to the device `AppState` focus transitions (`active` foreground vs. `background`).
+- When users return from the external UPI application (triggering an AppState `'active'` event), if a transaction verification is pending (`isVerifyingPayment`), a verification popup alert triggers: `"Did you complete the payment of ₹X?"`.
+- Selecting `"Yes, Paid Successfully"` registers the reservation to the booking store and redirects to the Boarding Pass ticket screen.
+- Selecting `"No, Cancelled/Failed"` rejects booking creation, triggers an error warning block, and keeps the user on checkout.
+- **Why**: Fixes a bug where bookings were automatically confirmed even if the external payment app was closed without paying, and resolves background timer trigger bugs by waiting for the actual AppState focus return.
+
+### 76. `mobile/utils/api.ts` — Created
+- Designed a self-detecting, zero-dependency `apiFetch` client wrapper.
+- Automatically resolves host IP dynamically (`Constants.expoConfig?.hostUri`) in development to support both emulators and real physical devices on LAN.
+- Reads auth token from `useAuthStore` and appends `Authorization: Bearer <token>` to headers.
+- Normalizes server-side response error maps.
+- **Why**: Facilitates standard mobile app integration with the local/remote backend endpoints.
+
+### 77. `backend/src/modules/user/turf.routes.ts` — Created
+- Added public customer turf lookup endpoints: `GET /api/v1/turfs` (lists all active turfs) and `GET /api/v1/turfs/:id` (retrieves details for a single turf by ID).
+- **Why**: Exposes essential turf directories to customers.
+
+### 78. `backend/src/modules/user/booking.routes.ts` — Created
+- Created customer booking endpoints: `GET /api/v1/bookings` (lists customer booking history with populated turf descriptions), `POST /api/v1/bookings` (persists a checkout transaction), and `GET /api/v1/bookings/:id` (retrieves single boarding ticket details).
+- **Why**: Enables customers to reserve slots and view past receipts.
+
+### 79. `backend/src/app.ts` — Modified
+- Mounted `/api/v1/turfs` (`turfRouter`) and `/api/v1/bookings` (`bookingRouter`).
+- **Why**: Integrates the new customer routers into the central Express application routing.
+
+### 80. `mobile/app/login.tsx` — Modified
+- Linked registration, standard password sign-in, and phone OTP verification to the backend routes.
+- **Why**: Connects the login interface to the backend.
+
+### 81. `mobile/app/index.tsx` — Modified
+- Swapped mock data selectors for live REST endpoints (`/turfs` and `/bookings`) with robust fallbacks to mock data.
+- **Why**: Connects Explore list, Map markers, and Reservations tab to the database.
+
+### 82. `mobile/app/turf/[id].tsx` — Modified
+- Replaced the static `getTurfById` lookup with a `/turfs/:id` details API call.
+- **Why**: Connects Turf Booking Details page to live turf settings.
+
+### 83. `mobile/app/payment/index.tsx` — Modified
+- Updated checkout `executeBookingCreation` to POST transaction metadata to `/bookings` before finalizing.
+- **Why**: Persists bookings upon successful checkout.
+
+### 84. `mobile/app/booking/[id].tsx` — Modified
+- Refactored Ticket ticket detail loaders to pull from `/bookings/:id`.
+- **Why**: Enables users to load booking ticket details directly from database records.
+
+### 85. `mobile/store/bookingStore.ts` — Modified
+- Extended Zustand `BookingState` with `setBookings` and optional `id` parameter during booking creation.
+- **Why**: Facilitates synchronizing the local state store with backend API records.
