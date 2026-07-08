@@ -35,8 +35,10 @@ export class FirebaseAdminRepository implements IAdminRepository {
 
     return {
       totalUsers:              customers.length,
+      totalCustomers:          customers.length, // frontend compat
       totalTurfOwners:         allOwners.length,
       pendingOwnerApprovals:   pendingOwners.length,
+      pendingOwners:           pendingOwners.length, // frontend compat
       approvedOwners:          approvedOwners.length,
       rejectedOwners:          0,
       blockedUsers:            allUsers.filter(u => !u.isActive && u.role === 'CUSTOMER').length,
@@ -44,7 +46,9 @@ export class FirebaseAdminRepository implements IAdminRepository {
       activeTurfs,
       inactiveTurfs:           totalTurfs - activeTurfs,
       todayBookings,
+      bookingsToday:           todayBookings, // frontend compat
       todayRevenue:            0,
+      revenueToday:            0, // frontend compat
       monthlyRevenue:          0,
       platformRevenue:         0,
       ownerRevenue:            0,
