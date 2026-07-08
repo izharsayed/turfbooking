@@ -54,7 +54,7 @@ process.on('unhandledRejection', (err: Error) => {
 
 process.on('uncaughtException', (err: Error) => {
   logger.error('🔴 UNCAUGHT EXCEPTION! Shutting down...');
-  logger.error(err.name, err.message);
+  logger.error(err.stack || err.message || String(err));
   process.exit(1);
 });
 

@@ -7,10 +7,10 @@ export const createTurfSchema = z.object({
   latitude: z.number(),
   longitude: z.number(),
   pricePerHour: z.number().positive(),
-  cityId: z.string().uuid(),
-  areaId: z.string().uuid(),
-  sports: z.array(z.string().uuid()).min(1, 'At least one sport must be assigned'),
-  amenities: z.array(z.string().uuid()).optional(),
+  cityId: z.string().min(1, 'City ID is required'),
+  areaId: z.string().min(1, 'Area ID is required'),
+  sports: z.array(z.string().min(1)).min(1, 'At least one sport must be assigned'),
+  amenities: z.array(z.string().min(1)).optional(),
 });
 
 export const updateTurfSchema = z.object({
@@ -24,7 +24,7 @@ export const updateTurfSchema = z.object({
 });
 
 export const createSlotSchema = z.object({
-  turfId: z.string().uuid(),
+  turfId: z.string().min(1),
   startTime: z.string().regex(/^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/, 'Time must be in HH:MM format'),
   endTime: z.string().regex(/^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/, 'Time must be in HH:MM format'),
   price: z.number().positive(),
@@ -32,7 +32,7 @@ export const createSlotSchema = z.object({
 });
 
 export const blockSlotSchema = z.object({
-  turfId: z.string().uuid(),
+  turfId: z.string().min(1),
   date: z.string().datetime(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
@@ -40,8 +40,8 @@ export const blockSlotSchema = z.object({
 });
 
 export const manualBookingSchema = z.object({
-  turfId: z.string().uuid(),
-  sportId: z.string().uuid(),
+  turfId: z.string().min(1),
+  sportId: z.string().min(1),
   date: z.string().datetime(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),

@@ -14,6 +14,7 @@ export interface Booking {
 }
 
 interface NewBooking {
+  id?: string;
   turfId: string;
   turfName: string;
   area: string;
@@ -24,6 +25,7 @@ interface NewBooking {
 
 interface BookingState {
   bookings: Booking[];
+  setBookings: (bookings: Booking[]) => void;
   addBooking: (booking: NewBooking) => Booking;
   cancelBooking: (id: string) => void;
   getBookingById: (id: string | undefined) => Booking | undefined;
@@ -42,10 +44,11 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       status: 'UPCOMING',
     },
   ],
+  setBookings: (bookings) => set({ bookings }),
   addBooking: (booking) => {
     const created: Booking = {
       ...booking,
-      id: `B-${Math.floor(10000 + Math.random() * 90000)}`,
+      id: booking.id || `B-${Math.floor(10000 + Math.random() * 90000)}`,
       status: 'UPCOMING',
     };
     set((state) => ({ bookings: [created, ...state.bookings] }));

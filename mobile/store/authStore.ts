@@ -6,6 +6,7 @@ interface UserProfile {
   role: string;
   name: string;
   phone?: string;
+  status?: string;
 }
 
 interface AuthState {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,74 +8,208 @@ import {
   TextInput,
   Image,
   Alert,
+  Platform,
 } from 'react-native';
 import MapView, { Marker, Callout, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useRouter } from 'expo-router';
-import { formatCurrency } from '@turf-booking/utils';
-import { useAuthStore } from '../store/authStore.js';
-import { useBookingStore } from '../store/bookingStore.js';
-import { turfs, type Turf } from '../data/turfs.js';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import { formatCurrency } from '../utils/index';
+import { useAuthStore } from '../store/authStore';
+import { useBookingStore } from '../store/bookingStore';
+import { useThemeStore } from '../store/themeStore';
+import { turfs, type Turf } from '../data/turfs';
+import { apiFetch } from '../utils/api';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const bookings = useBookingStore((s) => s.bookings);
+  const setBookings = useBookingStore((s) => s.setBookings);
+  const { isDarkMode, toggleTheme } = useThemeStore();
+
+  const theme = {
+    bg: isDarkMode ? '#030712' : '#f8fafc',
+    card: isDarkMode ? 'rgba(15, 23, 42, 0.65)' : '#ffffff',
+    text: isDarkMode ? '#ffffff' : '#0f172a',
+    textMuted: isDarkMode ? '#94a3b8' : '#64748b',
+    border: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#cbd5e1',
+    inputBg: isDarkMode ? 'rgba(3, 7, 18, 0.5)' : '#ffffff',
+    headerBg: isDarkMode ? 'rgba(3, 7, 18, 0.6)' : 'rgba(255, 255, 255, 0.8)',
+    tabBarBg: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : '#ffffff',
+    bgImageOpacity: isDarkMode ? 0.35 : 0.22,
+    overlayBg: isDarkMode ? 'rgba(3, 7, 18, 0.5)' : 'rgba(248, 250, 252, 0.6)',
+  };
 
   const [activeTab, setActiveTab] = useState<'explore' | 'bookings' | 'map' | 'support'>('explore');
   const [selectedMapTurf, setSelectedMapTurf] = useState<Turf | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSport, setSelectedSport] = useState<string>('All');
+  const [loadedTurfs, setLoadedTurfs] = useState<Turf[]>(turfs);
+  const [loadingTurfs, setLoadingTurfs] = useState(false);
 
-  const filteredTurfs = turfs.filter(
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
+  const mapRef = useRef<MapView | null>(null);
+
+  useEffect(() => {
+    const fetchTurfs = async () => {
+      setLoadingTurfs(true);
+      try {
+        const res = await apiFetch('/turfs');
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          const normalized = res.data.map((bt: any) => ({
+            id: bt.id,
+            name: bt.name,
+            sport: Array.isArray(bt.sports) ? bt.sports[0] : (bt.sport || 'Football'),
+            price: bt.pricePerHour || bt.price || 1200,
+            rating: bt.rating || 4.5,
+            area: bt.location?.address || bt.area || 'Ahmednagar',
+            image: Array.isArray(bt.images) && bt.images.length > 0 ? bt.images[0] : (bt.image || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60'),
+            latitude: bt.location?.latitude || bt.latitude || 19.1158,
+            longitude: bt.location?.longitude || bt.longitude || 74.742,
+            description: bt.description || '',
+            amenities: bt.amenities || [],
+            slots: bt.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
+          }));
+          setLoadedTurfs(normalized);
+        }
+      } catch (err) {
+        console.log('Failed to fetch active turfs from API, falling back to mock data', err);
+      } finally {
+        setLoadingTurfs(false);
+      }
+    };
+    fetchTurfs();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'bookings' && isAuthenticated) {
+      const fetchBookings = async () => {
+        try {
+          const res = await apiFetch('/bookings');
+          if (res.success && Array.isArray(res.data)) {
+            const mapped = res.data.map((b: any) => ({
+              id: b.id,
+              turfId: b.turfId,
+              turfName: b.turfName,
+              area: b.area,
+              date: b.date,
+              time: b.time,
+              amount: b.amount,
+              status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : 'CANCELLED',
+            }));
+            setBookings(mapped);
+          }
+        } catch (err) {
+          console.log('Failed to fetch bookings from backend', err);
+        }
+      };
+      fetchBookings();
+    }
+  }, [activeTab, isAuthenticated]);
+
+  useEffect(() => {
+    if (activeTab === 'map') {
+      (async () => {
+        try {
+          let { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== 'granted') {
+            setLocationPermission(false);
+            return;
+          }
+          setLocationPermission(true);
+          let location = await Location.getCurrentPositionAsync({});
+          setUserLocation({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
+        } catch (e) {
+          console.log('Error requesting location', e);
+        }
+      })();
+    }
+  }, [activeTab]);
+
+  const centerToUserLocation = async () => {
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Please enable location permissions in settings to view your position on the map.');
+        return;
+      }
+
+      let location = await Location.getCurrentPositionAsync({});
+      const coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      setUserLocation(coords);
+
+      mapRef.current?.animateToRegion({
+        ...coords,
+        latitudeDelta: 0.04,
+        longitudeDelta: 0.04,
+      }, 1000);
+    } catch (e) {
+      Alert.alert('Error', 'Unable to fetch your current GPS coordinates. Make sure location services are enabled on your device.');
+    }
+  };
+
+  const filteredTurfs = loadedTurfs.filter(
     (t) =>
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.sport.toLowerCase().includes(searchQuery.toLowerCase())
+      (selectedSport === 'All' || t.sport === selectedSport) &&
+      (t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.sport.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.area.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      <Image
+        source={require('../assets/turf-bg.jpg')}
+        style={[styles.backgroundImage, { opacity: theme.bgImageOpacity }]}
+        resizeMode="cover"
+      />
+      <View style={[styles.overlay, { backgroundColor: theme.overlayBg }]} />
+
       {/* Header Profile Info bar */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>TurfBook</Text>
-        {isAuthenticated ? (
-          <TouchableOpacity style={styles.profileRow} onPress={() => router.push('/profile')}>
-            <Text style={styles.profileText}>Hi, {user?.name}</Text>
-            <View style={styles.profileAvatar}>
-              <Text style={styles.profileAvatarText}>
-                {(user?.name ?? '?').charAt(0).toUpperCase()}
-              </Text>
-            </View>
+      <View style={[styles.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>TurfBook</Text>
+          <View style={styles.headerDot} />
+          <TouchableOpacity onPress={toggleTheme} style={styles.themeToggle}>
+            <Text style={styles.themeToggleText}>{isDarkMode ? '☀️' : '🌙'}</Text>
           </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.loginBtn} onPress={() => router.push('/login')}>
-            <Text style={styles.loginBtnText}>Sign In</Text>
-          </TouchableOpacity>
-        )}
+        </View>
+        
+        <View style={styles.headerRight}>
+          {isAuthenticated ? (
+            <TouchableOpacity style={styles.profileRow} onPress={() => router.push('/profile')}>
+              <Text style={[styles.profileText, { color: theme.textMuted }]}>Hi, {user?.name.split(' ')[0]}</Text>
+              <Image
+                source={{ uri: `https://avatar.iran.liara.run/public/boy?username=${user?.name || 'ahmed'}` }}
+                style={styles.profileAvatarImage as any}
+              />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.loginBtn} onPress={() => router.push('/login')}>
+              <Text style={styles.loginBtnText}>Sign In</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsRow}>
-        {(['explore', 'bookings', 'map', 'support'] as const).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
-            onPress={() => {
-              setActiveTab(tab);
-              setSelectedMapTurf(null);
-            }}
-          >
-            <Text style={[styles.tabButtonText, activeTab === tab && styles.activeTabButtonText]}>
-              {tab === 'map' ? '🗺️ Map' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
 
       {/* Map Tab — outside ScrollView so it fills the screen */}
       {activeTab === 'map' && (
         <View style={styles.mapContainer}>
           <MapView
+            ref={mapRef}
             provider={PROVIDER_DEFAULT}
             style={styles.map}
+            showsUserLocation={true}
+            showsMyLocationButton={false}
             initialRegion={{
               latitude: 19.0948,
               longitude: 74.748,
@@ -83,44 +217,71 @@ export default function HomeScreen() {
               longitudeDelta: 0.12,
             }}
           >
-            {turfs.map((turf) => (
-              <Marker
-                key={turf.id}
-                coordinate={{ latitude: turf.latitude, longitude: turf.longitude }}
-                onPress={() => setSelectedMapTurf(turf)}
-              >
-                <View style={styles.markerBubble}>
-                  <Text style={styles.markerText}>⚽</Text>
-                </View>
-                <Callout tooltip>
-                  <View style={styles.calloutBox}>
-                    <Text style={styles.calloutName}>{turf.name}</Text>
-                    <Text style={styles.calloutSport}>{turf.sport}</Text>
-                    <Text style={styles.calloutPrice}>{formatCurrency(turf.price)}/hr</Text>
+            {turfs.map((turf) => {
+              const isFootball = turf.sport === 'Football';
+              const markerColor = isFootball ? '#10b981' : '#eab308';
+
+              return (
+                <Marker
+                  key={turf.id}
+                  coordinate={{ latitude: turf.latitude, longitude: turf.longitude }}
+                  onPress={() => setSelectedMapTurf(turf)}
+                >
+                  <View style={styles.pinContainer}>
+                    <View style={[styles.pinCircle, { borderColor: markerColor, backgroundColor: theme.card }]}>
+                      {isFootball ? (
+                        <MaterialCommunityIcons name="soccer" size={18} color="#10b981" />
+                      ) : (
+                        <Text style={styles.pinEmoji}>🏏</Text>
+                      )}
+                    </View>
+                    <View style={[styles.pinArrow, { borderTopColor: markerColor }]} />
                   </View>
-                </Callout>
-              </Marker>
-            ))}
+                  <Callout tooltip>
+                    <View style={[styles.calloutBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                      <Text style={[styles.calloutName, { color: theme.text }]}>{turf.name}</Text>
+                      <Text style={styles.calloutSport}>{turf.sport}</Text>
+                      <Text style={[styles.calloutPrice, { color: theme.textMuted }]}>{formatCurrency(turf.price)}/hr</Text>
+                    </View>
+                  </Callout>
+                </Marker>
+              );
+            })}
           </MapView>
+
+          {/* Custom locate button floating on map */}
+          <TouchableOpacity
+            style={[
+              styles.locateButton,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                bottom: selectedMapTurf ? (Platform.OS === 'ios' ? 260 : 250) : (Platform.OS === 'ios' ? 170 : 160)
+              }
+            ]}
+            onPress={centerToUserLocation}
+          >
+            <Ionicons name="locate" size={24} color="#10b981" />
+          </TouchableOpacity>
 
           {/* Selected turf bottom card */}
           {selectedMapTurf && (
-            <View style={styles.mapCard}>
+            <View style={[styles.mapCard, { backgroundColor: theme.card, borderColor: theme.border, bottom: Platform.OS === 'ios' ? 95 : 85 }]}>
               <View style={styles.mapCardHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.mapCardTitle}>{selectedMapTurf.name}</Text>
-                  <Text style={styles.mapCardArea}>📍 {selectedMapTurf.area}</Text>
+                  <Text style={[styles.mapCardTitle, { color: theme.text }]}>{selectedMapTurf.name}</Text>
+                  <Text style={[styles.mapCardArea, { color: theme.textMuted }]}>📍 {selectedMapTurf.area}</Text>
                 </View>
-                <TouchableOpacity onPress={() => setSelectedMapTurf(null)}>
-                  <Text style={styles.mapCardClose}>✕</Text>
+                <TouchableOpacity onPress={() => setSelectedMapTurf(null)} style={{ padding: 4 }}>
+                  <Ionicons name="close-circle-outline" size={22} color={theme.textMuted} />
                 </TouchableOpacity>
               </View>
               <View style={styles.mapCardRow}>
                 <View style={styles.mapCardBadge}>
                   <Text style={styles.mapCardBadgeText}>{selectedMapTurf.sport}</Text>
                 </View>
-                <Text style={styles.mapCardRating}>★ {selectedMapTurf.rating}</Text>
-                <Text style={styles.mapCardPrice}>{formatCurrency(selectedMapTurf.price)}/hr</Text>
+                <Text style={[styles.mapCardRating, { color: isDarkMode ? '#facc15' : '#eab308' }]}>★ {selectedMapTurf.rating}</Text>
+                <Text style={[styles.mapCardPrice, { color: theme.text }]}>{formatCurrency(selectedMapTurf.price)}/hr</Text>
               </View>
               <TouchableOpacity
                 style={styles.mapCardButton}
@@ -133,41 +294,122 @@ export default function HomeScreen() {
         </View>
       )}
 
-      <ScrollView style={[styles.scroll, activeTab === 'map' && { display: 'none' }]}>
+      <ScrollView
+        style={[styles.scroll, activeTab === 'map' && { display: 'none' }]}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
         {/* Tab 1: Explore */}
         {activeTab === 'explore' && (
           <View style={styles.section}>
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search by city, sport or arena..."
-              placeholderTextColor="#64748b"
-              style={styles.searchInput}
-            />
+            {/* Search Input Box */}
+            <View style={[styles.searchContainer, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+              <Ionicons name="search" size={18} color={theme.textMuted} style={{ marginRight: 10 }} />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search by city, sport or arena..."
+                placeholderTextColor={theme.textMuted}
+                style={[styles.searchInputNew, { color: theme.text }]}
+              />
+            </View>
 
-            <Text style={styles.sectionTitle}>Featured Arenas</Text>
+            {/* Sport Categories Horizontal Strip */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.categoriesContainer}
+              contentContainerStyle={styles.categoriesContent}
+            >
+              {['All', 'Football', 'Cricket', 'Box Cricket'].map((sport) => {
+                const isActive = selectedSport === sport;
+                let sportIcon = '';
+                if (sport === 'All') sportIcon = '🏟️';
+                else if (sport === 'Football') sportIcon = '⚽';
+                else if (sport === 'Cricket') sportIcon = '🏏';
+                else if (sport === 'Box Cricket') sportIcon = '🥅';
+
+                return (
+                  <TouchableOpacity
+                    key={sport}
+                    onPress={() => setSelectedSport(sport)}
+                    style={[
+                      styles.categoryChip,
+                      {
+                        backgroundColor: isActive
+                          ? '#10b981'
+                          : isDarkMode
+                          ? 'rgba(15, 23, 42, 0.65)'
+                          : '#ffffff',
+                        borderColor: isActive ? '#10b981' : theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        {
+                          color: isActive ? '#030712' : theme.text,
+                          fontWeight: isActive ? '800' : '600',
+                        },
+                      ]}
+                    >
+                      {sportIcon} {sport}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Featured Arenas</Text>
             {filteredTurfs.map((turf) => (
               <TouchableOpacity
                 key={turf.id}
-                style={styles.card}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                  },
+                ]}
                 onPress={() => router.push(`/turf/${turf.id}`)}
               >
-                <Image source={{ uri: turf.image }} style={styles.cardImage} />
-                <View style={styles.cardContent}>
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle}>{turf.name}</Text>
-                    <Text style={styles.rating}>★ {turf.rating}</Text>
+                {/* Image wrapper with relative positioning so badges can be absolute */}
+                <View style={styles.cardImageWrapper}>
+                  <Image source={{ uri: turf.image }} style={styles.cardImage} />
+                  
+                  {/* Sport overlay badge on top-left */}
+                  <View style={styles.cardSportOverlayBadge}>
+                    <Text style={styles.cardSportOverlayBadgeText}>{turf.sport.toUpperCase()}</Text>
                   </View>
-                  <Text style={styles.cardArea}>{turf.area}</Text>
-                  <View style={styles.cardFooter}>
-                    <Text style={styles.sportBadge}>{turf.sport}</Text>
-                    <Text style={styles.price}>{formatCurrency(turf.price)}/hr</Text>
+
+                  {/* Rating overlay badge on top-right */}
+                  <View style={styles.cardRatingOverlayBadge}>
+                    <Text style={styles.cardRatingOverlayBadgeText}>★ {turf.rating}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.cardContentNew}>
+                  <View style={styles.cardInfoRow}>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={[styles.cardTitleNew, { color: theme.text }]} numberOfLines={1}>
+                        {turf.name}
+                      </Text>
+                      <Text style={[styles.cardAreaNew, { color: theme.textMuted }]}>
+                        📍 {turf.area}
+                      </Text>
+                    </View>
+                    <View style={styles.cardPriceWrapper}>
+                      <Text style={[styles.cardPriceNew, { color: theme.text }]}>
+                        {formatCurrency(turf.price)}
+                      </Text>
+                      <Text style={styles.cardPriceUnit}>/hr</Text>
+                    </View>
                   </View>
                 </View>
               </TouchableOpacity>
             ))}
             {filteredTurfs.length === 0 && (
-              <Text style={styles.emptyText}>No arenas match your search.</Text>
+              <Text style={[styles.emptyText, { color: theme.textMuted }]}>No arenas match your search.</Text>
             )}
           </View>
         )}
@@ -175,25 +417,31 @@ export default function HomeScreen() {
         {/* Tab 2: Bookings */}
         {activeTab === 'bookings' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>My reservations</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>My reservations</Text>
             {bookings.length === 0 ? (
-              <Text style={styles.emptyText}>You have no bookings yet.</Text>
+              <Text style={[styles.emptyText, { color: theme.textMuted }]}>You have no bookings yet.</Text>
             ) : (
               bookings.map((b) => (
                 <TouchableOpacity
                   key={b.id}
-                  style={styles.bookingCard}
+                  style={[
+                    styles.bookingCard,
+                    {
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                    },
+                  ]}
                   onPress={() => router.push(`/booking/${b.id}`)}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.bookingId}>{b.id}</Text>
-                    <Text style={styles.bookingTitle}>{b.turfName}</Text>
-                    <Text style={styles.bookingSub}>
+                    <Text style={[styles.bookingTitle, { color: theme.text }]}>{b.turfName}</Text>
+                    <Text style={[styles.bookingSub, { color: theme.textMuted }]}>
                       {b.date} at {b.time}
                     </Text>
                   </View>
                   <View style={styles.bookingRight}>
-                    <Text style={styles.bookingAmount}>{formatCurrency(b.amount)}</Text>
+                    <Text style={[styles.bookingAmount, { color: theme.text }]}>{formatCurrency(b.amount)}</Text>
                     <Text
                       style={[
                         styles.statusBadge,
@@ -213,21 +461,79 @@ export default function HomeScreen() {
         {/* Tab 4: Support */}
         {activeTab === 'support' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Help center</Text>
-            <Text style={styles.detailDesc}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Help center</Text>
+            <Text style={[styles.detailDesc, { color: theme.textMuted }]}>
               Encountered issues with payment settlement or double slot booking? Create a ticket and
               our 24/7 staff support will address it immediately.
             </Text>
 
             <TouchableOpacity
-              style={styles.supportButton}
+              style={[
+                styles.supportButton,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                },
+              ]}
               onPress={() => Alert.alert('Ticket Raised', 'Support ticket raised successfully!')}
             >
-              <Text style={styles.supportButtonText}>Raise Support Ticket</Text>
+              <Text style={[styles.supportButtonText, { color: theme.text }]}>Raise Support Ticket</Text>
             </TouchableOpacity>
           </View>
         )}
       </ScrollView>
+
+      {/* Bottom Footer Navbar */}
+      <View style={[styles.footerTabContainer, { backgroundColor: theme.headerBg, borderTopColor: theme.border }]}>
+        {(['explore', 'bookings', 'map', 'support'] as const).map((tab) => {
+          const isActive = activeTab === tab;
+          let tabIcon = '';
+          let tabLabel = '';
+          if (tab === 'explore') {
+            tabIcon = isActive ? 'compass' : 'compass-outline';
+            tabLabel = 'Explore';
+          } else if (tab === 'bookings') {
+            tabIcon = isActive ? 'calendar' : 'calendar-outline';
+            tabLabel = 'Bookings';
+          } else if (tab === 'map') {
+            tabIcon = isActive ? 'map' : 'map-outline';
+            tabLabel = 'Map';
+          } else {
+            tabIcon = isActive ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline';
+            tabLabel = 'Support';
+          }
+
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={styles.footerTabButton}
+              onPress={() => {
+                if ((tab === 'bookings' || tab === 'support') && !isAuthenticated) {
+                  router.push('/login');
+                } else {
+                  setActiveTab(tab);
+                  setSelectedMapTurf(null);
+                }
+              }}
+            >
+              <Ionicons
+                name={tabIcon as any}
+                size={22}
+                color={isActive ? '#10b981' : theme.textMuted}
+                style={{ marginBottom: 4 }}
+              />
+              <Text
+                style={[
+                  styles.footerTabButtonText,
+                  { color: isActive ? '#10b981' : theme.textMuted }
+                ]}
+              >
+                {tabLabel}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -235,23 +541,66 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#020617', // Slate 950
+    backgroundColor: '#030712',
+  },
+  backgroundImage: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.18,
+  },
+  overlay: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(3, 7, 18, 0.65)',
   },
   header: {
-    paddingTop: 50,
+    paddingTop: 55,
     paddingBottom: 16,
     paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#020617',
+    borderBottomWidth: 1,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  headerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10b981',
+    marginRight: 4,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  themeToggle: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  themeToggleText: {
+    fontSize: 14,
   },
   profileRow: {
     flexDirection: 'row',
@@ -259,34 +608,26 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   profileText: {
-    color: '#10b981',
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 13,
   },
-  profileAvatar: {
+  profileAvatarImage: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderWidth: 1,
-    borderColor: '#10b981',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileAvatarText: {
-    color: '#10b981',
-    fontWeight: 'bold',
-    fontSize: 14,
+    backgroundColor: '#1e293b',
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
   },
   loginBtn: {
     backgroundColor: '#10b981',
     paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingVertical: 7,
+    borderRadius: 10,
   },
   loginBtnText: {
-    color: '#020617',
-    fontWeight: 'bold',
+    color: '#030712',
+    fontWeight: '800',
     fontSize: 12,
   },
   tabsRow: {
@@ -294,27 +635,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
     gap: 8,
   },
   tabButton: {
     flex: 1,
+    flexDirection: 'row',
     paddingVertical: 8,
     alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: '#0f172a',
+    justifyContent: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.12)',
   },
   activeTabButton: {
     backgroundColor: '#10b981',
+    borderColor: '#10b981',
   },
   tabButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: '#94a3b8',
   },
   activeTabButtonText: {
     color: '#020617',
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   scroll: {
     flex: 1,
@@ -322,20 +666,41 @@ const styles = StyleSheet.create({
   section: {
     padding: 20,
   },
-  searchInput: {
-    backgroundColor: '#0f172a',
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#1e293b',
-    borderRadius: 10,
-    padding: 12,
-    color: '#fff',
-    fontSize: 14,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     marginBottom: 20,
+  },
+  searchInputNew: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    padding: 0,
+  },
+  categoriesContainer: {
+    marginBottom: 20,
+    marginTop: -8,
+  },
+  categoriesContent: {
+    gap: 8,
+    paddingRight: 20,
+  },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  categoryChipText: {
+    fontSize: 13,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '800',
     marginBottom: 16,
   },
   emptyText: {
@@ -345,57 +710,78 @@ const styles = StyleSheet.create({
     paddingVertical: 30,
   },
   card: {
-    backgroundColor: '#0c1122',
     borderRadius: 24,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    marginBottom: 18,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 4,
+    borderWidth: 1.5,
+    marginBottom: 20,
+  },
+  cardImageWrapper: {
+    width: '100%',
+    height: 160,
+    position: 'relative',
   },
   cardImage: {
-    height: 160,
     width: '100%',
+    height: '100%',
   },
-  cardContent: {
-    padding: 18,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  rating: {
-    color: '#10b981',
-    fontWeight: 'bold',
-    fontSize: 12,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  cardSportOverlayBadge: {
+    position: 'absolute',
+    left: 14,
+    top: 14,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  cardArea: {
-    fontSize: 13,
-    color: '#64748b',
-    marginBottom: 16,
+  cardSportOverlayBadgeText: {
+    color: '#10b981',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
-  cardFooter: {
+  cardRatingOverlayBadge: {
+    position: 'absolute',
+    right: 14,
+    top: 14,
+    backgroundColor: 'rgba(16, 185, 129, 0.95)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  cardRatingOverlayBadgeText: {
+    color: '#030712',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  cardContentNew: {
+    padding: 16,
+  },
+  cardInfoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderColor: 'rgba(30, 41, 59, 0.5)',
+    justifyContent: 'space-between',
+  },
+  cardTitleNew: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  cardAreaNew: {
+    fontSize: 12,
+  },
+  cardPriceWrapper: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  cardPriceNew: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  cardPriceUnit: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '600',
   },
   sportBadge: {
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
@@ -488,20 +874,35 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
   },
-  markerBubble: {
-    backgroundColor: '#020617',
-    borderRadius: 20,
-    padding: 6,
-    borderWidth: 2,
-    borderColor: '#10b981',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
+  pinContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 6,
   },
-  markerText: {
-    fontSize: 18,
+  pinCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinEmoji: {
+    fontSize: 16,
+  },
+  pinArrow: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    marginTop: -1.5,
   },
   calloutBox: {
     backgroundColor: '#0f172a',
@@ -602,5 +1003,48 @@ const styles = StyleSheet.create({
     color: '#020617',
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  footerTabContainer: {
+    flexDirection: 'row',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopWidth: 1.5,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+    paddingHorizontal: 16,
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+  },
+  footerTabButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 65,
+  },
+  footerTabButtonText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  locateButton: {
+    position: 'absolute',
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
   },
 });

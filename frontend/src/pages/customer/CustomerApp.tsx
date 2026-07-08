@@ -1,11 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import NearbyMap from './NearbyMap';
+import api from '../../services/api';
 
 // Inlined from @turf-booking/ui
 function Button({ children, onClick, className = '', variant = 'primary', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) {
-  return <button onClick={onClick} className={className} {...props}>{children}</button>;
+  const baseStyle = "transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-center flex items-center justify-center";
+  const variants: Record<string, string> = {
+    primary: "bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl px-6 py-3",
+    secondary: "bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl px-6 py-3",
+    outline: "border border-slate-300 hover:bg-slate-50 text-slate-700 dark:border-slate-800 dark:hover:bg-slate-900/60 dark:text-slate-300 rounded-xl px-6 py-3",
+  };
+  return (
+    <button
+      onClick={onClick}
+      className={`${baseStyle} ${variants[variant] ?? variants.primary} ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
 }
 
 // Inlined from @turf-booking/utils
@@ -26,7 +42,8 @@ import {
   Zap,
   Sparkles,
   HelpCircle,
-  MessageSquare
+  MessageSquare,
+  X
 } from 'lucide-react';
 
 interface Turf {
@@ -82,7 +99,7 @@ const sampleTurfs: Turf[] = [
     price: 1000,
     sport: 'Box Cricket',
     rating: 4.7,
-    image: 'https://images.unsplash.com/photo-1518605076385-7bf7b1f54411?w=600&auto=format&fit=crop&q=60',
+    image: 'https://images.unsplash.com/photo-1531415080290-bc98513989fe?w=600&auto=format&fit=crop&q=60',
     amenities: ['Washroom', 'WiFi', 'Parking'],
     lat: 19.0745,
     lng: 74.7335
@@ -96,7 +113,7 @@ const sampleTurfs: Turf[] = [
     price: 1800,
     sport: 'Football',
     rating: 4.9,
-    image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60',
+    image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&auto=format&fit=crop&q=60',
     amenities: ['Washroom', 'Parking', 'Flood Lights', 'Locker Room'],
     lat: 19.1235,
     lng: 74.7485
@@ -104,9 +121,11 @@ const sampleTurfs: Turf[] = [
 ];
 
 export default function App() {
+  const navigate = useNavigate();
   const { isAuthenticated, user, login, logout } = useAuthStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
 
+  const [role, setRole] = useState<'customer' | 'owner' | 'admin'>('customer');
   const [activeTab, setActiveTab] = useState<'explore' | 'bookings' | 'support' | 'nearby'>('explore');
   const [selectedTurf, setSelectedTurf] = useState<Turf | null>(null);
   const [bookingStep, setBookingStep] = useState<'details' | 'checkout' | 'success'>('details');
@@ -117,25 +136,94 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('password');
+  const [phone, setPhone] = useState('9876543210');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
   const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
 
+  // Backend Turfs list state
+  const [turfs, setTurfs] = useState<Turf[]>([]);
+
   // Booking details
-  const [bookings, setBookings] = useState<any[]>([
-    {
-      id: 'B-88392',
-      turfName: 'Old Trafford Arena',
-      date: '2026-07-08',
-      time: '18:00 - 19:00',
-      sport: 'Football',
-      amount: 1200,
-      status: 'UPCOMING'
+  const [bookings, setBookings] = useState<any[]>([]);
+
+  // Load Turfs from Backend
+  useEffect(() => {
+    const fetchTurfs = async () => {
+      try {
+        const res = await api.get('/turfs');
+        const backendTurfs = res.data?.data || [];
+        
+        const getSportName = (sportId: string): string => {
+          const map: Record<string, string> = {
+            'NHQKZB3YRCRhWBL95sUE': 'Football',
+            'nB4mpucB3cyLZA8gXxiA': 'Cricket',
+            'HV8G3I9zmsYnUWFqqqMV': 'Box Cricket'
+          };
+          return map[sportId] || 'Football';
+        };
+
+        const mapped: Turf[] = backendTurfs.map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          description: t.description || '',
+          city: t.location?.city || 'Ahmednagar',
+          area: t.location?.area || 'Savedi',
+          price: t.pricePerHour || 1200,
+          sport: getSportName(t.sports?.[0] || ''),
+          rating: t.rating || 5.0,
+          image: t.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
+          amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
+          lat: t.location?.latitude || 19.0948,
+          lng: t.location?.longitude || 74.7480
+        }));
+        setTurfs(mapped);
+      } catch (err) {
+        console.error('Error fetching turfs:', err);
+      }
+    };
+    fetchTurfs();
+  }, []);
+
+  // Load Bookings from Backend
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setBookings([
+        {
+          id: 'B-88392',
+          turfName: 'Old Trafford Arena',
+          date: '2026-07-08',
+          time: '18:00 - 19:00',
+          sport: 'Football',
+          amount: 1200,
+          status: 'UPCOMING'
+        }
+      ]);
+      return;
     }
-  ]);
+
+    const fetchBookings = async () => {
+      try {
+        const res = await api.get('/bookings');
+        const list = res.data?.data || [];
+        const mapped = list.map((b: any) => ({
+          id: b.id,
+          turfName: b.turfName,
+          date: b.date,
+          time: b.time,
+          sport: b.sport || 'Football',
+          amount: b.amount,
+          status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : 'CANCELLED'
+        }));
+        setBookings(mapped);
+      } catch (err) {
+        console.error('Error fetching bookings:', err);
+      }
+    };
+    fetchBookings();
+  }, [isAuthenticated]);
 
   // Support state
   const [tickets, setTickets] = useState<any[]>([
@@ -166,13 +254,29 @@ export default function App() {
         handleSendOtp();
         return;
       }
+      
+      const loggedInRole = role;
+      const mockName = loggedInRole === 'admin' ? 'Admin User' : loggedInRole === 'owner' ? 'Turf Owner' : (phone || 'Customer');
+      
       login({ 
         id: 'USR-101', 
         email: email || `${phone.replace(/[^0-9]/g, '')}@turfbook.com`, 
-        name: phone, 
+        name: mockName, 
         phone, 
-        role: 'customer' 
+        role: loggedInRole 
       }, 'dummy_token');
+
+      setAuthMode(null);
+      setOtpSent(false);
+      setOtp('');
+
+      if (loggedInRole === 'owner') {
+        navigate('/owner');
+        return;
+      } else if (loggedInRole === 'admin') {
+        navigate('/admin');
+        return;
+      }
     } else {
       // Register
       login({ 
@@ -182,31 +286,52 @@ export default function App() {
         phone, 
         role: 'customer' 
       }, 'dummy_token');
+      
+      setAuthMode(null);
+      setOtpSent(false);
+      setOtp('');
     }
-    setAuthMode(null);
-    setOtpSent(false);
-    setOtp('');
+
+    // If they were configuring a slot and logged in as customer, auto-advance them to checkout
+    if (selectedTurf && selectedTime) {
+      setBookingStep('checkout');
+    }
   };
 
-  const handleBookSlot = () => {
+  const handleBookSlot = async () => {
     if (!isAuthenticated) {
       setAuthMode('login');
       return;
     }
-    if (!selectedTime) return;
+    if (!selectedTime || !selectedTurf) return;
 
-    const newBooking = {
-      id: `B-${Math.floor(10000 + Math.random() * 90000)}`,
-      turfName: selectedTurf!.name,
-      date: selectedDate,
-      time: selectedTime,
-      sport: selectedTurf!.sport,
-      amount: selectedTurf!.price,
-      status: 'UPCOMING'
-    };
+    try {
+      const bookingPayload = {
+        turfId: selectedTurf.id,
+        slotId: selectedTime,
+        amount: selectedTurf.price,
+        time: selectedTime,
+      };
+      
+      const res = await api.post('/bookings', bookingPayload);
+      const created = res.data?.data;
 
-    setBookings([newBooking, ...bookings]);
-    setBookingStep('success');
+      const newBooking = {
+        id: created?.id || `B-${Math.floor(10000 + Math.random() * 90000)}`,
+        turfName: selectedTurf.name,
+        date: selectedDate,
+        time: selectedTime,
+        sport: selectedTurf.sport,
+        amount: selectedTurf.price,
+        status: 'UPCOMING'
+      };
+
+      setBookings([newBooking, ...bookings]);
+      setBookingStep('success');
+    } catch (err) {
+      console.error('Error creating booking:', err);
+      alert('Failed to complete booking on the server.');
+    }
   };
 
   const handleRaiseTicket = (e: React.FormEvent) => {
@@ -222,7 +347,7 @@ export default function App() {
     setNewTicketSubject('');
   };
 
-  const filteredTurfs = sampleTurfs.filter((t) => {
+  const filteredTurfs = turfs.filter((t) => {
     const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || t.city.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSport = selectedSport === 'All' || t.sport === selectedSport;
     return matchesSearch && matchesSport;
@@ -281,7 +406,14 @@ export default function App() {
             return (
               <button
                 key={tab}
-                onClick={() => { setActiveTab(tab); setSelectedTurf(null); }}
+                onClick={() => {
+                  if ((tab === 'bookings' || tab === 'support') && !isAuthenticated) {
+                    setAuthMode('login');
+                  } else {
+                    setActiveTab(tab);
+                    setSelectedTurf(null);
+                  }
+                }}
                 className={`px-5 py-2 rounded-xl transition-all duration-200 ${
                   isActive
                     ? isDarkMode
@@ -543,7 +675,13 @@ export default function App() {
                     variant="primary"
                     className="w-full shadow-lg shadow-emerald-500/25 py-6 font-bold rounded-xl"
                     disabled={!selectedTime}
-                    onClick={() => setBookingStep('checkout')}
+                    onClick={() => {
+                      if (!isAuthenticated) {
+                        setAuthMode('login');
+                      } else {
+                        setBookingStep('checkout');
+                      }
+                    }}
                   >
                     Proceed to checkout
                   </Button>
@@ -681,7 +819,7 @@ export default function App() {
         {/* Tab 4: Nearby Map Finder */}
         {activeTab === 'nearby' && (
           <NearbyMap
-            turfs={sampleTurfs}
+            turfs={turfs}
             isDarkMode={isDarkMode}
             onSelectTurf={(turf) => {
               setSelectedTurf(turf);
@@ -710,11 +848,13 @@ export default function App() {
                 setOtpSent(false);
                 setOtp('');
               }}
-              className={`absolute top-4 right-4 text-2xl transition-colors ${
-                isDarkMode ? 'text-emerald-400/70 hover:text-emerald-400' : 'text-slate-400 hover:text-slate-600'
+              className={`absolute top-4 right-4 p-1.5 rounded-xl border transition-all ${
+                isDarkMode 
+                  ? 'border-slate-800 text-slate-400 hover:text-white bg-slate-900/30 hover:bg-slate-800/50' 
+                  : 'border-slate-200 text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 shadow-sm'
               }`}
             >
-              &times;
+              <X className="h-4 w-4" />
             </button>
 
             {/* Login Method Toggle Tabs */}
@@ -760,6 +900,40 @@ export default function App() {
             )}
 
             <form onSubmit={handleAuthSubmit} className="space-y-4 mt-4">
+              {/* QUICK DEMO LOGIN DROPDOWN */}
+              {authMode === 'login' && (
+                <div>
+                  <label className={`text-xs block mb-2 font-bold uppercase tracking-wider ${
+                    isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
+                  }`}>⚡ Quick Demo Login</label>
+                  <select
+                    value={role}
+                    onChange={(e) => {
+                      const val = e.target.value as 'customer' | 'owner' | 'admin';
+                      setRole(val);
+                      if (val === 'customer') {
+                        setPhone('9876543210');
+                        setPassword('password');
+                      } else if (val === 'owner') {
+                        setPhone('9999988888');
+                        setPassword('password');
+                      } else if (val === 'admin') {
+                        setPhone('8888877777');
+                        setPassword('password');
+                      }
+                    }}
+                    className={`w-full px-3 py-3.5 rounded-xl border text-sm outline-none font-semibold transition-all ${
+                      isDarkMode 
+                        ? 'bg-slate-900 border-slate-700 text-slate-300 focus:border-emerald-500/50' 
+                        : 'bg-white border-slate-200 text-slate-700 focus:border-emerald-500/50 shadow-sm'
+                    }`}
+                  >
+                    <option value="customer">👤 Customer (9876543210)</option>
+                    <option value="owner">🏟️ Turf Owner (9999988888)</option>
+                    <option value="admin">🛠️ System Admin (8888877777)</option>
+                  </select>
+                </div>
+              )}
               {/* REGISTER ONLY FIELDS */}
               {authMode === 'register' && (
                 <div>

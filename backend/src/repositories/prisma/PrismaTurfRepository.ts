@@ -1,4 +1,4 @@
-import { Turf } from '@turf-booking/types';
+import { Turf } from '../../shared/types/domain.js';
 import { ITurfRepository } from '../interfaces/ITurfRepository.js';
 import { prisma } from '../../database/index.js';
 

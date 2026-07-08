@@ -10,9 +10,10 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "jest --passWithNoTests",
-    "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
-    "prisma:migrate": "prisma db push --schema=./prisma/schema.prisma",
-
+    "lint": "eslint src --ext .ts --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "prisma:generate": "prisma generate --schema=../../prisma/schema.prisma",
+    "prisma:migrate": "prisma db push --schema=../../prisma/schema.prisma",
     "prisma:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {

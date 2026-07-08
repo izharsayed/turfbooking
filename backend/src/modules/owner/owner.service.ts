@@ -34,11 +34,18 @@ export class OwnerService {
   }
 
   public async createTurf(ownerId: string, data: any) {
+    const { address, latitude, longitude, cityId, areaId, ...rest } = data;
     return turfRepository.create({
-      ...data,
+      ...rest,
+      location: {
+        address: address || 'Ahmednagar',
+        latitude: Number(latitude) || 19.0948,
+        longitude: Number(longitude) || 74.7480,
+        city: 'Ahmednagar',
+      },
       ownerId,
       isActive: true,
-    });
+    } as any);
   }
 
   public async updateTurf(ownerId: string, turfId: string, data: any) {

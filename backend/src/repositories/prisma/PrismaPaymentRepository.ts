@@ -1,4 +1,4 @@
-import { Payment } from '@turf-booking/types';
+import { Payment } from '../../shared/types/domain.js';
 import { IPaymentRepository } from '../interfaces/IPaymentRepository.js';
 import { prisma } from '../../database/index.js';
 

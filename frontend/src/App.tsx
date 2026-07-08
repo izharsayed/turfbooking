@@ -12,7 +12,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 function RoleRedirect() {
   const { isAuthenticated, user } = useAuthStore();
 
-  if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
+  if (!isAuthenticated || !user) return <Navigate to="/customer" replace />;
 
   const roleRedirects = {
     customer: '/customer',
@@ -20,7 +20,7 @@ function RoleRedirect() {
     admin: '/admin',
   };
 
-  return <Navigate to={roleRedirects[user.role] ?? '/login'} replace />;
+  return <Navigate to={roleRedirects[user.role] ?? '/customer'} replace />;
 }
 
 function LoadingScreen() {
@@ -48,14 +48,7 @@ export default function App() {
           <Route path="/" element={<RoleRedirect />} />
 
           {/* Customer Panel */}
-          <Route
-            path="/customer/*"
-            element={
-              <ProtectedRoute allowedRole="customer">
-                <CustomerApp />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/customer/*" element={<CustomerApp />} />
 
           {/* Owner Panel */}
           <Route

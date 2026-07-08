@@ -20,13 +20,20 @@ interface AuthState {
   logout: () => void;
 }
 
+const getStoredUser = (): UserProfile | null => {
+  try {
+    const userStr = localStorage.getItem('user');
+    return userStr ? JSON.parse(userStr) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: (() => {
-    try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; }
-  })(),
+  user: getStoredUser(),
   token: localStorage.getItem('token'),
   refreshToken: localStorage.getItem('refreshToken'),
-  isAuthenticated: !!localStorage.getItem('token'),
+  isAuthenticated: !!localStorage.getItem('token') && !!localStorage.getItem('user'),
   login: (user, token, refreshToken) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));

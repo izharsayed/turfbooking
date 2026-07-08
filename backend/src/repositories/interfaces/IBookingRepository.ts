@@ -1,4 +1,4 @@
-import { Booking } from '@turf-booking/types';
+import { Booking } from '../../shared/types/domain.js';
 
 export interface IBookingRepository {
   findById(id: string): Promise<Booking | null>;

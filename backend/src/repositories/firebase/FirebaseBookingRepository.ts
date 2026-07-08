@@ -1,4 +1,4 @@
-import { Booking } from '@turf-booking/types';
+import { Booking } from '../../shared/types/domain.js';
 import { IBookingRepository } from '../interfaces/IBookingRepository.js';
 import { firestoreDb } from '../../config/firebase.js';
 
