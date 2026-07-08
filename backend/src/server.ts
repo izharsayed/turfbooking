@@ -1,6 +1,6 @@
+import { env } from './config/env.js';
 import http from 'http';
 import { Server } from 'socket.io';
-import { env } from './config/env.js';
 import app from './app.js';
 import { logger } from './config/logger.js';
 import { prisma } from './database/index.js';
