@@ -43,8 +43,10 @@ export class PrismaAdminRepository implements IAdminRepository {
 
     return {
       totalUsers,
+      totalCustomers: totalUsers, // frontend compat
       totalTurfOwners: totalOwners,
       pendingOwnerApprovals: pendingOwners,
+      pendingOwners, // frontend compat
       approvedOwners,
       rejectedOwners: 0,
       blockedUsers: 0,
@@ -52,7 +54,9 @@ export class PrismaAdminRepository implements IAdminRepository {
       activeTurfs,
       inactiveTurfs: totalTurfs - activeTurfs,
       todayBookings: todaysBookings,
+      bookingsToday: todaysBookings, // frontend compat
       todayRevenue: 0,
+      revenueToday: 0, // frontend compat
       monthlyRevenue: totalRevenue,
       platformRevenue,
       ownerRevenue,

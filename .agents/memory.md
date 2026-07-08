@@ -742,3 +742,7 @@ pnpm dev:backend      # start the server
 ### 61. `backend/src/modules/admin/admin.validators.ts` — Modified
 - Made the `status` field optional in `ownerApprovalSchema`.
 - **Why**: The frontend `/admin/owners/:id/reject` call only sends `{ rejectionReason: '...' }` in the body since status is implicit for this endpoint. Without making status optional, the Zod validator was failing with a validation error on reject.
+
+### 62. `backend/src/repositories/firebase/FirebaseAdminRepository.ts` & `PrismaAdminRepository.ts` — Modified
+- Added frontend compatibility key mappings (`totalCustomers`, `pendingOwners`, `bookingsToday`, `revenueToday`) to the `getDashboardStats()` return object.
+- **Why**: The frontend dashboard views retrieve statistical cards utilizing different keys (`totalCustomers` instead of `totalUsers`, `bookingsToday` instead of `todayBookings`, etc.), which caused those cards to show `0` or blank states previously. Adding these keys as aliases/compat fields resolves the problem.
