@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Users, CalendarDays, DollarSign, Sun, Moon, ArrowRight, Activity, MapPin, UserCheck, FileText, Settings, CheckCircle, Clock, XCircle, MoreVertical, Search, Filter, LayoutDashboard, Download, Edit3, Trash2, ShieldAlert, Plus } from 'lucide-react';
+import { ShieldCheck, Users, CalendarDays, DollarSign, Sun, Moon, ArrowRight, Activity, MapPin, UserCheck, FileText, Settings, CheckCircle, Clock, XCircle, MoreVertical, Search, Filter, LayoutDashboard, Download, Edit3, Trash2, ShieldAlert, Plus, Menu, X } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../services/api';
@@ -21,7 +21,7 @@ function formatCurrency(amount: number): string {
 }
 
 // --- TYPES ---
-type TabType = 'dashboard' | 'owners' | 'users' | 'reports' | 'settings';
+type TabType = 'dashboard' | 'owners' | 'users' | 'settings';
 
 export default function App() {
   const { isDarkMode, toggleTheme } = useThemeStore();
@@ -29,12 +29,12 @@ export default function App() {
   
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // --- DATA STATES ---
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [owners, setOwners] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [reports, setReports] = useState<any>(null);
   const [settings, setSettings] = useState<any>({ commissionRate: 10, supportEmail: 'support@turfbook.com', maintenanceMode: false });
 
   // --- MODAL STATES ---
@@ -78,17 +78,7 @@ export default function App() {
     }
   };
 
-  const fetchReports = async () => {
-    try {
-      setIsLoading(true);
-      const res = await api.get('/admin/reports');
-      setReports(res.data.data);
-    } catch (err) {
-      console.error("Failed to fetch reports", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
 
   const fetchSettings = async () => {
     try {
@@ -134,7 +124,13 @@ export default function App() {
       alert('Owner added successfully and is pending approval.');
     } catch (err: any) {
       console.error("Failed to add owner", err);
-      alert(err.response?.data?.message || 'Failed to add owner');
+      const backendErrors = err.response?.data?.errors;
+      if (backendErrors && Array.isArray(backendErrors)) {
+        const errorMsg = backendErrors.map(e => `• ${e.path}: ${e.message}`).join('\n');
+        alert(`Validation failed:\n${errorMsg}`);
+      } else {
+        alert(err.response?.data?.message || 'Failed to add owner');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -184,7 +180,6 @@ export default function App() {
     if (activeTab === 'dashboard') fetchDashboardStats();
     if (activeTab === 'owners') fetchOwners();
     if (activeTab === 'users') fetchUsers();
-    if (activeTab === 'reports') fetchReports();
     if (activeTab === 'settings') fetchSettings();
   }, [activeTab]);
 
@@ -213,7 +208,7 @@ export default function App() {
   const renderDashboard = () => {
     const defaultStats = [
       { label: 'Active Turfs', value: dashboardStats?.activeTurfs || '0', icon: ShieldCheck, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-      { label: 'Total Customers', value: dashboardStats?.totalCustomers || '0', icon: Users, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+      { label: 'Total Owners', value: dashboardStats?.totalTurfOwners || '0', icon: Users, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
       { label: 'Bookings Today', value: dashboardStats?.bookingsToday || '0', icon: CalendarDays, color: 'text-violet-500', bg: 'bg-violet-500/10' },
       { label: 'Revenue Today', value: formatCurrency(dashboardStats?.revenueToday || 0), icon: DollarSign, color: 'text-amber-500', bg: 'bg-amber-500/10' },
     ];
@@ -221,7 +216,6 @@ export default function App() {
     const quickActions = [
       { label: 'Owner Approvals', tab: 'owners', icon: MapPin, color: 'text-emerald-500', bg: 'bg-emerald-500/10', badge: dashboardStats?.pendingOwners ? `${dashboardStats.pendingOwners} Pending` : null },
       { label: 'Manage Users', tab: 'users', icon: UserCheck, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
-      { label: 'Financial Reports', tab: 'reports', icon: FileText, color: 'text-purple-500', bg: 'bg-purple-500/10' },
       { label: 'System Settings', tab: 'settings', icon: Settings, color: 'text-slate-500', bg: 'bg-slate-500/10' },
     ];
 
@@ -235,11 +229,6 @@ export default function App() {
           <div>
             <h1 className={`text-3xl font-extrabold tracking-tight mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Dashboard Overview</h1>
             <p className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}>Real-time stats and management controls for TurfBook system.</p>
-          </div>
-          <div className="hidden sm:block">
-            <Button variant="outline" className={isDarkMode ? 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'}>
-              Generate Report
-            </Button>
           </div>
         </div>
 
@@ -374,6 +363,7 @@ export default function App() {
                   <th className="py-4 px-6">ID</th>
                   <th className="py-4 px-6">Owner Name</th>
                   <th className="py-4 px-6">Email</th>
+                  <th className="py-4 px-6">Phone</th>
                   <th className="py-4 px-6">Status</th>
                   <th className="py-4 px-6">Joined</th>
                   <th className="py-4 px-6 text-right">Actions</th>
@@ -381,7 +371,7 @@ export default function App() {
               </thead>
               <tbody className="text-sm">
                 {owners.length === 0 && (
-                   <tr><td colSpan={6} className="py-8 text-center opacity-50">No owners found</td></tr>
+                   <tr><td colSpan={7} className="py-8 text-center opacity-50">No owners found</td></tr>
                 )}
                 {owners.map((owner) => (
                   <tr key={owner.id} className={`border-b last:border-0 transition-colors duration-200 ${
@@ -390,6 +380,7 @@ export default function App() {
                     <td className={`py-4 px-6 font-medium ${isDarkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>{owner.id.substring(0, 8)}</td>
                     <td className="py-4 px-6 font-bold">{owner.name || owner.email}</td>
                     <td className="py-4 px-6">{owner.email}</td>
+                    <td className="py-4 px-6 font-semibold">{owner.phone || 'N/A'}</td>
                     <td className="py-4 px-6">{getStatusBadge(owner.ownerStatus || 'PENDING')}</td>
                     <td className={`py-4 px-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{new Date(owner.createdAt).toLocaleDateString()}</td>
                     <td className="py-4 px-6 text-right flex justify-end gap-2">
@@ -533,35 +524,7 @@ export default function App() {
     </div>
   );
 
-  const renderReports = () => (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="mb-10 flex items-center justify-between">
-        <div>
-          <h2 className={`text-3xl font-extrabold tracking-tight mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Financial Reports</h2>
-          <p className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}>Platform revenue and booking analytics.</p>
-        </div>
-        <Button variant="primary" className="flex items-center gap-2">
-          <Download className="h-4 w-4" /> Export CSV
-        </Button>
-      </div>
-      
-      {isLoading ? (
-        <div className={`p-8 text-center rounded-xl backdrop-blur-md ${isDarkMode ? 'bg-slate-900/50 text-slate-400' : 'bg-white/50 text-slate-500'}`}>Loading reports...</div>
-      ) : (
-        <div className={`border rounded-2xl p-10 flex flex-col items-center justify-center text-center h-96 backdrop-blur-xl shadow-xl transition-all ${
-          isDarkMode ? 'bg-slate-900/40 border-slate-800/50' : 'bg-white/80 border-slate-200/50'
-        }`}>
-          <div className={`p-6 rounded-full mb-6 ${isDarkMode ? 'bg-purple-500/10' : 'bg-purple-100'}`}>
-            <FileText className={`h-12 w-12 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-          </div>
-          <h3 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Analytics Dashboard Active</h3>
-          <p className={`max-w-md ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-            Currently tracking {reports?.totalBookings || 0} total bookings and {reports?.totalUsers || 0} users. Visual charts are currently in development.
-          </p>
-        </div>
-      )}
-    </div>
-  );
+
 
   const renderSettings = () => (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -637,14 +600,14 @@ export default function App() {
           src="/images/turf-bg.jpg"
           alt="Sports Turf Background"
           className="w-full h-full object-cover object-center"
-          style={{ opacity: isDarkMode ? 0.35 : 0.15 }}
+          style={{ opacity: isDarkMode ? 0.75 : 0.70 }}
         />
         <div
           className="absolute inset-0"
           style={{
             background: isDarkMode
-              ? 'linear-gradient(to bottom, rgba(3,7,18,0.7) 0%, rgba(3,7,18,0.85) 55%, rgba(3,7,18,0.98) 100%)'
-              : 'linear-gradient(to bottom, rgba(248,250,252,0.6) 0%, rgba(248,250,252,0.85) 60%, rgba(248,250,252,1) 100%)'
+              ? 'linear-gradient(to bottom, rgba(3,7,18,0.1) 0%, rgba(3,7,18,0.2) 100%)'
+              : 'linear-gradient(to bottom, rgba(248,250,252,0.05) 0%, rgba(248,250,252,0.15) 100%)'
           }}
         />
       </div>
@@ -654,57 +617,85 @@ export default function App() {
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-600/15 blur-[120px] pointer-events-none z-0" />
 
       {/* Sidebar */}
-      <aside className={`w-64 border-r flex flex-col z-20 backdrop-blur-2xl transition-colors duration-500 ${
+      <aside className={`border-r flex flex-col justify-between shrink-0 transition-all duration-300 z-50 md:z-20 md:relative md:translate-x-0 backdrop-blur-2xl ${
+        isSidebarCollapsed ? 'w-20 p-3.5' : 'w-64 p-6'
+      } ${
         isDarkMode ? 'border-slate-800/50 bg-[#030712]/80' : 'border-slate-200/50 bg-white/80'
       }`}>
-        <div className="p-6 flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center font-bold text-white text-xl shadow-lg shadow-emerald-500/20">
-            T
+        <div className="space-y-8">
+          {/* Logo & Header toggler */}
+          <div className={`flex items-center justify-between ${isSidebarCollapsed ? 'flex-col gap-4' : 'w-full'}`}>
+            <div className={`flex items-center gap-3 cursor-pointer ${isSidebarCollapsed ? 'hidden' : 'flex'}`} onClick={() => setActiveTab('dashboard')}>
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center font-bold text-white text-xl shadow-lg shadow-emerald-500/20 shrink-0">
+                T
+              </div>
+              <span className={`text-xl font-extrabold tracking-tight transition-colors duration-300 ${isDarkMode ? 'text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300' : 'text-emerald-700'}`}>TurfBook Admin</span>
+            </div>
+
+            {isSidebarCollapsed && (
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center font-bold text-white text-xl shadow-lg shadow-emerald-500/20 shrink-0 cursor-pointer" onClick={() => { setActiveTab('dashboard'); setIsSidebarCollapsed(false); }}>
+                T
+              </div>
+            )}
+
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className={`p-2 rounded-xl border transition-all ${
+                isDarkMode ? 'border-slate-800 text-slate-400 hover:text-slate-200 bg-slate-900/50' : 'border-slate-200 text-slate-500 hover:text-slate-800 bg-slate-50'
+              }`}
+              title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isSidebarCollapsed ? <Menu className="h-4 w-4" /> : <X className="h-4 w-4" />}
+            </button>
           </div>
-          <span className={`text-xl font-extrabold tracking-tight transition-colors duration-300 ${isDarkMode ? 'text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300' : 'text-emerald-700'}`}>TurfBook Admin</span>
+
+          <nav className="flex flex-col gap-1.5">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'owners', label: 'Owner Approvals', icon: MapPin },
+              { id: 'users', label: 'Manage Users', icon: Users },
+              { id: 'settings', label: 'Settings', icon: Settings },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as TabType)}
+                  title={isSidebarCollapsed ? item.label : undefined}
+                  className={`w-full flex items-center rounded-xl transition-all duration-300 font-semibold ${
+                    isSidebarCollapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
+                  } ${
+                    isActive
+                      ? isDarkMode 
+                        ? 'bg-emerald-500/10 text-emerald-400 shadow-sm border border-emerald-500/20' 
+                        : 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-200/50'
+                      : isDarkMode
+                        ? 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent'
+                        : 'text-slate-600 hover:bg-slate-100/50 hover:text-slate-900 border border-transparent'
+                  }`}
+                >
+                  <Icon className={`h-5 w-5 ${isActive ? 'animate-pulse' : ''}`} />
+                  <span className={isSidebarCollapsed ? 'hidden' : 'block'}>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          {[
-            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-            { id: 'owners', label: 'Owner Approvals', icon: MapPin },
-            { id: 'users', label: 'Manage Users', icon: Users },
-            { id: 'reports', label: 'Reports', icon: FileText },
-            { id: 'settings', label: 'Settings', icon: Settings },
-          ].map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id as TabType)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 font-semibold ${
-                  isActive
-                    ? isDarkMode 
-                      ? 'bg-emerald-500/10 text-emerald-400 shadow-sm border border-emerald-500/20' 
-                      : 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-200/50'
-                    : isDarkMode
-                      ? 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent'
-                      : 'text-slate-600 hover:bg-slate-100/50 hover:text-slate-900 border border-transparent'
-                }`}
-              >
-                <Icon className={`h-5 w-5 ${isActive ? 'animate-pulse' : ''}`} />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 border-t border-slate-800/30">
+        <div className={`border-t border-slate-800/30 ${isSidebarCollapsed ? 'pt-4' : 'p-4'}`}>
            <button
             onClick={toggleTheme}
-            className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all duration-300 hover:scale-[1.02] ${
+            title={isSidebarCollapsed ? "Toggle theme" : undefined}
+            className={`w-full flex items-center rounded-xl border transition-all duration-300 hover:scale-[1.02] ${
+              isSidebarCollapsed ? 'justify-center p-3' : 'justify-between p-3'
+            } ${
               isDarkMode
                 ? 'border-slate-700/50 text-slate-400 hover:text-emerald-400 bg-slate-800/50 hover:bg-slate-800'
                 : 'border-slate-200 text-slate-500 hover:text-emerald-600 bg-white shadow-sm hover:shadow-md'
             }`}
           >
-            <span className="font-semibold text-sm">Theme</span>
+            <span className={`font-semibold text-sm ${isSidebarCollapsed ? 'hidden' : 'block'}`}>Theme</span>
             {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
         </div>
@@ -712,17 +703,24 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto z-10 relative">
-        <header className={`px-8 py-5 flex items-center justify-end sticky top-0 z-30 transition-all duration-500 ${
-          isDarkMode ? 'bg-[#030712]/50 backdrop-blur-md border-b border-slate-800/30' : 'bg-white/50 backdrop-blur-md border-b border-slate-200/30'
-        }`}>
+        <header className="px-8 py-5 flex items-center justify-end sticky top-0 z-30 transition-all duration-500 bg-transparent">
           <div className="flex items-center gap-4">
-            <div className={`px-4 py-2 rounded-full border text-sm font-semibold flex items-center gap-2 ${
-              isDarkMode ? 'bg-slate-900/50 border-slate-700 text-slate-300' : 'bg-white border-slate-300 text-slate-700 shadow-sm'
+            <div className={`px-4 py-2 rounded-full border text-sm font-semibold flex items-center gap-2 shadow-md backdrop-blur-md transition-colors duration-300 ${
+              isDarkMode ? 'bg-slate-900/80 border-slate-700/50 text-slate-300' : 'bg-white/90 border-slate-200/80 text-slate-700'
             }`}>
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
               System Online
             </div>
-            <Button variant="ghost" onClick={logout} className={isDarkMode ? 'text-slate-300 hover:text-rose-400 hover:bg-rose-500/10' : 'text-slate-600 hover:text-rose-600 hover:bg-rose-50'}>Logout</Button>
+            <button
+              onClick={logout}
+              className={`font-semibold text-sm px-5 py-2 rounded-full border transition-all duration-300 hover:scale-[1.02] shadow-md backdrop-blur-md ${
+                isDarkMode
+                  ? 'bg-slate-900/80 border-slate-700/50 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 hover:border-rose-500/30'
+                  : 'bg-white/90 border-slate-200/80 text-rose-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200'
+              }`}
+            >
+              Logout
+            </button>
           </div>
         </header>
 
@@ -730,7 +728,6 @@ export default function App() {
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'owners' && renderOwners()}
           {activeTab === 'users' && renderUsers()}
-          {activeTab === 'reports' && renderReports()}
           {activeTab === 'settings' && renderSettings()}
         </div>
       </div>
