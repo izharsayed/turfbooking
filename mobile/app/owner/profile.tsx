@@ -16,7 +16,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../utils/api';
 
-const ACCENT = '#6366f1';
+const ACCENT = '#10b981';
 
 interface OwnerProfile {
   name?: string;
@@ -146,7 +146,7 @@ export default function OwnerProfileScreen() {
             style={[styles.editBtn, { borderColor: theme.cardBorder, paddingHorizontal: 10 }]}
             hitSlop={8}
           >
-            <Ionicons name={isDarkMode ? 'sunny' : 'moon'} size={16} color={isDarkMode ? '#fbbf24' : '#6366f1'} />
+            <Ionicons name={isDarkMode ? 'sunny' : 'moon'} size={16} color={isDarkMode ? '#fbbf24' : ACCENT} />
           </TouchableOpacity>
           {!isEditing && (
             <TouchableOpacity style={[styles.editBtn, { borderColor: theme.cardBorder }]} onPress={() => setIsEditing(true)}>

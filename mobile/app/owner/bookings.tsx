@@ -16,7 +16,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../utils/api';
 
-const ACCENT = '#6366f1';
+const ACCENT = '#10b981';
 
 const FILTER_TABS = ['All', 'Confirmed', 'Completed', 'Cancelled'] as const;
 type FilterTab = typeof FILTER_TABS[number];
@@ -125,7 +125,7 @@ export default function OwnerBookingsScreen() {
   const statusColor = (status?: string) => {
     switch (status?.toUpperCase()) {
       case 'CONFIRMED': return { text: '#10b981', bg: 'rgba(16,185,129,0.12)' };
-      case 'COMPLETED': return { text: '#6366f1', bg: 'rgba(99,102,241,0.12)' };
+      case 'COMPLETED': return { text: '#10b981', bg: 'rgba(16,185,129,0.12)' };
       case 'CANCELLED': return { text: '#ef4444', bg: 'rgba(239,68,68,0.12)' };
       default: return { text: '#64748b', bg: 'rgba(100,116,139,0.12)' };
     }

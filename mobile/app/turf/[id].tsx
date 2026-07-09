@@ -36,6 +36,37 @@ export default function TurfDetailScreen() {
   const addBooking = useBookingStore((s) => s.addBooking);
   const [turf, setTurf] = useState<Turf | undefined>(getTurfById(id));
   const [loadingTurf, setLoadingTurf] = useState(false);
+  const [bookedReservations, setBookedReservations] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchReservations = async () => {
+      if (!id || /^\d+$/.test(id) || id.length <= 2) return;
+      try {
+        const res = await apiFetch(`/turfs/${id}/bookings`);
+        if (res.success && Array.isArray(res.data)) {
+          setBookedReservations(res.data);
+        }
+      } catch (err) {
+        console.log('Failed to fetch reservations for turf', err);
+      }
+    };
+    fetchReservations();
+  }, [id]);
+
+  const localBookings = useBookingStore((s) => s.bookings);
+
+  const isSlotBooked = (slotTime: string) => {
+    const isBackendBooked = bookedReservations.some((res) => {
+      const bDate = res.bookingDate ? new Date(res.bookingDate).toISOString().split('T')[0] : '';
+      return bDate === selectedDate && res.slotId === slotTime;
+    });
+
+    const isLocalBooked = localBookings.some((b) => {
+      return b.turfId === id && b.date === selectedDate && b.time === slotTime;
+    });
+
+    return isBackendBooked || isLocalBooked;
+  };
 
   // Generate next 7 days starting from today for date selection
   const dateOptions = Array.from({ length: 7 }, (_, i) => {
@@ -62,6 +93,18 @@ export default function TurfDetailScreen() {
   useEffect(() => {
     const fetchTurfDetails = async () => {
       if (!id) return;
+      
+      // If it's a mock ID (e.g. '1', '2', '3'), bypass API completely to avoid 404 errors
+      const isMockId = /^\d+$/.test(id) || id.length <= 2;
+      if (isMockId) {
+        const mockTurf = getTurfById(id);
+        if (mockTurf) {
+          setTurf(mockTurf);
+          setSelectedSport(mockTurf.sport === 'Football' ? 'Football' : 'Cricket');
+        }
+        return;
+      }
+
       setLoadingTurf(true);
       try {
         const res = await apiFetch(`/turfs/${id}`);
@@ -369,21 +412,36 @@ export default function TurfDetailScreen() {
           <View style={styles.slotsRowGrid}>
             {generated24Slots.map((time) => {
               const isSel = selectedTime === time;
+              const isBooked = isSlotBooked(time);
+
               // format label display to match mockup start hours (e.g. 6:00 PM)
               const startLabel = time.split(' - ')[0]; 
               const [hours, minutes] = startLabel.split(':').map(Number);
               const period = hours >= 12 ? 'PM' : 'AM';
               const displayHours = hours % 12 === 0 ? 12 : hours % 12;
-              const displayLabel = `${displayHours}:00\n${period}`;
+              
+              const displayLabel = isBooked 
+                ? `${displayHours}:00\nBooked` 
+                : `${displayHours}:00\n${period}`;
 
               return (
                 <TouchableOpacity
                   key={time}
+                  disabled={isBooked}
                   style={[
                     styles.slotCardBadge,
                     {
-                      backgroundColor: isSel ? 'rgba(16, 185, 129, 0.15)' : (isDarkMode ? 'rgba(30, 41, 59, 0.4)' : '#f1f5f9'),
-                      borderColor: isSel ? '#10b981' : theme.border,
+                      backgroundColor: isBooked
+                        ? 'rgba(239, 68, 68, 0.08)'
+                        : isSel 
+                          ? 'rgba(16, 185, 129, 0.15)' 
+                          : (isDarkMode ? 'rgba(30, 41, 59, 0.4)' : '#f1f5f9'),
+                      borderColor: isBooked
+                        ? 'rgba(239, 68, 68, 0.4)'
+                        : isSel 
+                          ? '#10b981' 
+                          : theme.border,
+                      opacity: isBooked ? 0.8 : 1,
                     }
                   ]}
                   onPress={() => {
@@ -393,7 +451,19 @@ export default function TurfDetailScreen() {
                     setEndTime(end);
                   }}
                 >
-                  <Text style={[styles.slotBadgeText, { color: isSel ? '#10b981' : theme.text }]}>
+                  <Text style={[
+                    styles.slotBadgeText, 
+                    { 
+                      color: isBooked 
+                        ? '#f87171' 
+                        : isSel 
+                          ? '#10b981' 
+                          : theme.text,
+                      fontWeight: (isSel || isBooked) ? 'bold' : 'normal',
+                      textAlign: 'center',
+                      fontSize: isBooked ? 10 : 11,
+                    }
+                  ]}>
                     {displayLabel}
                   </Text>
                 </TouchableOpacity>

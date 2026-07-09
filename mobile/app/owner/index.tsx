@@ -17,7 +17,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../utils/api';
 
-const ACCENT = '#6366f1';
+const ACCENT = '#10b981';
 
 interface DashboardStats {
   totalRevenue?: number;
@@ -93,7 +93,7 @@ export default function OwnerDashboard() {
 
   const statCards = [
     { label: "Today's Revenue", value: formatCurrency(stats.todayRevenue), icon: 'cash-outline', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
-    { label: "Today's Bookings", value: String(stats.todayBookings ?? 0), icon: 'calendar', color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
+    { label: "Today's Bookings", value: String(stats.todayBookings ?? 0), icon: 'calendar', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
     { label: 'Total Revenue', value: formatCurrency(stats.totalRevenue), icon: 'trending-up', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
     { label: 'Active Turfs', value: `${stats.activeTurfs ?? 0}/${stats.totalTurfs ?? 0}`, icon: 'location', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
   ];

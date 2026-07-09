@@ -37,17 +37,86 @@ export default function PaymentCheckoutScreen() {
   const { isDarkMode } = useThemeStore();
   const { isAuthenticated } = useAuthStore();
 
-  const turf = getTurfById(params.turfId);
+  const [turf, setTurf] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDetails = async () => {
+      if (!params.turfId) {
+        setLoading(false);
+        return;
+      }
+
+      // If it's a mock ID (e.g. '1', '2', '3'), bypass API completely to avoid 404 errors
+      const isMockId = /^\d+$/.test(params.turfId) || params.turfId.length <= 2;
+      if (isMockId) {
+        const mockTurf = getTurfById(params.turfId);
+        if (mockTurf) {
+          setTurf(mockTurf);
+        }
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await apiFetch(`/turfs/${params.turfId}`);
+        if (res.success && res.data) {
+          const bt = res.data;
+          setTurf({
+            id: bt.id,
+            name: bt.name,
+            sport: Array.isArray(bt.sports) ? bt.sports[0] : (bt.sport || 'Football'),
+            price: bt.pricePerHour || bt.price || 1200,
+            rating: bt.rating || 4.5,
+            area: bt.location?.address || bt.area || 'Ahmednagar',
+            image: Array.isArray(bt.images) && bt.images.length > 0 ? bt.images[0] : (bt.image || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60'),
+            latitude: bt.location?.latitude || bt.latitude || 19.1158,
+            longitude: bt.location?.longitude || bt.longitude || 74.742,
+            description: bt.description || '',
+            amenities: bt.amenities || [],
+            slots: bt.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.log('Failed to fetch turf details in payment page', err);
+      }
+      
+      // Fallback to static mock data
+      const mockTurf = getTurfById(params.turfId);
+      if (mockTurf) {
+        setTurf(mockTurf);
+      }
+      setLoading(false);
+    };
+    fetchDetails();
+  }, [params.turfId]);
+
   const bookingsCount = useBookingStore((s) => s.bookings).length;
   const playcoinsBalance = 350 + bookingsCount * 50;
 
   const [usePlaycoins, setUsePlaycoins] = useState(false);
+  const [payOption, setPayOption] = useState<'full' | 'advance'>('full');
   const [selectedMethod, setSelectedMethod] = useState<'upi' | 'card' | 'net' | 'coins'>('upi');
   const [selectedUpiApp, setSelectedUpiApp] = useState<string | null>('Google Pay');
   const [upiId, setUpiId] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [appRedirecting, setAppRedirecting] = useState(false);
-  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'gateway_simulation' | 'success' | 'failed'>('idle');
+  const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
+  const [activeRazorpayOrderId, setActiveRazorpayOrderId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active' && paymentStatus === 'gateway_simulation' && selectedMethod === 'upi') {
+        confirmPayment();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [paymentStatus, selectedMethod, activeBookingId, activeRazorpayOrderId]);
 
   const theme = {
     bg: isDarkMode ? '#030712' : '#f8fafc',
@@ -59,6 +128,15 @@ export default function PaymentCheckoutScreen() {
     bgImageOpacity: isDarkMode ? 0.35 : 0.22,
     overlayBg: isDarkMode ? 'rgba(3, 7, 18, 0.5)' : 'rgba(248, 250, 252, 0.6)',
   };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.bg }}>
+        <Stack.Screen options={{ title: 'Checkout', headerShown: true }} />
+        <ActivityIndicator size="large" color="#10b981" />
+      </View>
+    );
+  }
 
   if (!turf) {
     return (
@@ -79,144 +157,145 @@ export default function PaymentCheckoutScreen() {
   const playcoinsDiscount = usePlaycoins ? Math.min(playcoinsBalance * 0.5, basePrice * 0.2) : 0; // limit discount
   const finalTotal = basePrice + convenienceFee - playcoinsDiscount;
 
-  const executeBookingCreation = async () => {
-    setIsProcessing(true);
-    try {
-      // Call backend to persist booking!
-      const payload = {
-        turfId: turf.id,
-        slotId: params.time,
-        amount: finalTotal,
-        time: params.time,
-      };
+  // Advance Payment: 30% of base price + convenienceFee - playcoinsDiscount
+  const advanceAmount = Math.round(basePrice * 0.3);
+  const advanceTotal = advanceAmount + convenienceFee - playcoinsDiscount;
+  
+  const amountToPay = payOption === 'full' ? finalTotal : advanceTotal;
 
-      let bookingId = `B-${Math.floor(10000 + Math.random() * 90000)}`;
-      try {
-        const res = await apiFetch('/bookings', {
-          method: 'POST',
-          body: payload,
-        });
-        if (res.success && res.data?.id) {
-          bookingId = res.data.id;
-        }
-      } catch (backendErr) {
-        console.log('Failed to persist booking on backend, falling back to local creation', backendErr);
-      }
-
-      const booking = addBooking({
-        id: bookingId,
-        turfId: turf.id,
-        turfName: turf.name,
-        area: turf.area,
-        date: params.date,
-        time: params.time,
-        amount: finalTotal,
-      });
-
-      setIsProcessing(false);
-      router.replace(`/booking/${booking.id}`);
-    } catch (e) {
-      setIsProcessing(false);
-      Alert.alert('Payment Failed', 'Something went wrong while processing your booking. Please try again.');
-    }
-  };
-
-  const verifyTransaction = () => {
-    setAppRedirecting(false);
-    setIsVerifyingPayment(false);
-    Alert.alert(
-      'Payment Verification',
-      `Verifying transaction status with ${selectedUpiApp || 'UPI app'}...\n\nDid you complete the payment of ${formatCurrency(finalTotal)}?`,
-      [
-        {
-          text: 'Yes, Paid Successfully',
-          onPress: () => {
-            executeBookingCreation();
-          },
-        },
-        {
-          text: 'No, Cancelled/Failed',
-          style: 'cancel',
-          onPress: () => {
-            Alert.alert('Booking Cancelled', 'Payment transaction was declined or cancelled. Your booking was not confirmed.');
-          },
-        },
-      ],
-      { cancelable: false }
-    );
-  };
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active' && isVerifyingPayment) {
-        verifyTransaction();
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [isVerifyingPayment]);
-
-  const handlePayment = () => {
+  // Step 1: Initiate booking on backend (sets PENDING status)
+  const handlePayment = async () => {
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
 
-    if (selectedMethod === 'upi') {
-      if (!selectedUpiApp && (!upiId || !upiId.includes('@'))) {
-        Alert.alert('UPI Verification Required', 'Please select a preferred UPI app or enter a valid UPI ID (e.g. user@okaxis) to proceed.');
-        return;
-      }
-
-      setAppRedirecting(true);
-      const query = `pa=turfbook@hdfcbank&pn=TurfBook%20Solutions&tr=TXN${Date.now()}&am=${finalTotal}&cu=INR&tn=Booking%20for%20${encodeURIComponent(turf.name)}`;
-      
-      let targetUrl = `upi://pay?${query}`;
-      if (selectedUpiApp === 'Google Pay') {
-        targetUrl = Platform.OS === 'ios' ? `gpay://upi/pay?${query}` : `upi://pay?${query}`;
-      } else if (selectedUpiApp === 'PhonePe') {
-        targetUrl = `phonepe://upi/pay?${query}`;
-      } else if (selectedUpiApp === 'Paytm') {
-        targetUrl = `paytmmp://upi/pay?${query}`;
-      } else if (selectedUpiApp === 'BHIM') {
-        targetUrl = `bhim://upi/pay?${query}`;
-      }
-
-      const launchApp = async () => {
-        try {
-          setIsVerifyingPayment(true);
-          await Linking.openURL(targetUrl);
-        } catch (err) {
-          try {
-            setIsVerifyingPayment(true);
-            await Linking.openURL(`upi://pay?${query}`);
-          } catch (genericErr) {
-            setIsVerifyingPayment(false);
-            setAppRedirecting(false);
-            Alert.alert(
-              'UPI App Launch Failed',
-              `Could not launch ${selectedUpiApp || 'UPI app'} directly (${targetUrl}).\n\nIn production on a physical device, this will open the payment app automatically.`,
-              [
-                { text: 'Simulate Success Payment', onPress: executeBookingCreation },
-                { text: 'Cancel', style: 'cancel' }
-              ]
-            );
-          }
-        }
-      };
-
-      launchApp();
+    if (selectedMethod === 'upi' && !selectedUpiApp && (!upiId || !upiId.includes('@'))) {
+      Alert.alert('UPI Verification Required', 'Please select a preferred UPI app or enter a valid UPI ID (e.g. user@okaxis) to proceed.');
       return;
     }
 
-    // Non-UPI: Credit Card or Net Banking
-    setIsProcessing(true);
-    setTimeout(() => {
-      executeBookingCreation();
-    }, 2000);
+    setPaymentStatus('processing');
+    setErrorMessage(null);
+
+    try {
+      const res = await apiFetch('/bookings', {
+        method: 'POST',
+        body: {
+          turfId: turf.id,
+          slotId: params.time,
+          amount: amountToPay,
+          totalAmount: finalTotal,
+          time: params.time,
+        },
+      });
+
+      if (res.success && res.data) {
+        setActiveBookingId(res.data.booking.id);
+        setActiveRazorpayOrderId(res.data.razorpayOrderId);
+        
+        // Launch deep-link UPI app if UPI is selected
+        if (selectedMethod === 'upi') {
+          const query = `pa=turfbook@hdfcbank&pn=TurfBook%20Solutions&tr=${res.data.razorpayOrderId}&am=${amountToPay}&cu=INR&tn=Booking%20for%20${encodeURIComponent(turf.name)}`;
+          let targetUrl = `upi://pay?${query}`;
+          
+          if (selectedUpiApp === 'Google Pay') {
+            targetUrl = Platform.OS === 'ios' ? `gpay://upi/pay?${query}` : `upi://pay?${query}`;
+          } else if (selectedUpiApp === 'PhonePe') {
+            targetUrl = `phonepe://upi/pay?${query}`;
+          } else if (selectedUpiApp === 'Paytm') {
+            targetUrl = `paytmmp://upi/pay?${query}`;
+          } else if (selectedUpiApp === 'BHIM') {
+            targetUrl = `bhim://upi/pay?${query}`;
+          }
+
+          try {
+            await Linking.openURL(targetUrl);
+          } catch (err) {
+            console.log('Failed direct launch, trying generic upi:// link', err);
+            try {
+              await Linking.openURL(`upi://pay?${query}`);
+            } catch (genericErr) {
+              console.log('Generic UPI launcher failed', genericErr);
+              // Emulator / no UPI apps fallback is handled elegantly since we still load the simulation gateway
+            }
+          }
+        }
+
+        // Show simulated secure payment gateway
+        setPaymentStatus('gateway_simulation');
+      } else {
+        throw new Error(res.message || 'Failed to initiate booking');
+      }
+    } catch (e: any) {
+      console.log('Initiating booking failed', e);
+      setErrorMessage(e.message || 'Network request failed. Make sure server is running.');
+      setPaymentStatus('failed');
+    }
   };
+
+  // Step 2A: Verify payment success on backend (confirms booking)
+  const confirmPayment = async () => {
+    if (!activeBookingId || !activeRazorpayOrderId) return;
+    
+    setPaymentStatus('processing');
+    const paymentId = 'pay_' + Math.random().toString(36).substring(2, 10);
+    const signature = 'sig_' + Math.random().toString(36).substring(2, 15);
+
+    try {
+      const res = await apiFetch('/bookings/verify', {
+        method: 'POST',
+        body: {
+          bookingId: activeBookingId,
+          razorpayOrderId: activeRazorpayOrderId,
+          razorpayPaymentId: paymentId,
+          razorpaySignature: signature,
+          status: 'PAID',
+        },
+      });
+
+      if (res.success) {
+        // Sync local store
+        addBooking({
+          id: activeBookingId,
+          turfId: turf.id,
+          turfName: turf.name,
+          area: turf.area,
+          date: params.date,
+          time: params.time,
+          amount: finalTotal,
+        });
+        setPaymentStatus('success');
+      } else {
+        throw new Error(res.message || 'Signature verification failed.');
+      }
+    } catch (e: any) {
+      console.log('Verification failed', e);
+      setErrorMessage(e.message || 'Signature verification failed. Transaction rejected.');
+      setPaymentStatus('failed');
+    }
+  };
+
+  // Step 2B: Handle payment failure / cancellation on backend (cancels booking)
+  const cancelPayment = async () => {
+    if (!activeBookingId) return;
+
+    setPaymentStatus('processing');
+    try {
+      await apiFetch('/bookings/verify', {
+        method: 'POST',
+        body: {
+          bookingId: activeBookingId,
+          status: 'FAILED',
+        },
+      });
+    } catch (e) {
+      console.log('Failed to report transaction failure to backend', e);
+    }
+    setErrorMessage('The transaction was cancelled or declined by the payment provider.');
+    setPaymentStatus('failed');
+  };
+
 
   // Format date (e.g. Wed, Jul 8)
   const formatDate = (dateStr: string) => {
@@ -250,17 +329,146 @@ export default function PaymentCheckoutScreen() {
         }}
       />
 
-      {isProcessing ? (
+      {paymentStatus === 'processing' ? (
         <View style={styles.processingWrapper}>
           <ActivityIndicator size="large" color="#10b981" />
-          <Text style={styles.processingText}>Processing Secure Payment...</Text>
-          <Text style={styles.processingSub}>Please do not exit the app or refresh the page.</Text>
+          <View style={{ marginVertical: 18, alignItems: 'center' }}>
+            <Ionicons name="lock-closed" size={32} color="#10b981" style={{ marginBottom: 12 }} />
+            <Text style={styles.processingText}>Verifying Transaction Status...</Text>
+            <Text style={styles.processingSub}>Please wait, contacting the payment gateway securely.</Text>
+          </View>
         </View>
-      ) : appRedirecting ? (
-        <View style={styles.processingWrapper}>
-          <ActivityIndicator size="large" color="#10b981" />
-          <Text style={styles.processingText}>Launching {selectedUpiApp || 'UPI App'}...</Text>
-          <Text style={styles.processingSub}>Opening secure payment container</Text>
+      ) : paymentStatus === 'gateway_simulation' ? (
+        <View style={[styles.simulatedAppWrapper, { backgroundColor: isDarkMode ? '#020617' : '#ffffff' }]}>
+          <View style={[styles.simHeader, { borderBottomColor: theme.border }]}>
+            <View style={styles.simHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="shield-checkmark" size={24} color="#10b981" />
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: theme.text }}>Razorpay Secure Gateway</Text>
+              </View>
+              <TouchableOpacity style={styles.simClose} onPress={cancelPayment}>
+                <Ionicons name="close" size={24} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.simScroll} showsVerticalScrollIndicator={false}>
+            {/* Merchant Details */}
+            <View style={[styles.simMerchantCard, { backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.6)' : '#f8fafc', borderColor: theme.border, borderWidth: 1 }]}>
+              <Text style={styles.simLabel}>MERCHANT DETAILS</Text>
+              <Text style={[styles.simMerchantName, { color: theme.text }]}>TurfBook Arena Solutions</Text>
+              <Text style={styles.simMerchantUpi}>Merchant UPI: pay@turfbook</Text>
+
+              <View style={[styles.simAmountContainer, { backgroundColor: isDarkMode ? '#030712' : '#edf2f7' }]}>
+                <Text style={[styles.simAmountText, { color: '#10b981' }]}>
+                  {formatCurrency(amountToPay)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Simulated Payment Box */}
+            <View style={[styles.simDetailsBox, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}>
+              <Text style={[styles.simLabel, { color: theme.textMuted }]}>PAYMENT METHOD REFERENCE</Text>
+              <View style={styles.simDetailRow}>
+                <Text style={styles.simDetailLabel}>Booking ID</Text>
+                <Text style={[styles.simDetailVal, { color: theme.text }]}>{activeBookingId}</Text>
+              </View>
+              <View style={styles.simDetailRow}>
+                <Text style={styles.simDetailLabel}>Razorpay Order ID</Text>
+                <Text style={[styles.simDetailVal, { color: theme.text }]}>{activeRazorpayOrderId}</Text>
+              </View>
+              <View style={styles.simDetailRow}>
+                <Text style={styles.simDetailLabel}>Selected Method</Text>
+                <Text style={[styles.simDetailVal, { color: theme.text, textTransform: 'uppercase' }]}>{selectedMethod}</Text>
+              </View>
+            </View>
+
+            <View style={styles.secureBadgeRow}>
+              <Ionicons name="lock-closed" size={14} color="#64748b" />
+              <Text style={styles.secureBadgeText}>128-bit SSL Secured Encryption by Razorpay</Text>
+            </View>
+
+            {/* Authorize/Decline Action Buttons */}
+            <View style={{ gap: 12, marginTop: 10 }}>
+              <TouchableOpacity style={styles.simPayBtn} onPress={confirmPayment}>
+                <Text style={styles.simPayBtnText}>Authorize & Confirm Payment</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.simDeclineBtn} onPress={cancelPayment}>
+                <Text style={styles.simDeclineBtnText}>Cancel / Decline Transaction</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      ) : paymentStatus === 'success' ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: theme.bg }}>
+          <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(16, 185, 129, 0.12)', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+            <Ionicons name="checkmark-circle" size={64} color="#10b981" />
+          </View>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.text, marginBottom: 12, textAlign: 'center' }}>
+            Payment Successful!
+          </Text>
+          <Text style={{ fontSize: 15, color: theme.textMuted, textAlign: 'center', marginBottom: 32, paddingHorizontal: 16 }}>
+            Your slot has been secured. A confirmation message has been sent to your registered number.
+          </Text>
+
+          <View style={[styles.simDetailsBox, { width: '100%', backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, padding: 20, marginBottom: 40 }]}>
+            <View style={styles.simDetailRow}>
+              <Text style={styles.simDetailLabel}>Booking ID</Text>
+              <Text style={[styles.simDetailVal, { color: theme.text }]}>{activeBookingId}</Text>
+            </View>
+            <View style={styles.simDetailRow}>
+              <Text style={styles.simDetailLabel}>Turf</Text>
+              <Text style={[styles.simDetailVal, { color: theme.text }]}>{turf.name}</Text>
+            </View>
+            <View style={styles.simDetailRow}>
+              <Text style={styles.simDetailLabel}>Time Slot</Text>
+              <Text style={[styles.simDetailVal, { color: theme.text }]}>{params.time}</Text>
+            </View>
+            <View style={styles.simDetailRow}>
+              <Text style={styles.simDetailLabel}>Paid Amount</Text>
+              <Text style={[styles.simDetailVal, { color: '#10b981', fontWeight: 'bold' }]}>{formatCurrency(amountToPay)}</Text>
+            </View>
+            {payOption === 'advance' && (
+              <View style={styles.simDetailRow}>
+                <Text style={styles.simDetailLabel}>Dues at Venue</Text>
+                <Text style={[styles.simDetailVal, { color: '#ef4444', fontWeight: 'bold' }]}>{formatCurrency(finalTotal - advanceTotal)}</Text>
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={{ width: '100%', backgroundColor: '#10b981', paddingVertical: 15, borderRadius: 12, alignItems: 'center' }}
+            onPress={() => router.replace('/')}
+          >
+            <Text style={{ color: '#020617', fontWeight: 'bold', fontSize: 16 }}>Go to Bookings</Text>
+          </TouchableOpacity>
+        </View>
+      ) : paymentStatus === 'failed' ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: theme.bg }}>
+          <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(239, 68, 68, 0.12)', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+            <Ionicons name="close-circle" size={64} color="#ef4444" />
+          </View>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.text, marginBottom: 12, textAlign: 'center' }}>
+            Payment Failed
+          </Text>
+          <Text style={{ fontSize: 14, color: '#ef4444', textAlign: 'center', marginBottom: 32, paddingHorizontal: 16, fontWeight: '600' }}>
+            {errorMessage || 'Something went wrong while authenticating your payment.'}
+          </Text>
+
+          <View style={[styles.simDetailsBox, { width: '100%', backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, padding: 20, marginBottom: 40 }]}>
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: theme.text, marginBottom: 12 }}>Troubleshooting Tips:</Text>
+            <Text style={{ fontSize: 12, color: theme.textMuted, marginBottom: 6 }}>• Ensure you have sufficient balance in your account.</Text>
+            <Text style={{ fontSize: 12, color: theme.textMuted, marginBottom: 6 }}>• Double-check your UPI ID and PIN credentials.</Text>
+            <Text style={{ fontSize: 12, color: theme.textMuted }}>• Do not close the app during gateway authentication.</Text>
+          </View>
+
+          <TouchableOpacity
+            style={{ width: '100%', backgroundColor: '#ef4444', paddingVertical: 15, borderRadius: 12, alignItems: 'center' }}
+            onPress={() => setPaymentStatus('idle')}
+          >
+            <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 16 }}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -293,6 +501,46 @@ export default function PaymentCheckoutScreen() {
                 <Text style={[styles.metaVal, { color: theme.text }]}>{params.sport}</Text>
               </View>
             </View>
+          </View>
+
+          {/* Payment Option Selection (Full vs Advance) */}
+          <Text style={[styles.sectionHeader, { color: theme.text, marginTop: 24, marginBottom: 8 }]}>Select Payment Option</Text>
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                backgroundColor: payOption === 'full' ? 'rgba(16, 185, 129, 0.08)' : theme.card,
+                borderColor: payOption === 'full' ? '#10b981' : theme.border,
+                borderWidth: 1.5,
+                borderRadius: 16,
+                padding: 16,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => setPayOption('full')}
+            >
+              <Ionicons name="card" size={20} color={payOption === 'full' ? '#10b981' : theme.textMuted} style={{ marginBottom: 6 }} />
+              <Text style={{ fontSize: 13, fontWeight: 'bold', color: theme.text }}>Full Payment</Text>
+              <Text style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>{formatCurrency(finalTotal)}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                backgroundColor: payOption === 'advance' ? 'rgba(16, 185, 129, 0.08)' : theme.card,
+                borderColor: payOption === 'advance' ? '#10b981' : theme.border,
+                borderWidth: 1.5,
+                borderRadius: 16,
+                padding: 16,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => setPayOption('advance')}
+            >
+              <Ionicons name="sparkles" size={20} color={payOption === 'advance' ? '#10b981' : theme.textMuted} style={{ marginBottom: 6 }} />
+              <Text style={{ fontSize: 13, fontWeight: 'bold', color: theme.text }}>Pay Advance (30%)</Text>
+              <Text style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>{formatCurrency(advanceTotal)}</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Playcoins Reward Discount Strip */}
@@ -469,18 +717,33 @@ export default function PaymentCheckoutScreen() {
               </View>
             )}
 
+            {payOption === 'advance' && (
+              <>
+                <View style={styles.breakdownRow}>
+                  <Text style={[styles.breakdownLabel, { color: theme.textMuted }]}>Booking Total</Text>
+                  <Text style={[styles.breakdownVal, { color: theme.text, fontWeight: 'bold' }]}>{formatCurrency(finalTotal)}</Text>
+                </View>
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.discountLabel}>Due Offline at Venue</Text>
+                  <Text style={[styles.discountVal, { color: '#ef4444' }]}>{formatCurrency(finalTotal - advanceTotal)}</Text>
+                </View>
+              </>
+            )}
+
             <View style={styles.dividerThin} />
 
             <View style={styles.breakdownRow}>
-              <Text style={[styles.totalLabel, { color: theme.text }]}>Grand Total</Text>
-              <Text style={[styles.totalVal, { color: theme.text }]}>{formatCurrency(finalTotal)}</Text>
+              <Text style={[styles.totalLabel, { color: theme.text }]}>
+                {payOption === 'advance' ? 'Amount to Pay Now' : 'Grand Total'}
+              </Text>
+              <Text style={[styles.totalVal, { color: theme.text }]}>{formatCurrency(amountToPay)}</Text>
             </View>
           </View>
 
           {/* Pay Button */}
           <TouchableOpacity style={styles.payBtn} onPress={handlePayment}>
             <Ionicons name="lock-closed" size={16} color="#020617" style={{ marginRight: 6 }} />
-            <Text style={styles.payBtnText}>Pay Securely {formatCurrency(finalTotal)}</Text>
+            <Text style={styles.payBtnText}>Pay Securely {formatCurrency(amountToPay)}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}

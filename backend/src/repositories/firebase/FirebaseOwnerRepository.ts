@@ -21,18 +21,26 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
     // Filter bookings belonging to owner's turfs
     const ownerTurfIds = new Set(totalTurfsSnap.docs.map((doc) => doc.id));
     let todaysBookingsCount = 0;
+    let todaysRevenue = 0;
     let totalRevenue = 0;
 
     bookingsSnap.forEach((doc) => {
       const data = doc.data();
       if (ownerTurfIds.has(data.turfId)) {
-        if (data.paymentStatus === 'PAID') {
-          totalRevenue += data.finalAmount || 0;
+        const isPaid = data.paymentStatus === 'PAID' || data.status === 'CONFIRMED' || data.status === 'COMPLETED';
+        const amount = data.totalAmount || data.finalAmount || 0;
+        
+        if (isPaid) {
+          totalRevenue += amount;
         }
+
         const createdDate = data.createdAt?.toDate?.() || new Date();
         const startOfToday = new Date().setHours(0, 0, 0, 0);
         if (createdDate.getTime() >= startOfToday) {
           todaysBookingsCount++;
+          if (isPaid) {
+            todaysRevenue += amount;
+          }
         }
       }
     });
@@ -42,10 +50,12 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
       upcomingBookings: 0,
       completedBookings: 0,
       cancelledBookings: 0,
-      todayRevenue: 0,
+      todayRevenue: todaysRevenue,
       weeklyRevenue: 0,
       monthlyRevenue: totalRevenue,
       totalRevenue,
+      totalTurfs,
+      activeTurfs,
       occupancyRate: 0.0,
       mostBookedTurf: null,
       peakBookingHours: [],
@@ -73,18 +83,56 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
   public async listBookings(ownerId: string): Promise<any[]> {
     if (!firestoreDb) return [];
     const turfs = await this.listTurfs(ownerId);
-    const turfIds = turfs.map((t) => t.id);
+    const turfMap = new Map(turfs.map((t) => [t.id, t.name]));
+    const turfIds = Array.from(turfMap.keys());
 
     if (turfIds.length === 0) return [];
 
     const snap = await firestoreDb.collection('bookings').get();
-    const list: any[] = [];
-    snap.forEach((doc) => {
-      const data = doc.data();
-      if (turfIds.includes(data.turfId) && !data.deletedAt) {
-        list.push({ id: doc.id, ...data });
+    const ownerDocs = snap.docs.filter((doc) => turfIds.includes(doc.data().turfId) && !doc.data().deletedAt);
+    
+    // Resolve customer names by querying user_profiles for their userIds
+    const userIds = Array.from(new Set(ownerDocs.map((doc) => doc.data().userId).filter(Boolean)));
+    const userMap = new Map<string, any>();
+    
+    if (userIds.length > 0) {
+      const chunks: string[][] = [];
+      for (let i = 0; i < userIds.length; i += 30) {
+        chunks.push(userIds.slice(i, i + 30));
       }
+      for (const chunk of chunks) {
+        const uSnap = await firestoreDb.collection('user_profiles').where('userId', 'in', chunk).get();
+        uSnap.forEach((uDoc) => {
+          const uData = uDoc.data();
+          userMap.set(uData.userId, uData);
+        });
+      }
+    }
+
+    const list: any[] = [];
+    ownerDocs.forEach((doc) => {
+      const data = doc.data();
+      const uProfile = userMap.get(data.userId);
+      
+      const bDate = data.bookingDate instanceof Date 
+        ? data.bookingDate 
+        : data.bookingDate?.toDate?.() || new Date();
+      const formattedDate = bDate.toISOString().split('T')[0];
+
+      list.push({
+        id: doc.id,
+        customerName: data.customerName || uProfile?.name || 'Customer',
+        customerPhone: data.customerPhone || uProfile?.phone || '',
+        turfName: turfMap.get(data.turfId) || 'Arena',
+        date: data.date || formattedDate,
+        time: data.timeSlot || data.slotId || '17:00 - 18:00',
+        amount: data.totalAmount || data.finalAmount || 0,
+        status: data.status,
+      });
     });
+
+    // Sort newest booking dates first
+    list.sort((a, b) => b.date.localeCompare(a.date));
     return list;
   }
 

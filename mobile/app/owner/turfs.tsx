@@ -19,7 +19,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../utils/api';
 
-const ACCENT = '#6366f1';
+const ACCENT = '#10b981';
 
 interface Turf {
   id: string;

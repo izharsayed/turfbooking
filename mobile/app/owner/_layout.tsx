@@ -9,7 +9,7 @@ export default function OwnerLayout() {
   const tabBarBg = isDarkMode ? '#0f172a' : '#ffffff';
   const tabBarBorder = isDarkMode ? '#1e293b' : '#e2e8f0';
   const inactiveColor = isDarkMode ? '#64748b' : '#94a3b8';
-  const activeColor = '#6366f1';
+  const activeColor = '#10b981';
 
   return (
     <Tabs

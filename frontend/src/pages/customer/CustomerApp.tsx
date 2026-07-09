@@ -120,6 +120,19 @@ const sampleTurfs: Turf[] = [
   }
 ];
 
+const formatHour12 = (hour: number): string => {
+  const h = hour % 12;
+  const displayHour = h === 0 ? 12 : h;
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  return `${String(displayHour).padStart(2, '0')}:00 ${ampm}`;
+};
+
+const timeSlots24 = Array.from({ length: 24 }, (_, i) => {
+  const start = formatHour12(i);
+  const end = formatHour12((i + 1) % 24);
+  return `${start} - ${end}`;
+});
+
 export default function App() {
   const navigate = useNavigate();
   const { isAuthenticated, user, login, logout } = useAuthStore();
@@ -129,8 +142,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'explore' | 'bookings' | 'support' | 'nearby'>('explore');
   const [selectedTurf, setSelectedTurf] = useState<Turf | null>(null);
   const [bookingStep, setBookingStep] = useState<'details' | 'checkout' | 'success'>('details');
-  const [selectedDate, setSelectedDate] = useState('2026-07-07');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [activeSlotPeriod, setActiveSlotPeriod] = useState<'morning' | 'afternoon' | 'evening' | 'night'>('evening');
   
   // Auth Form State
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
@@ -186,6 +200,88 @@ export default function App() {
     };
     fetchTurfs();
   }, []);
+
+  // Turf Bookings state (active bookings of the selected turf)
+  const [turfBookings, setTurfBookings] = useState<any[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+
+  // Load bookings for selected turf
+  useEffect(() => {
+    if (!selectedTurf) {
+      setTurfBookings([]);
+      return;
+    }
+
+    const fetchTurfBookings = async () => {
+      setLoadingBookings(true);
+      try {
+        const res = await api.get(`/turfs/${selectedTurf.id}/bookings`);
+        setTurfBookings(res.data?.data || []);
+      } catch (err) {
+        console.error('Error fetching turf bookings:', err);
+      } finally {
+        setLoadingBookings(false);
+      }
+    };
+    fetchTurfBookings();
+  }, [selectedTurf]);
+
+  // Helper to normalize any time slot (24h or 12h AM/PM) into a standardized format for matching
+  const normalizeSlot = (slotStr: string): string => {
+    if (!slotStr) return '';
+    const clean = slotStr.toUpperCase().trim();
+    
+    const toMinutes = (timeStr: string): number => {
+      const t = timeStr.trim();
+      if (t.includes('AM') || t.includes('PM')) {
+        const parts = t.replace('AM', '').replace('PM', '').split(':');
+        let hour = parseInt(parts[0], 10);
+        const minutes = parseInt(parts[1] || '0', 10);
+        if (t.includes('PM') && hour !== 12) hour += 12;
+        if (t.includes('AM') && hour === 12) hour = 0;
+        return hour * 60 + minutes;
+      } else {
+        const parts = t.split(':');
+        const hour = parseInt(parts[0], 10);
+        const minutes = parseInt(parts[1] || '0', 10);
+        return hour * 60 + minutes;
+      }
+    };
+
+    const splitParts = clean.split('-');
+    if (splitParts.length !== 2) return clean;
+    
+    const startMin = toMinutes(splitParts[0]);
+    const endMin = toMinutes(splitParts[1]);
+    return `${startMin}-${endMin}`;
+  };
+
+  // Helper to check if slot is already booked on the selected date
+  const isSlotBooked = (time: string) => {
+    const targetNorm = normalizeSlot(time);
+    return turfBookings.some((b: any) => {
+      const bDateStr = b.date || (b.bookingDate ? new Date(b.bookingDate).toISOString().split('T')[0] : '');
+      const bSlot = b.slotId || b.time;
+      return normalizeSlot(bSlot) === targetNorm && bDateStr === selectedDate;
+    });
+  };
+
+  // Helper to filter 24 hourly slots based on morning, afternoon, evening, and night activeSlotPeriod tab
+  const getFilteredSlots = () => {
+    return timeSlots24.filter((_, index) => {
+      if (activeSlotPeriod === 'morning') {
+        return index >= 6 && index < 12; // 06:00 AM - 12:00 PM
+      }
+      if (activeSlotPeriod === 'afternoon') {
+        return index >= 12 && index < 16; // 12:00 PM - 04:00 PM
+      }
+      if (activeSlotPeriod === 'evening') {
+        return index >= 16 && index < 20; // 04:00 PM - 08:00 PM
+      }
+      // night: 08:00 PM - 06:00 AM next day
+      return index >= 20 || index < 6;
+    });
+  };
 
   // Load Bookings from Backend
   useEffect(() => {
@@ -311,13 +407,24 @@ export default function App() {
         slotId: selectedTime,
         amount: selectedTurf.price,
         time: selectedTime,
+        date: selectedDate,
       };
       
+      // 1. Create PENDING booking
       const res = await api.post('/bookings', bookingPayload);
-      const created = res.data?.data;
+      const { booking, razorpayOrderId } = res.data?.data || {};
+
+      // 2. Automatically verify payment (dev mode simulation)
+      await api.post('/bookings/verify', {
+        bookingId: booking.id,
+        razorpayOrderId,
+        razorpayPaymentId: 'pay_' + Math.random().toString(36).substring(2, 10),
+        razorpaySignature: 'sig_mock',
+        status: 'CONFIRMED'
+      });
 
       const newBooking = {
-        id: created?.id || `B-${Math.floor(10000 + Math.random() * 90000)}`,
+        id: booking.id,
         turfName: selectedTurf.name,
         date: selectedDate,
         time: selectedTime,
@@ -327,6 +434,15 @@ export default function App() {
       };
 
       setBookings([newBooking, ...bookings]);
+
+      // 3. Immediately refresh turf bookings in UI to block this slot
+      try {
+        const bookingsRes = await api.get(`/turfs/${selectedTurf.id}/bookings`);
+        setTurfBookings(bookingsRes.data?.data || []);
+      } catch (e) {
+        console.error('Error refreshing bookings:', e);
+      }
+
       setBookingStep('success');
     } catch (err) {
       console.error('Error creating booking:', err);
@@ -637,38 +753,94 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className={`p-6 border rounded-2xl shadow-inner ${isDarkMode ? 'bg-[#030712]/40 border-slate-900' : 'bg-slate-50 border-slate-200'}`}>
-                  <h3 className="font-extrabold text-xl mb-6 flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-emerald-400" />
+                <div className={`p-6 border rounded-2xl shadow-inner ${isDarkMode ? 'bg-[#030712]/40 border-slate-900' : 'bg-white border-slate-200 shadow-md'}`}>
+                  <h3 className={`font-extrabold text-xl mb-6 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                    <Calendar className="h-5 w-5 text-emerald-500" />
                     Configure Slot
                   </h3>
                   
                   <div className="mb-6">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-2">Pick Booking Date</label>
+                    <label className={`text-[10px] font-bold uppercase tracking-wider block mb-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Pick Booking Date
+                    </label>
                     <input
                       type="date"
                       value={selectedDate}
                       onChange={(e) => setSelectedDate(e.target.value)}
-                      className="w-full bg-slate-850 text-white rounded-xl p-3 border-0 outline-none text-sm font-semibold"
+                      className={`w-full rounded-xl p-3 outline-none text-sm font-semibold border transition-all ${
+                        isDarkMode
+                          ? 'bg-[#0f172a] border-slate-800 text-white focus:border-emerald-500'
+                          : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500 shadow-sm'
+                      }`}
                     />
                   </div>
 
-                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-2">Available Slots</label>
-                  <div className="grid grid-cols-2 gap-2 mb-8">
-                    {['16:00 - 17:00', '17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00'].map((time) => (
+                  <label className={`text-[10px] font-bold uppercase tracking-wider block mb-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Available Slots (24 Hours)
+                  </label>
+                  
+                  {/* Period Tabs Selector Row */}
+                  <div className="flex gap-1 mb-4 overflow-x-auto pb-1 scrollbar-none">
+                    {(['morning', 'afternoon', 'evening', 'night'] as const).map((period) => (
                       <button
-                        key={time}
-                        onClick={() => setSelectedTime(time)}
-                        className={`text-xs p-3.5 rounded-xl border transition-all duration-200 ${selectedTime === time ? 'border-emerald-400 bg-emerald-400/10 text-emerald-400 font-bold' : 'border-slate-800 bg-slate-800/60 text-slate-400 hover:border-slate-700 hover:text-slate-200'}`}
+                        key={period}
+                        type="button"
+                        onClick={() => {
+                          setActiveSlotPeriod(period);
+                          setSelectedTime(null); // Reset selection when tab switches
+                        }}
+                        className={`text-[9px] font-extrabold uppercase tracking-wider px-3 py-2 rounded-xl border transition-all ${
+                          activeSlotPeriod === period
+                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                            : isDarkMode
+                            ? 'border-slate-800/60 bg-slate-900/30 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                            : 'border-slate-200 bg-slate-50 text-slate-650 hover:border-slate-300 hover:text-slate-900'
+                        }`}
                       >
-                        {time}
+                        {period}
                       </button>
                     ))}
                   </div>
 
-                  <div className="flex justify-between items-center mb-6 pt-6 border-t border-slate-800/60">
-                    <span className="text-sm text-slate-500 font-semibold">Hourly Rate</span>
-                    <span className="font-black text-2xl text-white">{formatCurrency(selectedTurf.price)}</span>
+                  <div className={`max-h-[260px] overflow-y-auto pr-1.5 mb-8 rounded-xl border p-2.5 scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent ${
+                    isDarkMode ? 'border-slate-800/40 bg-slate-900/10' : 'border-slate-250 bg-slate-100/50'
+                  }`}>
+                    <div className="grid grid-cols-3 gap-2">
+                      {getFilteredSlots().map((time) => {
+                        const booked = isSlotBooked(time);
+                        const isSelected = selectedTime === time;
+                        return (
+                          <button
+                            key={time}
+                            disabled={booked}
+                            onClick={() => setSelectedTime(time)}
+                            className={`text-[9px] p-2.5 rounded-xl border transition-all duration-200 flex flex-col items-center justify-center min-h-[64px] gap-0.5 ${
+                              booked
+                                ? 'border-rose-500/40 bg-rose-500/10 text-rose-500/85 cursor-not-allowed opacity-75'
+                                : isSelected
+                                ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold shadow-sm'
+                                : isDarkMode
+                                ? 'border-slate-800 bg-slate-850 text-slate-350 hover:border-slate-700 hover:text-slate-100 hover:bg-slate-800'
+                                : 'border-slate-250 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900 hover:bg-slate-50/80 shadow-sm'
+                            }`}
+                          >
+                            <span className={booked ? 'line-through opacity-60 font-semibold' : 'font-semibold'}>
+                              {time.split(' - ')[0]}
+                            </span>
+                            <span className="text-[7px] text-slate-500 leading-none">to</span>
+                            <span className={booked ? 'line-through opacity-60 font-semibold' : 'font-semibold'}>
+                              {time.split(' - ')[1]}
+                            </span>
+                            {booked && <span className="text-[7px] font-black text-rose-500 uppercase tracking-widest leading-none mt-1">Booked</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className={`flex justify-between items-center mb-6 pt-6 border-t ${isDarkMode ? 'border-slate-800/60' : 'border-slate-250'}`}>
+                    <span className={`text-sm font-semibold ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Hourly Rate</span>
+                    <span className={`font-black text-2xl ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatCurrency(selectedTurf.price)}</span>
                   </div>
 
                   <Button

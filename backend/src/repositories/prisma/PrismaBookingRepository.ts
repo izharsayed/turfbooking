@@ -20,7 +20,7 @@ export class PrismaBookingRepository implements IBookingRepository {
   }
 
   public async create(
-    bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'bookingDate'>
+    bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt'> & { bookingDate?: Date | string }
   ): Promise<Booking> {
     const b = await prisma.booking.create({
       data: {
@@ -29,6 +29,7 @@ export class PrismaBookingRepository implements IBookingRepository {
         slotId: bookingData.slotId,
         totalAmount: bookingData.totalAmount,
         status: bookingData.status,
+        bookingDate: bookingData.bookingDate ? new Date(bookingData.bookingDate) : new Date(),
       },
     });
     return this.mapBooking(b);

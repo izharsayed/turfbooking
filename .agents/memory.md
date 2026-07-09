@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-08 18:30 IST
+> Last updated: 2026-07-09 11:10 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -867,13 +867,289 @@ pnpm dev:backend      # start the server
 - **Why**: Allows instant OTP verification during development and enables one-click automated logins.
 
 ### 84. `mobile/app/login.tsx` — Modified
+### 51. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Replaced all mock data arrays with real React state variables (`dashboardStats`, `owners`, `users`, `settings`).
+- Added `useEffect` hooks to fetch data from the backend dynamically when navigating tabs.
+- Connected the "Approve/Reject Owner" buttons to hit the `PUT /admin/owners/:id/approve` and `reject` routes.
+- Connected the User Management table to hit `PUT /admin/users/:id/block` and `DELETE` routes.
+- Renamed the "Turf Approvals" UI to "Owner Approvals" to align with backend capabilities.
+- **Why**: Implements the user's directive to "make all the modules in the admin dashboard working" by hooking the UI up to actual backend endpoints.
+
+### 52. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Added an "Add Owner" button to the Owner Approvals header using a `Plus` icon.
+- Created a `showAddOwnerModal` state and a corresponding form modal with fields for Name, Email, Phone, and Password.
+- Implemented `handleAddOwner` to send a `POST` request to `/auth/register-owner` with the form data.
+- **Why**: Fulfills the user's request to allow admins to directly register new owners from the Admin dashboard.
+
+### 53. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Updated the "Add New Owner" modal form to collect the exact fields required by the backend `registerOwnerSchema` (companyName, businessRegisterNumber, businessAddress, billingEmail).
+- **Why**: The form previously only collected name, email, phone, and password, which caused the backend to reject the request with validation errors, preventing the new owner data from reaching the database.
+
+### 54. `frontend/src/services/api.ts` — Modified
+- Changed baseURL from `http://localhost:5000/api` → `http://localhost:5000/api/v1`.
+- **Why**: All backend routes are mounted under `/api/v1/` (e.g. `/api/v1/auth`, `/api/v1/admin`). The frontend was sending every request to `/api/...` which hit a 404, causing "Failed to add owner" and all other API calls to silently fail. This was the root cause of the error.
+
+### 55. `frontend/src/pages/LoginPage.tsx` — Rewritten
+- Replaced the **mock login** (`login(mockUser, 'mock-token-' + role)`) with a **real API call** to `POST /api/v1/auth/login`.
+- Changed the login form field from `phone` to `email` (backend login uses email + password).
+- Maps backend roles (`SUPER_ADMIN`, `TURF_OWNER`, `CUSTOMER`) to frontend roles (`admin`, `owner`, `customer`).
+- Stores real `accessToken` and `refreshToken` from the backend response.
+- Added `isLoading` state with spinner and disabled button during API call.
+- Shows real error messages from the backend on failed login.
+- **Why**: The login page was using a hardcoded mock token which was never accepted by the backend. All admin API calls returned "Invalid or expired access token" because `mock-token-admin` is not a valid JWT.
+
+### 56. `frontend/src/store/authStore.ts` — Modified
+- Added `refreshToken` field to state, stored in `localStorage`.
+- Added `setToken()` action to update only the access token (used during token refresh).
+- Updated `login()` to accept an optional `refreshToken` parameter.
+- Updated `logout()` to clear `refreshToken` from localStorage.
+- **Why**: The authStore previously only stored the access token. The refresh token is needed by the API interceptor to auto-renew expired sessions.
+
+### 57. `frontend/src/services/api.ts` — Modified
+- Added **automatic token refresh** logic to the Axios 401 response interceptor.
+- When a 401 is received, checks for a stored `refreshToken` and calls `POST /api/v1/auth/refresh`.
+- If refresh succeeds, updates the access token via `setToken()` and retries the original request.
+- Queues multiple concurrent 401 requests and replays them after a single refresh.
+- If refresh fails, calls `logout()` and redirects to `/login`.
+- **Why**: Access tokens expire after 15 minutes. Without refresh logic, all admin API calls fail after 15 minutes and the user is silently stuck.
+
+### 58. `backend/seed-firebase-admin.js` — Created
+- New plain Node.js seed script (CommonJS, no TypeScript compilation needed).
+- Creates the `SUPER_ADMIN` user directly in Firestore with email `admin@turfbook.com` and password `Admin@12345`.
+- Also creates the `user_profiles` document for the admin.
+- Skips creation if admin already exists (idempotent).
+- **Why**: The existing `prisma/seed.ts` uses Prisma/PostgreSQL. Since the project runs on Firebase, the admin user was never seeded into Firestore, making admin login impossible.
+- **Run with**: `node seed-firebase-admin.js` from the `backend/` directory.
+
+### 59. `backend/reset-admin-password.js` — Created
+- Script that resets the admin user's `passwordHash` in Firestore with a freshly generated and pre-verified bcrypt hash.
+- New admin password set to `Admin123` (no special characters to avoid encoding issues).
+- **Why**: The original seed used `Admin@12345` with an `@` symbol. The bcrypt hash was generating correctly but `bcrypt.compare()` was failing at login, likely due to special character encoding differences on Windows between the seed and the runtime context.
+- **Admin credentials (Firebase)**: `admin@turfbook.com` / `Admin123`
+- **Run with**: `node reset-admin-password.js` from the `backend/` directory.
+
+### 60. `backend/src/repositories/firebase/FirebaseAdminRepository.ts` — Modified
+- Formatted `createdAt` and `updatedAt` to ISO string format in `listOwners()` to prevent "Invalid Date" from rendering on the frontend.
+- Added mapping of `ownerStatus` in `listOwners()` from `data.ownerStatus` or computed status from `isActive` status (e.g. `data.ownerStatus || (data.isActive ? 'APPROVED' : 'PENDING')`).
+- Handled third parameter `rejectionReason` in `updateOwnerApproval()` to write `ownerStatus` as well as `rejectionReason` fields into Firestore user documents.
+- **Why**: Fixes the Owner Approvals list UI state and actions so that clicking "Approve" or "Reject" successfully persists the status changes to Firestore and updates the buttons/badges accordingly.
+
+### 61. `backend/src/modules/admin/admin.validators.ts` — Modified
+- Made the `status` field optional in `ownerApprovalSchema`.
+- **Why**: The frontend `/admin/owners/:id/reject` call only sends `{ rejectionReason: '...' }` in the body since status is implicit for this endpoint. Without making status optional, the Zod validator was failing with a validation error on reject.
+
+### 62. `mobile/app/owner/_layout.tsx` — Created
+- Tab navigator for the owner panel with 4 tabs: Dashboard, Bookings, Turfs, Profile.
+- Uses indigo accent (`#6366f1`) to visually distinguish owner context from customer app (`#10b981`).
+- **Why**: Entry point for the owner panel section of the mobile app.
+
+### 63. `mobile/app/owner/index.tsx` — Created (Owner Dashboard)
+- Shows stats cards: Today's Revenue, Today's Bookings, Total Revenue, Active Turfs.
+- Recent bookings list with customer name, turf, amount, status.
+- Quick action buttons to navigate to Bookings and Turfs tabs.
+- Pending reviews alert strip.
+- Connects to `GET /api/v1/owner/dashboard` with mock data fallback.
+- Role guard: redirects non-TURF_OWNER users to `/` or `/login`.
+- **Why**: Primary landing page for the owner after login.
+
+### 64. `mobile/app/owner/bookings.tsx` — Created (Owner Bookings)
+- Filter tabs: All / Confirmed / Completed / Cancelled.
+- Per-booking cancel action with confirmation dialog.
+- Pull-to-refresh support.
+- Connects to `GET /api/v1/owner/bookings` and `PUT /api/v1/owner/bookings/:id/cancel`.
+- Mock fallback data included.
+- **Why**: Lets owners manage all bookings for their turfs.
+
+### 65. `mobile/app/owner/turfs.tsx` — Created (Owner Turfs Management)
+- Lists all owner's turfs with active/inactive status indicator strip.
+- Add/Edit turf via slide-up bottom sheet modal with form: name, address, price/hr, sport selector, description, active toggle.
+- Delete turf with confirmation.
+- Connects to full CRUD: `GET/POST/PUT/DELETE /api/v1/owner/turfs`.
+- **Why**: Core owner management page for creating and updating turf listings.
+
+### 66. `mobile/app/owner/profile.tsx` — Created (Owner Profile)
+- Shows identity card with avatar initials, owner badge, contact info.
+- Stats: Total Turfs, Total Bookings, Total Revenue.
+- Inline edit form for name, phone, business name.
+- Quick nav menu to Turfs and Bookings.
+- Logout button.
+- Connects to `GET /api/v1/owner/profile` and `PUT /api/v1/owner/profile`.
+- **Why**: Lets owner view and edit their account and business details.
+
+### 67. `mobile/app/_layout.tsx` — Modified
+- Added `<Stack.Screen name="owner" options={{ headerShown: false }} />` to register the owner tab navigator route.
+- **Why**: Required for Expo Router to recognize `/owner/*` paths.
+
+### 68. `mobile/app/login.tsx` — Modified
+- Changed all 3 `router.replace('/')` calls after login/register to role-based routing:
+  `router.replace(role === 'TURF_OWNER' ? '/owner' : '/')`
+- **Why**: Implements Option B auto-routing — owners automatically land on their dashboard, customers land on the customer home screen.
+
+### 69. `frontend/src/pages/LoginPage.tsx` — Modified
+- Re-introduced the "⚡ Quick Demo Login" select dropdown.
+- Updated role selector tab button clicks to automatically pre-fill email and password inputs with corresponding seeded credentials.
+- **Why**: Allows instant testing/demo login without requiring manual typing.
+
+### 70. `frontend/src/vite-env.d.ts` — Created [NEW]
+- Added standard Vite client reference directives.
+- **Why**: Fixes a TypeScript compiler error regarding `import.meta.env` property references.
+
+### 71. `frontend/src/store/authStore.ts` — Modified
+- Declared the missing `refreshToken` state property in `useAuthStore` initialization.
+- Added `refreshToken` as an argument to the store's `login` function.
+- **Why**: Fixes TypeScript compiler type mismatches with the `AuthState` interface.
+
+### 72. `frontend/src/pages/owner/OwnerApp.tsx` — Modified
+- Replaced the duplicate api client import pointing to `store/api` with the standard default client in `services/api`.
+- Integrated a live **Weather Advisory** operational widget inside the "Quick Status" sidebar panel.
+- Developed an interactive **Surcharge Revenue Simulator** toolbar slider inside the revenue distribution tab to estimate weekly revenue growth.
+- **Why**: Standardizes Axios communication to allow auto-refresh token headers on 401, fixes the "Failed to save turf" expired token bug, and adds key operational business tools for owners.
+
+### 73. `frontend/src/store/api.ts` — Deleted [DELETE]
+- Removed the duplicate Axios client file.
+- **Why**: Redundant codebase asset that lacks JWT auto-refresh features and conflicts with `services/api`.
+
+### 74. `backend/src/database/seedFirebase.ts` — Modified
+- Updated user seeding block to call `.update()` on existing user documents in Firestore, ensuring their password hashes are updated to bcrypt and their status is active.
+- **Why**: Pre-existing users had plain text passwords stored in the database, causing authentication attempts to fail.
+
+### 75. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+- Replaced the static hardcoded mock `sampleTurfs` array with a dynamic `turfs` state loaded on mount from `GET /api/v1/turfs`.
+- Mapped backend sport IDs correctly to the human-readable sport labels used in the customer UI filters.
+- Replaced the static mock customer bookings log with live database bookings loaded from `GET /api/v1/bookings`.
+- Refactored `handleBookSlot` to make a real `POST /api/v1/bookings` call when completing customer checkouts.
+- Connected the Nearby map markers to the live database `turfs` coordinates state.
+- **Why**: Responds to user request to make sure turfs added in the Owner panel appear immediately in the Customer panel.
+
+### 76. `frontend/src/pages/owner/OwnerApp.tsx` — Modified
+- Imported and integrated `useNavigate` from `react-router-dom` and `useAuthStore` from authStore.
+- Replaced mock `alert()` statement in the sidebar "Sign Out" button handler with actual state cleanup (`logout()`) and redirect to the `/login` route.
+- **Why**: Responds to user request to fix the non-functional "Sign Out" button in the owner panel.
+
+### 77. `frontend/src/pages/LoginPage.tsx` — Rewritten
+- Removed email and password inputs and the associated role selector tabs.
+- Implemented phone number input that requests a 6-digit OTP verification code via `api.post('/auth/send-otp')`.
+- Implemented OTP code verification and session creation via `api.post('/auth/verify-otp')`.
+- Updated the Quick Demo Login dropdown to set the respective registered phone number, request the OTP, auto-fill the dev bypass code `123456`, and verify to sign in with a single click.
+- **Why**: Responds to user request to only have number/OTP login on the login screen.
+
+### 78. `backend/src/database/seedFirebase.ts` — Modified
+- Extended user update seeding query to also sync `phone` and `role` fields on existing Firestore documents.
+- **Why**: Pre-existing admin account had an old phone number (`9999999999`) in the database, causing OTP requests for the standard quick-login number (`8888877777`) to throw a "No user found" error.
+
+### 79. `mobile/app/login.tsx` — Modified
+- Added a collapsible "Dev Quick Login" dropdown simulating Customer/Owner login using pure client state bypass.
+- Added a floating Theme Toggle button in the top right corner using vector icons.
+- Removed the "Password" and "OTP Login" tabs, forcing the login screen to be phone number + OTP-only.
+- Removed Email and Password inputs from Register and Login screens.
+- Auto-generates the email (`${phone}@turfbook.com`) and password (`TurfBookPass@123`) behind the scenes during registration.
+- **Why**: Allows offline dev quick login with a single click, bypasses email/password fields completely, and forces OTP-only authentication for a seamless mobile experience.
+
+### 80. `mobile/app/profile.tsx` — Modified
+- Added a Theme Toggle button in the header right next to the edit profile button.
+- **Why**: Provides a simple way for customer profiles to switch between dark and light themes dynamically.
+
+### 81. `mobile/app/owner/profile.tsx` — Modified
+- Added a Theme Toggle button in the header next to the edit profile button.
+- **Why**: Enables turf owners to toggle dark and light modes directly from their profile screen.
+
+### 82. `mobile/app/index.tsx` — Modified
+- Replaced the text emoji toggle with a vector icon (`Ionicons` sun/moon) for a polished appearance.
+- **Why**: Enhances the UI look and feel of the primary theme switcher.
+
+### 83. `backend/src/shared/utils/sessionManager.ts` — Modified
+- Enabled a developer bypass code (`123456`) in the `verifyOTP` logic when running in non-production environments.
+- **Why**: Allows instant OTP verification during development and enables one-click automated logins.
+
+### 84. `mobile/app/login.tsx` — Modified
 - Mapped the collapsible "Dev Quick Login" dropdown options directly to the database seeded users (`9876543210` for Customer and `9999988888` for Owner).
 - Programmed the dropdown's "Fill" action to dynamically dispatch `/auth/send-otp` and verify it using `/auth/verify-otp` with the dev bypass code `123456`.
 - Bypasses with mock state as a fallback if the API server is offline.
 - **Why**: Ensures quick login generates real, authenticated session tokens so that owner dashboard, turfs, and customer booking logs retrieve genuine dynamic database records.
 
-### 85. Metro Server Process — Stopped & Cleaned
-- Found a stale `npx expo start` process (PID 33232) listening on port 8081 serving cached outdated code (email-login tabs).
-- Terminated both port 8081 and port 8082 processes and ran `npx expo start --clear` on the default port.
-- **Why**: Forces the mobile emulator/device to download the fresh Javascript bundle containing OTP-only login and registration flows.
+### 85. `mobile/app/payment/index.tsx` — Modified
+- Swapped the synchronous static mock lookup `getTurfById` with an asynchronous `useEffect` hook that fetches the turf details directly from `/turfs/:id` with dynamic normalization.
+- Includes a smooth loading indicator state and retains the static mock array as a fallback.
+- Added a mock ID check (`/^\d+$/`) to completely bypass `apiFetch` when the turf ID is numeric (mock turf), preventing 404 console errors.
+- Relocated the lower-level AppState `useEffect` change listener to the top of the component (before the `loading` early return) and converted callback handlers (`executeBookingCreation`, `verifyTransaction`) to standard hoisted function declarations.
+- **Why**: Fixes both the "Invalid session details" and the React Render Error: "Rendered more hooks than during the previous render." crash. All hooks now safely execute unconditionally in accordance with React Rules of Hooks.
+
+
+### 86. `mobile/app/turf/[id].tsx` — Modified
+- Added a mock ID check (`/^\d+$/`) in `fetchTurfDetails` to skip the `/turfs/:id` network request if the ID belongs to a static mock turf.
+- **Why**: Prevents Metro/Hermes console from printing network 404 warning/error logs when navigating to mock turfs.
+
+### 87. `backend/src/modules/user/booking.routes.ts` — Modified
+- Swapped immediate booking confirmation with a secure multi-step pending authorization model.
+- Initiated `POST /bookings` creates bookings/payments in `PENDING` state and queries Razorpay to generate order IDs (falling back to mock ID generation if API keys are missing).
+- Added `POST /bookings/verify` to execute cryptographic signature validation (`sha256` HMAC check using `RAZORPAY_KEY_SECRET`), confirming the slot on success, or cancelling it on payment failure.
+- **Why**: Implements industry-grade secure checkout, decoupling transaction authorization from state persistence and prevents self-reported verification bypass.
+
+### 88. `mobile/app/payment/index.tsx` — Modified
+- Refactored payment action to execute backend initiation first to obtain an order reference, then launch a full-screen simulated secure **Razorpay Payment Gateway** page.
+- Re-incorporated direct UPI app deep-linking (`gpay://`, `phonepe://`, `paytmmp://`, `bhim://`, or generic `upi://`) so that physical devices launch payment apps automatically.
+- Re-installed the foreground `AppState` change listener to automatically confirm the transaction and query the backend verification API once the user returns.
+- Added custom, high-fidelity UI views for **Payment Successful** (green checkmark, transaction info, view bookings) and **Payment Failed / Cancelled** (red cross, details, retry button).
+- **Why**: Combines production-grade mobile deep-linking with robust server-side transaction verification rather than relying on mock bypass buttons.
+
+### 89. `backend/src/modules/user/turf.routes.ts` — Modified
+- Added a public endpoint `GET /turfs/:id/bookings` to query active or pending reservations from the database for a specific turf.
+- **Why**: Exposes turf reservations to customer devices so they can display slot occupation statuses in real time.
+
+### 90. `mobile/app/turf/[id].tsx` — Modified
+- Declared `bookedReservations` state and added a `useEffect` hook to fetch active reservations from `/turfs/:id/bookings` on load.
+- Added an `isSlotBooked()` matcher comparing slot times against backend bookings (filtered by date) and local store bookings.
+- Redesigned slot chip badges: occupied slots render with a red background (`rgba(239, 68, 68, 0.08)`), red border (`rgba(239, 68, 68, 0.4)`), a **"Booked"** label, and have their touch events completely disabled.
+- **Why**: Prevents double-booking slots by notifying the user exactly which slots are already booked.
+
+### 91. `backend/src/modules/user/booking.routes.ts` — Modified
+- Extracted `totalAmount` from the request body in `POST /bookings` and mapped it to the booking document, while keeping `amount` reserved for the transaction payment record.
+- **Why**: Decouples the transaction amount (advance paid online) from the full booking reservation cost in database records.
+
+### 92. `mobile/app/payment/index.tsx` — Modified
+- Added a `payOption` state (`'full'` vs `'advance'`) and calculated advance payment values (30% base price + convenience fee - rewards).
+- Embedded segment selector cards below the Booking details panel to toggle the options cleanly.
+- Updated pricing breakdowns, checkout payloads, simulated gateway views, and success cards to dynamically transition, showing paid amounts versus dues left at the venue.
+- **Why**: Responds to user request to support partial online advance deposits with remaining balance collected offline at the turf.
+
+### 93. Owner Tab Panel UI — Modified & Aligned
+- Aligned `ACCENT` colors across all Owner screens: changed the main active tint from indigo (`#6366f1`) to the customer emerald green (`#10b981`) inside:
+  - Tab layouts: [owner/_layout.tsx](file:///d:/PROJECTS/TurfBook/mobile/app/owner/_layout.tsx)
+  - Dashboard panel: [owner/index.tsx](file:///d:/PROJECTS/TurfBook/mobile/app/owner/index.tsx) (including stats cards)
+  - Booking manager: [owner/bookings.tsx](file:///d:/PROJECTS/TurfBook/mobile/app/owner/bookings.tsx) (tab borders and `COMPLETED` statuses)
+  - Turf CRUD manager: [owner/turfs.tsx](file:///d:/PROJECTS/TurfBook/mobile/app/owner/turfs.tsx)
+  - Profile card: [owner/profile.tsx](file:///d:/PROJECTS/TurfBook/mobile/app/owner/profile.tsx) (editing actions and theme toggles)
+- **Why**: Responds to user request to match the Owner panel's branding, active indicators, and states with the primary customer app UI.
+
+### 94. `backend/src/repositories/firebase/FirebaseOwnerRepository.ts` — Modified
+- Refactored `getDashboardStats()` to calculate total revenue using both dynamic (`totalAmount`, `status`) and seed (`finalAmount`, `paymentStatus`) database fields.
+- Re-implemented `listBookings()` to dynamically map turf names and fetch customer names/phones from `user_profiles` collection using booking user IDs.
+- **Why**: Solidifies the backend connection for all owner panels, ensuring dynamic user bookings propagate to owner screens with matching names, amounts, and dates.
+
+### 95. `backend/src/repositories` & `booking.routes.ts` — Modified
+- Changed `IBookingRepository` `create` signature, and updated `FirebaseBookingRepository` and `PrismaBookingRepository` implementations, to accept an optional `bookingDate` parameter.
+- Updated `POST /api/v1/bookings` route to extract the `date` or `bookingDate` from the request body and pass it down to the repository.
+- **Why**: Allows custom booking dates chosen by the user in the client-side slot planner to be stored in the database.
+
+### 96. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+- Added hooks to fetch active turf bookings from `GET /api/v1/turfs/:id/bookings`.
+- Implemented real-time slot availability checking by matching against backend bookings for the selected date.
+- Dynamically disabled and styled booked slot buttons in the "Configure Slot" grid.
+- Refactored `handleBookSlot` to pass the chosen date, automatically verify the payment status via `POST /api/v1/bookings/verify`, and immediately refresh the slot occupancy states.
+- Initialized `selectedDate` to the current system date.
+- Expanded the slot selector to display 24 hourly slots dynamically.
+- Wrapped slots grid in a compact, scrollable container (`max-h-[250px] overflow-y-auto pr-1.5`) with a 3-column responsive layout (`grid-cols-2 sm:grid-cols-3`) to maintain pristine card proportions.
+- Refactored slots configuration panel styling (headers, borders, labels, price tag, button, container) to be fully responsive to Light Mode and Dark Mode.
+- Fixed the date picker input text visibility by applying theme-aware backgrounds (`bg-white` vs `bg-[#0f172a]`) and borders to prevent white text on white input elements in Light Mode.
+- Enhanced slot chip backgrounds, hover indicators, selected states, and disabled occupied badge contrasts for pristine accessibility.
+- Changed time slots format from 24-hour to 12-hour AM/PM format (e.g. `09:00 AM - 10:00 AM`, `04:00 PM - 05:00 PM`).
+- Introduced a robust `normalizeSlot` helper matching slot times by standard minute ranges to maintain compatibility with existing 24h database records.
+- Styled booked slots in high-contrast red (`border-rose-500/40 bg-rose-500/10 text-rose-500/85`) with a strike-through and a bold, uppercase sub-label **"BOOKED"** in red.
+- Integrated a period selector tab bar (**Morning**, **Afternoon**, **Evening**, **Night**) to group the 24 hourly slots, preventing vertical scroll fatigue.
+- Re-formatted slot buttons to split the start time, divider, and end time onto separate lines, preventing ugly text wraps on narrow viewports.
+- **Why**: Connects the available slots panel to the backend, enabling dynamic slot blocking based on real booking dates, expands availability selection options to a full 24-hour day schedule, fixes text visibility bugs in Light Mode, implements 12-hour AM/PM time formatting, styles booked slots in red with an explicit status sub-label, and provides period filter tabs for simplified scheduling.
+
+
+
+
 

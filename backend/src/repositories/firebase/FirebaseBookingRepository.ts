@@ -27,7 +27,7 @@ export class FirebaseBookingRepository implements IBookingRepository {
   }
 
   public async create(
-    bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'bookingDate'>
+    bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt'> & { bookingDate?: Date | string }
   ): Promise<Booking> {
     const docRef = this.collection.doc();
     const newBooking = {
@@ -36,7 +36,7 @@ export class FirebaseBookingRepository implements IBookingRepository {
       slotId: bookingData.slotId,
       totalAmount: bookingData.totalAmount,
       status: bookingData.status,
-      bookingDate: new Date(),
+      bookingDate: bookingData.bookingDate ? new Date(bookingData.bookingDate) : new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
     };

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { turfRepository } from '../../repositories/index.js';
+import { turfRepository, bookingRepository } from '../../repositories/index.js';
 import { sendResponse } from '../../shared/utils/response.js';
 import { NotFoundError } from '../../shared/utils/errors.js';
 
@@ -47,6 +47,33 @@ router.get('/:id', async (req, res, next) => {
       throw new NotFoundError('Turf not found');
     }
     return sendResponse(res, 200, true, 'Turf details retrieved successfully', turf);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * @openapi
+ * /turfs/{id}/bookings:
+ *   get:
+ *     summary: Retrieve active/pending bookings for a specific turf
+ *     tags: [Turfs]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Active bookings retrieved successfully
+ */
+router.get('/:id/bookings', async (req, res, next) => {
+  try {
+    const bookings = await bookingRepository.findByTurfId(req.params.id);
+    // Filter active or pending bookings to avoid double-booking
+    const activeBookings = bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'PENDING');
+    return sendResponse(res, 200, true, 'Active turf bookings retrieved successfully', activeBookings);
   } catch (error) {
     return next(error);
   }
