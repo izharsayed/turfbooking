@@ -18,7 +18,14 @@ export class FirebaseTurfRepository implements ITurfRepository {
 
   public async findAllActive(): Promise<Turf[]> {
     const snap = await this.collection.where('isActive', '==', true).get();
-    return snap.docs.map((doc) => this.mapTurf(doc.id, doc.data()));
+    const list: Turf[] = [];
+    snap.forEach((doc) => {
+      const data = doc.data();
+      if (!data.deletedAt) {
+        list.push(this.mapTurf(doc.id, data));
+      }
+    });
+    return list;
   }
 
   public async findByCity(city: string): Promise<Turf[]> {
@@ -26,7 +33,14 @@ export class FirebaseTurfRepository implements ITurfRepository {
       .where('location.city', '==', city)
       .where('isActive', '==', true)
       .get();
-    return snap.docs.map((doc) => this.mapTurf(doc.id, doc.data()));
+    const list: Turf[] = [];
+    snap.forEach((doc) => {
+      const data = doc.data();
+      if (!data.deletedAt) {
+        list.push(this.mapTurf(doc.id, data));
+      }
+    });
+    return list;
   }
 
   public async create(

@@ -36,7 +36,8 @@ import {
   ChevronUp,
   Menu,
   X,
-  CloudRain
+  CloudRain,
+  Settings
 } from 'lucide-react';
 
 interface Turf {
@@ -97,9 +98,32 @@ export default function App() {
   const navigate = useNavigate();
   const { logout } = useAuthStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'turfs' | 'slots' | 'bookings' | 'reviews' | 'staff'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'turfs' | 'slots' | 'bookings' | 'reviews' | 'staff' | 'settings'>('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Configuration settings state
+  const [companyName, setCompanyName] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [businessRegisterNumber, setBusinessRegisterNumber] = useState('');
+  const [billingEmail, setBillingEmail] = useState('');
+
+  const [razorpayKeyId, setRazorpayKeyId] = useState('');
+  const [razorpayKeySecret, setRazorpayKeySecret] = useState('');
+  const [businessUpiId, setBusinessUpiId] = useState('');
+  const [advancePaymentPercent, setAdvancePaymentPercent] = useState(30);
+  const [convenienceFee, setConvenienceFee] = useState(45);
+  const [taxRate, setTaxRate] = useState(18);
+  const [onlinePaymentsEnabled, setOnlinePaymentsEnabled] = useState(true);
+
+  const [autoCancellationLimit, setAutoCancellationLimit] = useState(5);
+  const [openingTime, setOpeningTime] = useState('06:00');
+  const [closingTime, setClosingTime] = useState('23:00');
+  const [smsAlertsEnabled, setSmsAlertsEnabled] = useState(true);
+  const [emailReceiptsEnabled, setEmailReceiptsEnabled] = useState(true);
+
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsSuccess, setSettingsSuccess] = useState('');
 
   // Loading and Error States for API
   const [loading, setLoading] = useState(false);
@@ -116,6 +140,15 @@ export default function App() {
   const [replyText, setReplyText] = useState<{ [reviewId: string]: string }>({});
 
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const dayToDateMap: Record<string, string> = {
+    Monday: '2026-07-06',
+    Tuesday: '2026-07-07',
+    Wednesday: '2026-07-08',
+    Thursday: '2026-07-09',
+    Friday: '2026-07-10',
+    Saturday: '2026-07-11',
+    Sunday: '2026-07-12'
+  };
   const hourlySlots = Array.from({ length: 24 }, (_, i) => {
     const start = String(i).padStart(2, '0');
     const end = String((i + 1) % 24 === 0 ? 24 : (i + 1) % 24).padStart(2, '0');
@@ -127,15 +160,39 @@ export default function App() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [turfsRes, bookingsRes, reviewsRes] = await Promise.all([
+        const [turfsRes, bookingsRes, reviewsRes, profileRes] = await Promise.all([
           api.get('/owner/turfs'),
           api.get('/owner/bookings'),
-          api.get('/owner/reviews')
+          api.get('/owner/reviews'),
+          api.get('/owner/profile')
         ]);
 
         const backendTurfs = turfsRes.data?.data || [];
         const backendBookings = bookingsRes.data?.data || [];
         const backendReviews = reviewsRes.data?.data || [];
+        
+        const profileData = profileRes.data?.data || {};
+        const op = profileData.ownerProfile || {};
+        const u = profileData.user || {};
+
+        setCompanyName(op.companyName || u.name || '');
+        setBusinessAddress(op.businessAddress || '');
+        setBusinessRegisterNumber(op.businessRegisterNumber || '');
+        setBillingEmail(op.billingEmail || u.email || '');
+
+        setRazorpayKeyId(op.razorpayKeyId || '');
+        setRazorpayKeySecret(op.razorpayKeySecret || '');
+        setBusinessUpiId(op.businessUpiId || '');
+        setAdvancePaymentPercent(op.advancePaymentPercent || 30);
+        setConvenienceFee(op.convenienceFee || 45);
+        setTaxRate(op.taxRate || 18);
+        setOnlinePaymentsEnabled(op.onlinePaymentsEnabled !== false);
+
+        setAutoCancellationLimit(op.autoCancellationLimit || 5);
+        setOpeningTime(op.openingTime || '06:00');
+        setClosingTime(op.closingTime || '23:00');
+        setSmsAlertsEnabled(op.smsAlertsEnabled !== false);
+        setEmailReceiptsEnabled(op.emailReceiptsEnabled !== false);
 
         // Map turfs
         const mappedTurfs: Turf[] = backendTurfs.map((t: any) => ({
@@ -160,7 +217,7 @@ export default function App() {
           customerPhone: b.customerPhone || '',
           turfName: b.turfName || (mappedTurfs.find(t => t.id === b.turfId)?.name || 'Ahmednagar Sports Arena'),
           date: b.date ? b.date.split('T')[0] : new Date().toISOString().split('T')[0],
-          timeSlot: b.timeSlot || '17:00 - 18:00',
+          timeSlot: b.timeSlot || b.time || b.slotId || '17:00 - 18:00',
           sport: b.sport || 'Football',
           amount: b.totalAmount || b.amount || 1200,
           status: b.status || 'CONFIRMED',
@@ -194,14 +251,29 @@ export default function App() {
 
   // Slots State derived dynamically from Bookings & Turfs
   const slots = useMemo(() => {
-    const dayToDateMap: Record<string, string> = {
-      Monday: '2026-07-06',
-      Tuesday: '2026-07-07',
-      Wednesday: '2026-07-08',
-      Thursday: '2026-07-09',
-      Friday: '2026-07-10',
-      Saturday: '2026-07-11',
-      Sunday: '2026-07-12'
+    const normalizeSlot = (timeSlotStr: string): string => {
+      if (!timeSlotStr) return '';
+      const parts = timeSlotStr.split(' - ').map(s => s.trim());
+      if (parts.length !== 2) return '';
+
+      const toMinutes = (timeStr: string): number => {
+        const is12Hour = timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm');
+        if (is12Hour) {
+          const [timePart, modifier] = timeStr.split(' ');
+          let [hours, minutes] = timePart.split(':').map(Number);
+          const ampm = modifier.toLowerCase();
+          if (ampm === 'pm' && hours !== 12) hours += 12;
+          if (ampm === 'am' && hours === 12) hours = 0;
+          return hours * 60 + minutes;
+        } else {
+          const [hours, minutes] = timeStr.split(':').map(Number);
+          return hours * 60 + minutes;
+        }
+      };
+
+      const startMin = toMinutes(parts[0]);
+      const endMin = toMinutes(parts[1]);
+      return `${startMin}-${endMin}`;
     };
 
     const list: Slot[] = [];
@@ -209,7 +281,15 @@ export default function App() {
       hourlySlots.forEach((time, index) => {
         const bookingDate = dayToDateMap[day];
         const isBooked = bookings.some(
-          b => b.date === bookingDate && b.timeSlot === time && b.status !== 'CANCELLED'
+          b => {
+            const bDateStr = b.date;
+            if (bDateStr !== bookingDate || b.status === 'CANCELLED') return false;
+
+            const bSlot = b.timeSlot || '';
+            const slots = bSlot.split(',').map((s: string) => s.trim());
+            const targetNorm = normalizeSlot(time);
+            return slots.some((s: string) => s && normalizeSlot(s) === targetNorm);
+          }
         );
 
         list.push({
@@ -217,8 +297,8 @@ export default function App() {
           time,
           day,
           price: ownerTurfs[0]?.price || 1200,
-          status: isBooked ? 'BOOKED' : (index % 8 === 0 ? 'BLOCKED' : 'OPEN'),
-          blockReason: index % 8 === 0 ? 'Scheduled maintenance check' : undefined
+          status: isBooked ? 'BOOKED' : 'OPEN',
+          blockReason: undefined
         });
       });
     });
@@ -282,11 +362,24 @@ export default function App() {
     .filter(b => b.status !== 'CANCELLED')
     .reduce((sum, b) => sum + b.amount, 0);
 
-  const bookingsToday = bookings.filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED').length;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const bookingsToday = bookings.filter(
+    b => (b.status === 'CONFIRMED' || b.status === 'COMPLETED') && b.date === todayStr
+  ).length;
+
   const activeTurfsCount = ownerTurfs.length;
   const totalSlotsCount = slots.length;
   const bookedSlotsCount = slots.filter(s => s.status === 'BOOKED').length;
   const fillRate = Math.round((bookedSlotsCount / totalSlotsCount) * 100) || 0;
+
+  const realFillRates = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(dayName => {
+    const daySlots = slots.filter(s => s.day === dayName);
+    const total = daySlots.length;
+    const booked = daySlots.filter(s => s.status === 'BOOKED').length;
+    return total > 0 ? Math.round((booked / total) * 100) : 0;
+  });
+  const hasRealBookings = realFillRates.some(r => r > 0);
+  const weeklyFillRates = hasRealBookings ? realFillRates : [45, 55, 30, 80, 95, 65, 85];
 
   // Add/Edit Turf Handlers
   const handleSaveTurf = async (e: React.FormEvent) => {
@@ -450,6 +543,41 @@ export default function App() {
   const handleDeleteStaff = (id: string) => {
     if (confirm('Remove this staff member from your venue directory?')) {
       setStaffList(staffList.filter(s => s.id !== id));
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    setSettingsSuccess('');
+    try {
+      const payload = {
+        companyName,
+        businessAddress,
+        businessRegisterNumber,
+        billingEmail,
+        razorpayKeyId,
+        razorpayKeySecret,
+        businessUpiId,
+        advancePaymentPercent: Number(advancePaymentPercent),
+        convenienceFee: Number(convenienceFee),
+        taxRate: Number(taxRate),
+        onlinePaymentsEnabled,
+        autoCancellationLimit: Number(autoCancellationLimit),
+        openingTime,
+        closingTime,
+        smsAlertsEnabled,
+        emailReceiptsEnabled,
+      };
+
+      await api.put('/owner/profile', payload);
+      setSettingsSuccess('Configuration settings saved successfully!');
+      setTimeout(() => setSettingsSuccess(''), 4000);
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      alert('Failed to save configuration settings.');
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -676,7 +804,8 @@ export default function App() {
               { id: 'slots', label: 'Slot Manager', icon: Clock },
               { id: 'bookings', label: 'Bookings Log', icon: CalendarDays },
               { id: 'reviews', label: 'Customer Reviews', icon: HelpCircle },
-              { id: 'staff', label: 'Staff Directory', icon: User }
+              { id: 'staff', label: 'Staff Directory', icon: User },
+              { id: 'settings', label: 'Settings', icon: Settings }
             ].filter(item => {
               if (userRole === 'STAFF') {
                 return item.id === 'slots' || item.id === 'bookings';
@@ -902,7 +1031,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="h-40 flex items-end justify-between pt-6 px-4">
-                      {[45, 55, 30, 80, 95, 65, 85].map((val, idx) => (
+                      {weeklyFillRates.map((val, idx) => (
                         <div key={idx} className="flex flex-col items-center gap-2 w-full">
                           <div className={`w-8 border rounded-t-lg relative transition-all duration-500 ${
                             isDarkMode
@@ -951,7 +1080,7 @@ export default function App() {
                       isDarkMode ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-100 shadow-inner'
                     }`}>
                       <span className="text-[10px] font-bold text-blue-500 block mb-1">LOCATIONS STATUS</span>
-                      <p className="text-sm font-semibold">Ahmednagar: 2 active venues</p>
+                      <p className="text-sm font-semibold">Ahmednagar: {activeTurfsCount} active {activeTurfsCount === 1 ? 'venue' : 'venues'}</p>
                     </div>
 
                     <div className={`p-3 border rounded-xl transition-colors duration-300 ${
@@ -1886,6 +2015,294 @@ export default function App() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* SUBVIEW 7: CONFIGURATION SETTINGS */}
+        {activeTab === 'settings' && (
+          <div className="space-y-8">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Configuration Settings</h1>
+                <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Manage your venue payments configuration, company billing parameters, and notifications.</p>
+              </div>
+            </div>
+
+            {settingsSuccess && (
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-450 rounded-2xl text-sm font-bold shadow-md transition-all duration-300">
+                🎉 {settingsSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveSettings} className="space-y-8 max-w-4xl">
+              {/* Payment Settings Card */}
+              <div className={`p-6 border rounded-3xl space-y-6 shadow-xl transition-colors duration-300 ${
+                isDarkMode ? 'bg-[#090d1a]/45 border-slate-850 text-white' : 'bg-white border-slate-200 text-slate-900'
+              }`}>
+                <h3 className="text-base font-bold text-emerald-450 border-b pb-2 border-slate-800 flex items-center gap-2">
+                  <DollarSign className="h-4.5 w-4.5" /> Payments & Razorpay Credentials
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Razorpay Key ID</label>
+                    <input
+                      type="text"
+                      placeholder="rzp_test_..."
+                      value={razorpayKeyId}
+                      onChange={(e) => setRazorpayKeyId(e.target.value)}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Razorpay Key Secret</label>
+                    <input
+                      type="password"
+                      placeholder="••••••••••••••••"
+                      value={razorpayKeySecret}
+                      onChange={(e) => setRazorpayKeySecret(e.target.value)}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Business UPI ID (for Direct Settlements)</label>
+                    <input
+                      type="text"
+                      placeholder="merchant@upi"
+                      value={businessUpiId}
+                      onChange={(e) => setBusinessUpiId(e.target.value)}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Convenience Fee (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="500"
+                      value={convenienceFee}
+                      onChange={(e) => setConvenienceFee(Number(e.target.value))}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">GST / Tax Rate (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="30"
+                      value={taxRate}
+                      onChange={(e) => setTaxRate(Number(e.target.value))}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Online Payments Status</label>
+                    <div className="flex items-center gap-2 h-10">
+                      <input
+                        type="checkbox"
+                        id="onlinePaymentsEnabled"
+                        checked={onlinePaymentsEnabled}
+                        onChange={(e) => setOnlinePaymentsEnabled(e.target.checked)}
+                        className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                      />
+                      <label htmlFor="onlinePaymentsEnabled" className="text-xs font-bold cursor-pointer">
+                        {onlinePaymentsEnabled ? 'Online Payments Active' : 'Online Payments Paused'}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span className="text-slate-400 uppercase">Advance Booking Pay Split percentage</span>
+                    <span className="text-emerald-450 font-black text-sm">{advancePaymentPercent}% Advance</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="5"
+                    value={advancePaymentPercent}
+                    onChange={(e) => setAdvancePaymentPercent(Number(e.target.value))}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  />
+                  <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                    <span>10% (Minimum Reservation Hold)</span>
+                    <span>50% (Standard Half Pay)</span>
+                    <span>100% (Strict Full Pay Only)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* General Business Details & Operations */}
+              <div className={`p-6 border rounded-3xl space-y-6 shadow-xl transition-colors duration-300 ${
+                isDarkMode ? 'bg-[#090d1a]/45 border-slate-850 text-white' : 'bg-white border-slate-200 text-slate-900'
+              }`}>
+                <h3 className="text-base font-bold text-emerald-450 border-b pb-2 border-slate-800 flex items-center gap-2">
+                  <User className="h-4.5 w-4.5" /> General Business Details & Operations
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Registered Business / Brand Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ahmednagar Sports Arena"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">GSTIN / Registration Number</label>
+                    <input
+                      type="text"
+                      placeholder="27AAAAA1111A1Z1"
+                      value={businessRegisterNumber}
+                      onChange={(e) => setBusinessRegisterNumber(e.target.value)}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Billing & Contact Email</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="billing@sportsarena.com"
+                      value={billingEmail}
+                      onChange={(e) => setBillingEmail(e.target.value)}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Business Address</label>
+                    <input
+                      type="text"
+                      placeholder="Gulmohar Road, Savedi, Ahmednagar"
+                      value={businessAddress}
+                      onChange={(e) => setBusinessAddress(e.target.value)}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Auto-Cancellation Limit (min)</label>
+                    <input
+                      type="number"
+                      min="2"
+                      max="30"
+                      value={autoCancellationLimit}
+                      onChange={(e) => setAutoCancellationLimit(Number(e.target.value))}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Operations Open Time</label>
+                    <input
+                      type="time"
+                      value={openingTime}
+                      onChange={(e) => setOpeningTime(e.target.value)}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase block">Operations Close Time</label>
+                    <input
+                      type="time"
+                      value={closingTime}
+                      onChange={(e) => setClosingTime(e.target.value)}
+                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
+                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notification Toggles */}
+              <div className={`p-6 border rounded-3xl space-y-4 transition-colors duration-300 ${
+                isDarkMode ? 'bg-[#090d1a]/45 border-slate-850 text-white' : 'bg-white border-slate-200 text-slate-900'
+              }`}>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Notification Alerts Toggles</h3>
+                <div className="flex flex-col sm:flex-row gap-6">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="smsAlertsEnabled"
+                      checked={smsAlertsEnabled}
+                      onChange={(e) => setSmsAlertsEnabled(e.target.checked)}
+                      className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                    />
+                    <label htmlFor="smsAlertsEnabled" className="text-xs font-bold cursor-pointer">
+                      Send SMS OTPs and Booking confirmations
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="emailReceiptsEnabled"
+                      checked={emailReceiptsEnabled}
+                      onChange={(e) => setEmailReceiptsEnabled(e.target.checked)}
+                      className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                    />
+                    <label htmlFor="emailReceiptsEnabled" className="text-xs font-bold cursor-pointer">
+                      Send Email invoices and monthly revenue statements
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  disabled={savingSettings}
+                  className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-2xl text-xs transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 shrink-0"
+                >
+                  {savingSettings ? 'Saving Configuration...' : 'Save Configuration settings'}
+                </button>
+              </div>
+            </form>
           </div>
         )}
       </main>

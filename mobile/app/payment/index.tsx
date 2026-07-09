@@ -28,10 +28,15 @@ export default function PaymentCheckoutScreen() {
   const params = useLocalSearchParams<{
     turfId: string;
     date: string;
-    time: string;
+    time: string;   // comma-separated slot strings e.g. "09:00 - 10:00,10:00 - 11:00"
+    slots: string;  // count of selected slots
     court: string;
     sport: string;
   }>();
+
+  // Parse multi-slot details
+  const slotList = params.time ? params.time.split(',') : [];
+  const slotCount = Math.max(slotList.length, 1);
 
   const addBooking = useBookingStore((s) => s.addBooking);
   const { isDarkMode } = useThemeStore();
@@ -75,6 +80,7 @@ export default function PaymentCheckoutScreen() {
             description: bt.description || '',
             amenities: bt.amenities || [],
             slots: bt.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
+            ownerProfile: bt.ownerProfile || null,
           });
           setLoading(false);
           return;
@@ -151,16 +157,16 @@ export default function PaymentCheckoutScreen() {
     );
   }
 
-  // Calculate pricing breakdown
-  const basePrice = turf.price;
+  // Calculate pricing breakdown — multiply by number of slots selected
+  const basePrice = turf.price * slotCount;
   const convenienceFee = 45;
-  const playcoinsDiscount = usePlaycoins ? Math.min(playcoinsBalance * 0.5, basePrice * 0.2) : 0; // limit discount
+  const playcoinsDiscount = usePlaycoins ? Math.min(playcoinsBalance * 0.5, basePrice * 0.2) : 0;
   const finalTotal = basePrice + convenienceFee - playcoinsDiscount;
 
   // Advance Payment: 30% of base price + convenienceFee - playcoinsDiscount
   const advanceAmount = Math.round(basePrice * 0.3);
   const advanceTotal = advanceAmount + convenienceFee - playcoinsDiscount;
-  
+
   const amountToPay = payOption === 'full' ? finalTotal : advanceTotal;
 
   // Step 1: Initiate booking on backend (sets PENDING status)
@@ -196,7 +202,9 @@ export default function PaymentCheckoutScreen() {
         
         // Launch deep-link UPI app if UPI is selected
         if (selectedMethod === 'upi') {
-          const query = `pa=turfbook@hdfcbank&pn=TurfBook%20Solutions&tr=${res.data.razorpayOrderId}&am=${amountToPay}&cu=INR&tn=Booking%20for%20${encodeURIComponent(turf.name)}`;
+          const upiAddress = turf.ownerProfile?.businessUpiId || 'turfbook@hdfcbank';
+          const merchantName = turf.ownerProfile?.companyName || turf.name || 'TurfBook';
+          const query = `pa=${encodeURIComponent(upiAddress)}&pn=${encodeURIComponent(merchantName)}&tr=${res.data.razorpayOrderId}&am=${amountToPay}&cu=INR&tn=Booking%20for%20${encodeURIComponent(turf.name)}`;
           let targetUrl = `upi://pay?${query}`;
           
           if (selectedUpiApp === 'Google Pay') {

@@ -6,6 +6,7 @@ import { NotFoundError } from '../../shared/utils/errors.js';
 import Razorpay from 'razorpay';
 import { env } from '../../config/env.js';
 import crypto from 'crypto';
+import { logger } from '../../config/logger.js';
 
 const router = Router();
 
@@ -89,6 +90,40 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
   try {
     const { turfId, slotId, amount, totalAmount, time, date, bookingDate } = req.body;
     
+    const targetDate = date || bookingDate || new Date().toISOString().split('T')[0];
+    const targetSlots = (slotId || time || '17:00 - 18:00').split(',');
+
+    // Check existing bookings for this turf to verify slots are not already booked or reserved
+    const existingBookings = await bookingRepository.findByTurfId(turfId);
+    const now = new Date().getTime();
+
+    const conflict = existingBookings.find((b) => {
+      const bDate = b.bookingDate ? new Date(b.bookingDate).toISOString().split('T')[0] : '';
+      if (bDate !== targetDate) return false;
+
+      const bookedSlots = (b.slotId || '').split(',');
+      const hasOverlap = targetSlots.some((slot) => bookedSlots.includes(slot));
+      if (!hasOverlap) return false;
+
+      // If already confirmed, it's a conflict
+      if (b.status === 'CONFIRMED') return true;
+
+      // If pending and created less than 5 minutes ago, it's a conflict (temporary reservation active)
+      if (b.status === 'PENDING') {
+        const createdAtTime = new Date(b.createdAt).getTime();
+        const ageMs = now - createdAtTime;
+        if (ageMs < 5 * 60 * 1000) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    if (conflict) {
+      return sendResponse(res, 400, false, 'One or more of the selected slots are already booked or temporarily reserved by another user. Please choose other slots.');
+    }
+
     // 1. Create booking in PENDING status (requires payment verification)
     const booking = await bookingRepository.create({
       userId: req.user.id,
@@ -210,6 +245,9 @@ router.post('/verify', authenticate as any, async (req: any, res, next) => {
       razorpaySignature: razorpaySignature || 'mock-signature',
     });
 
+    // Send confirmation notification (simulate by logging)
+    logger.info(`🔔 Booking Confirmed notification sent for Booking ID: ${bookingId}, User: ${req.user.id}, Turf: ${booking.turfId}, Slots: ${booking.slotId}`);
+
     return sendResponse(res, 200, true, 'Payment verified and booking confirmed successfully');
   } catch (error) {
     return next(error);
@@ -253,6 +291,54 @@ router.get('/:id', authenticate as any, async (req: any, res, next) => {
       timestamp: b.createdAt ? new Date(b.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
     };
     return sendResponse(res, 200, true, 'Booking retrieved successfully', result);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * @openapi
+ * /bookings/{id}:
+ *   delete:
+ *     summary: Cancel a booking by ID
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Booking cancelled successfully
+ *       404:
+ *         description: Booking not found or not owned by user
+ */
+router.delete('/:id', authenticate as any, async (req: any, res, next) => {
+  try {
+    const b = await bookingRepository.findById(req.params.id);
+    if (!b || b.userId !== req.user.id) {
+      throw new NotFoundError('Booking not found');
+    }
+
+    if (b.status === 'CANCELLED') {
+      return sendResponse(res, 200, true, 'Booking was already cancelled');
+    }
+
+    // Mark booking as cancelled
+    await bookingRepository.updateStatus(req.params.id, 'CANCELLED');
+
+    // Mark associated payment as refunded/failed (if exists)
+    const payment = await paymentRepository.findByBookingId(req.params.id);
+    if (payment && payment.status === 'PAID') {
+      await paymentRepository.updateStatus(payment.id, 'REFUNDED');
+    } else if (payment && payment.status === 'PENDING') {
+      await paymentRepository.updateStatus(payment.id, 'FAILED');
+    }
+
+    return sendResponse(res, 200, true, 'Booking cancelled successfully');
   } catch (error) {
     return next(error);
   }

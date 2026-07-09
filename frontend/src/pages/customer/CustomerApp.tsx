@@ -43,7 +43,10 @@ import {
   Sparkles,
   HelpCircle,
   MessageSquare,
-  X
+  X,
+  Smartphone,
+  Landmark,
+  CreditCard
 } from 'lucide-react';
 
 interface Turf {
@@ -143,8 +146,10 @@ export default function App() {
   const [selectedTurf, setSelectedTurf] = useState<Turf | null>(null);
   const [bookingStep, setBookingStep] = useState<'details' | 'checkout' | 'success'>('details');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [activeSlotPeriod, setActiveSlotPeriod] = useState<'morning' | 'afternoon' | 'evening' | 'night'>('evening');
+  const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'gpay' | 'phonepe' | 'paytm'>('gpay');
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [isOpeningApp, setIsOpeningApp] = useState(false);
   
   // Auth Form State
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
@@ -261,26 +266,25 @@ export default function App() {
     const targetNorm = normalizeSlot(time);
     return turfBookings.some((b: any) => {
       const bDateStr = b.date || (b.bookingDate ? new Date(b.bookingDate).toISOString().split('T')[0] : '');
-      const bSlot = b.slotId || b.time;
-      return normalizeSlot(bSlot) === targetNorm && bDateStr === selectedDate;
+      const bSlot = b.slotId || b.time || '';
+      const slots = bSlot.split(',').map((s: string) => s.trim());
+      return slots.some((s: string) => s && normalizeSlot(s) === targetNorm) && bDateStr === selectedDate;
     });
   };
 
-  // Helper to filter 24 hourly slots based on morning, afternoon, evening, and night activeSlotPeriod tab
-  const getFilteredSlots = () => {
-    return timeSlots24.filter((_, index) => {
-      if (activeSlotPeriod === 'morning') {
-        return index >= 6 && index < 12; // 06:00 AM - 12:00 PM
-      }
-      if (activeSlotPeriod === 'afternoon') {
-        return index >= 12 && index < 16; // 12:00 PM - 04:00 PM
-      }
-      if (activeSlotPeriod === 'evening') {
-        return index >= 16 && index < 20; // 04:00 PM - 08:00 PM
-      }
-      // night: 08:00 PM - 06:00 AM next day
-      return index >= 20 || index < 6;
-    });
+  // Helper to compute the dynamic price for selected slots (incorporating surcharges)
+  const getSelectedSlotPrice = () => {
+    if (!selectedTurf) return 0;
+    if (selectedTimes.length === 0) return 0;
+    
+    return selectedTimes.reduce((total, time) => {
+      const startHour = parseInt(time.split(':')[0], 10);
+      const isPM = time.includes('PM');
+      const actualHour = isPM && startHour !== 12 ? startHour + 12 : (!isPM && startHour === 12 ? 0 : startHour);
+      const isPeak = actualHour >= 16 && actualHour < 22; // Peak hours: 4 PM to 10 PM
+      const price = isPeak ? selectedTurf.price + 300 : selectedTurf.price;
+      return total + price;
+    }, 0);
   };
 
   // Load Bookings from Backend
@@ -388,8 +392,8 @@ export default function App() {
       setOtp('');
     }
 
-    // If they were configuring a slot and logged in as customer, auto-advance them to checkout
-    if (selectedTurf && selectedTime) {
+    // If they were configuring slots and logged in as customer, auto-advance them to checkout
+    if (selectedTurf && selectedTimes.length > 0) {
       setBookingStep('checkout');
     }
   };
@@ -399,14 +403,17 @@ export default function App() {
       setAuthMode('login');
       return;
     }
-    if (!selectedTime || !selectedTurf) return;
+    if (selectedTimes.length === 0 || !selectedTurf) return;
 
     try {
+      const joinedSlotsStr = selectedTimes.join(', ');
+      const totalPrice = getSelectedSlotPrice();
+
       const bookingPayload = {
         turfId: selectedTurf.id,
-        slotId: selectedTime,
-        amount: selectedTurf.price,
-        time: selectedTime,
+        slotId: joinedSlotsStr,
+        amount: totalPrice,
+        time: joinedSlotsStr,
         date: selectedDate,
       };
       
@@ -427,9 +434,9 @@ export default function App() {
         id: booking.id,
         turfName: selectedTurf.name,
         date: selectedDate,
-        time: selectedTime,
+        time: joinedSlotsStr,
         sport: selectedTurf.sport,
-        amount: selectedTurf.price,
+        amount: totalPrice,
         status: 'UPCOMING'
       };
 
@@ -516,7 +523,7 @@ export default function App() {
               explore: 'Explore',
               bookings: 'My Bookings',
               support: 'Support Help',
-              nearby: '📍 Nearby Maps'
+              nearby: '📍 Nearby Turfs'
             };
             const isActive = activeTab === tab;
             return (
@@ -684,7 +691,7 @@ export default function App() {
                           <span className="text-xl font-black">{formatCurrency(turf.price)}<span className="text-xs text-slate-500 font-normal">/hr</span></span>
                         </div>
                         <button
-                          onClick={() => { setSelectedTurf(turf); setBookingStep('details'); setSelectedTime(null); }}
+                          onClick={() => { setSelectedTurf(turf); setBookingStep('details'); setSelectedTimes([]); }}
                           className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-450 text-white shadow-md shadow-emerald-500/15 transition-all duration-200 hover:scale-[1.02]"
                         >
                           Book Slot
@@ -779,59 +786,68 @@ export default function App() {
                     Available Slots (24 Hours)
                   </label>
                   
-                  {/* Period Tabs Selector Row */}
-                  <div className="flex gap-1 mb-4 overflow-x-auto pb-1 scrollbar-none">
-                    {(['morning', 'afternoon', 'evening', 'night'] as const).map((period) => (
-                      <button
-                        key={period}
-                        type="button"
-                        onClick={() => {
-                          setActiveSlotPeriod(period);
-                          setSelectedTime(null); // Reset selection when tab switches
-                        }}
-                        className={`text-[9px] font-extrabold uppercase tracking-wider px-3 py-2 rounded-xl border transition-all ${
-                          activeSlotPeriod === period
-                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                            : isDarkMode
-                            ? 'border-slate-800/60 bg-slate-900/30 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                            : 'border-slate-200 bg-slate-50 text-slate-650 hover:border-slate-300 hover:text-slate-900'
-                        }`}
-                      >
-                        {period}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className={`max-h-[260px] overflow-y-auto pr-1.5 mb-8 rounded-xl border p-2.5 scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent ${
+                  {/* Unified Slots Selector Grid */}
+                  <div className={`max-h-[350px] overflow-y-auto pr-1.5 mb-8 rounded-xl border p-3 scrollbar-thin scrollbar-thumb-emerald-500/20 scrollbar-track-transparent ${
                     isDarkMode ? 'border-slate-800/40 bg-slate-900/10' : 'border-slate-250 bg-slate-100/50'
                   }`}>
-                    <div className="grid grid-cols-3 gap-2">
-                      {getFilteredSlots().map((time) => {
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {timeSlots24.map((time) => {
                         const booked = isSlotBooked(time);
-                        const isSelected = selectedTime === time;
+                        const isSelected = selectedTimes.includes(time);
+                        
+                        // Surcharge formatting
+                        const startHour = parseInt(time.split(':')[0], 10);
+                        const isPM = time.includes('PM');
+                        const actualHour = isPM && startHour !== 12 ? startHour + 12 : (!isPM && startHour === 12 ? 0 : startHour);
+                        const isPeak = actualHour >= 16 && actualHour < 22; // 4 PM to 10 PM peak
+                        const price = isPeak ? selectedTurf.price + 300 : selectedTurf.price;
+
                         return (
                           <button
                             key={time}
                             disabled={booked}
-                            onClick={() => setSelectedTime(time)}
-                            className={`text-[9px] p-2.5 rounded-xl border transition-all duration-200 flex flex-col items-center justify-center min-h-[64px] gap-0.5 ${
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedTimes(selectedTimes.filter(t => t !== time));
+                              } else {
+                                setSelectedTimes([...selectedTimes, time]);
+                              }
+                            }}
+                            className={`px-3.5 py-2.5 rounded-xl text-left border flex flex-col justify-between min-h-[72px] transition-all hover:scale-[1.01] relative ${
                               booked
-                                ? 'border-rose-500/40 bg-rose-500/10 text-rose-500/85 cursor-not-allowed opacity-75'
+                                ? 'bg-rose-500/5 border-rose-500/20 text-rose-500/80 cursor-not-allowed opacity-75'
                                 : isSelected
-                                ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold shadow-sm'
+                                ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 font-extrabold ring-1 ring-emerald-500 shadow-md shadow-emerald-500/10'
                                 : isDarkMode
-                                ? 'border-slate-800 bg-slate-850 text-slate-350 hover:border-slate-700 hover:text-slate-100 hover:bg-slate-800'
-                                : 'border-slate-250 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900 hover:bg-slate-50/80 shadow-sm'
+                                ? 'bg-slate-900/30 border-slate-850 text-slate-350 hover:border-slate-700 hover:bg-slate-800'
+                                : 'bg-slate-550 border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/80 shadow-sm'
                             }`}
                           >
-                            <span className={booked ? 'line-through opacity-60 font-semibold' : 'font-semibold'}>
-                              {time.split(' - ')[0]}
-                            </span>
-                            <span className="text-[7px] text-slate-500 leading-none">to</span>
-                            <span className={booked ? 'line-through opacity-60 font-semibold' : 'font-semibold'}>
-                              {time.split(' - ')[1]}
-                            </span>
-                            {booked && <span className="text-[7px] font-black text-rose-500 uppercase tracking-widest leading-none mt-1">Booked</span>}
+                            <div className="flex items-center justify-between w-full">
+                              <span className={`text-[10px] font-extrabold ${booked ? 'line-through opacity-60' : ''}`}>
+                                {time}
+                              </span>
+                              <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded ${
+                                booked
+                                  ? 'bg-rose-500/10 text-rose-400'
+                                  : isSelected
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : isDarkMode
+                                  ? 'bg-slate-800 text-slate-400'
+                                  : 'bg-slate-200 text-slate-600'
+                              }`}>
+                                {booked ? 'Booked' : isSelected ? 'Selected' : 'Open'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between w-full mt-1.5 pt-1.5 border-t border-dashed border-slate-800/40">
+                              <span className="text-[8px] text-slate-500 font-medium">Hourly Rate</span>
+                              <span className="text-[9px] font-black flex items-center gap-0.5">
+                                {formatCurrency(price)}
+                                {isPeak && !booked && (
+                                  <span className="text-[8px] filter saturate-150" title="Peak Hour Surcharge">🔥</span>
+                                )}
+                              </span>
+                            </div>
                           </button>
                         );
                       })}
@@ -839,14 +855,17 @@ export default function App() {
                   </div>
 
                   <div className={`flex justify-between items-center mb-6 pt-6 border-t ${isDarkMode ? 'border-slate-800/60' : 'border-slate-250'}`}>
-                    <span className={`text-sm font-semibold ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Hourly Rate</span>
-                    <span className={`font-black text-2xl ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatCurrency(selectedTurf.price)}</span>
+                    <div className="flex flex-col">
+                      <span className={`text-sm font-semibold ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Total Amount</span>
+                      <span className="text-[9px] text-slate-500 font-medium">₹300 peak-hour surcharge applies for 4 PM - 10 PM</span>
+                    </div>
+                    <span className={`font-black text-2xl ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatCurrency(getSelectedSlotPrice())}</span>
                   </div>
 
                   <Button
                     variant="primary"
                     className="w-full shadow-lg shadow-emerald-500/25 py-6 font-bold rounded-xl"
-                    disabled={!selectedTime}
+                    disabled={selectedTimes.length === 0}
                     onClick={() => {
                       if (!isAuthenticated) {
                         setAuthMode('login');
@@ -865,34 +884,160 @@ export default function App() {
               <div className="max-w-md mx-auto py-6">
                 <h3 className="font-extrabold text-3xl mb-6 text-center">Confirm & Pay</h3>
                 
-                <div className="bg-[#030712]/50 p-6 rounded-2xl border border-slate-850 mb-8">
+                <div className="bg-[#030712]/50 p-6 rounded-2xl border border-slate-850 mb-6">
                   <div className="flex justify-between mb-4 text-sm">
                     <span className="text-slate-500 font-semibold">Arena</span>
                     <span className="font-bold text-white">{selectedTurf.name}</span>
                   </div>
                   <div className="flex justify-between mb-4 text-sm">
-                    <span className="text-slate-500 font-semibold">Slot</span>
-                    <span className="font-bold text-white">{selectedDate} at {selectedTime}</span>
+                    <span className="text-slate-500 font-semibold">Slot(s)</span>
+                    <span className="font-bold text-white max-w-[220px] text-right truncate" title={selectedTimes.join(', ')}>
+                      {selectedTimes.join(', ')}
+                    </span>
                   </div>
                   <div className="flex justify-between mb-4 text-sm">
                     <span className="text-slate-500 font-semibold">Sport</span>
                     <span className="font-bold text-white">{selectedTurf.sport}</span>
                   </div>
-                  <hr className="border-slate-850 my-5" />
+                  <hr className="border-slate-855 my-5" />
                   <div className="flex justify-between text-lg font-black">
                     <span className="text-white">Total Amount</span>
-                    <span className="text-emerald-400">{formatCurrency(selectedTurf.price)}</span>
+                    <span className="text-emerald-400">{formatCurrency(getSelectedSlotPrice())}</span>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <Button variant="primary" className="w-full shadow-lg shadow-emerald-500/20 py-6 font-bold rounded-xl" onClick={handleBookSlot}>
-                    Pay Now via Razorpay
-                  </Button>
-                  <Button variant="outline" className="w-full py-6 rounded-xl border-slate-800 text-slate-400 hover:text-slate-200" onClick={() => setBookingStep('details')}>
+                {/* QR Code Container */}
+                {showQRCode && (
+                  <div className="bg-[#0f172a] p-6 rounded-2xl border border-slate-800 mb-6 text-center space-y-4 animate-scaleUp">
+                    <div className="flex justify-between items-center pb-3 border-b border-slate-800/60">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">UPI QR Code</span>
+                      <button 
+                        onClick={() => setShowQRCode(false)} 
+                        className="text-xs text-rose-400 hover:text-rose-350 font-bold transition-colors animate-pulse"
+                      >
+                        Cancel QR
+                      </button>
+                    </div>
+                    
+                    <div className="inline-block p-4 bg-white rounded-2xl shadow-lg relative border-4 border-emerald-500/30">
+                      <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1 rounded-tl-md"></div>
+                      <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-500 -mt-1 -mr-1 rounded-tr-md"></div>
+                      <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-500 -mb-1 -ml-1 rounded-bl-md"></div>
+                      <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-500 -mb-1 -mr-1 rounded-br-md"></div>
+                      
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                          `upi://pay?pa=turfbook@upi&pn=TurfBook&am=${getSelectedSlotPrice()}&cu=INR`
+                        )}`} 
+                        alt="UPI QR Code" 
+                        className="w-44 h-44 object-contain mx-auto"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-slate-350">
+                        Scan with Google Pay, PhonePe, Paytm, or any UPI app
+                      </p>
+                      <div className="flex justify-center items-center gap-2 text-[10px] text-emerald-450 font-extrabold tracking-wider bg-emerald-500/10 py-1.5 px-3 rounded-full w-fit mx-auto animate-pulse">
+                        <span>Waiting for payment confirmation... ⏳</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        Do not refresh this page. Confirms automatically on payment.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* App Redirect Overlay */}
+                {isOpeningApp && (
+                  <div className="bg-[#0f172a] p-6 rounded-2xl border border-slate-800 mb-6 text-center space-y-4 animate-scaleUp">
+                    <div className="flex flex-col items-center justify-center py-6 space-y-4">
+                      <div className="relative">
+                        <div className="h-12 w-12 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin"></div>
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-lg text-white">Opening Payment App</h4>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Connecting to {selectedPaymentMethod === 'gpay' ? 'Google Pay' : selectedPaymentMethod === 'phonepe' ? 'PhonePe' : 'Paytm'}...
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Methods Selection Panel */}
+                {!showQRCode && !isOpeningApp && (
+                  <div className="space-y-4 mb-6">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                      Select Payment Method
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { id: 'gpay', name: 'Google Pay', icon: Smartphone },
+                        { id: 'phonepe', name: 'PhonePe', icon: Landmark },
+                        { id: 'paytm', name: 'Paytm / UPI', icon: CreditCard }
+                      ].map((method) => {
+                        const Icon = method.icon;
+                        const isSelected = selectedPaymentMethod === method.id;
+                        return (
+                          <button
+                            key={method.id}
+                            type="button"
+                            onClick={() => setSelectedPaymentMethod(method.id as any)}
+                            className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all duration-200 ${
+                              isSelected
+                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400 font-extrabold ring-1 ring-emerald-500 shadow-md'
+                                : 'border-slate-800 bg-slate-900/40 text-slate-350 hover:border-slate-700 hover:bg-slate-800'
+                            }`}
+                          >
+                            <Icon className="h-6 w-6" />
+                            <span className="text-[10px] font-bold">{method.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-855">
+                      <Button
+                        variant="outline"
+                        className="py-4 border-slate-800 text-slate-400 hover:text-slate-200 font-bold rounded-xl hover:scale-[1.02] transition-all"
+                        onClick={() => {
+                          setShowQRCode(true);
+                          // Auto confirm after 4.5 seconds to simulate user paying the QR code
+                          setTimeout(() => {
+                            handleBookSlot();
+                          }, 4500);
+                        }}
+                      >
+                        Generate QR Code
+                      </Button>
+                      <Button
+                        variant="primary"
+                        className="py-4 shadow-lg shadow-emerald-500/20 font-bold rounded-xl flex items-center justify-center gap-1.5 hover:scale-[1.02] transition-all"
+                        onClick={() => {
+                          setIsOpeningApp(true);
+                          // Auto confirm after 3 seconds to simulate paying inside redirect app
+                          setTimeout(() => {
+                            handleBookSlot();
+                          }, 3000);
+                        }}
+                      >
+                        Pay ₹{getSelectedSlotPrice()}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Back Button */}
+                {!showQRCode && !isOpeningApp && (
+                  <Button 
+                    variant="outline" 
+                    className="w-full py-5 rounded-xl border-slate-800 text-slate-450 hover:text-slate-200 font-bold hover:bg-slate-900/40 transition-colors" 
+                    onClick={() => setBookingStep('details')}
+                  >
                     Go Back
                   </Button>
-                </div>
+                )}
               </div>
             )}
 
@@ -903,7 +1048,7 @@ export default function App() {
                 <p className="text-slate-400 text-sm mb-8 leading-relaxed">
                   Your turf booking has been successfully finalized. You can find detail reports and receipts inside the bookings tab.
                 </p>
-                <Button variant="primary" className="w-full shadow-lg shadow-emerald-500/20 py-6" onClick={() => { setActiveTab('bookings'); setSelectedTurf(null); }}>
+                <Button variant="primary" className="w-full shadow-lg shadow-emerald-500/20 py-6" onClick={() => { setActiveTab('bookings'); setSelectedTurf(null); setSelectedTimes([]); setShowQRCode(false); setIsOpeningApp(false); }}>
                   Go to Bookings
                 </Button>
               </div>
@@ -997,7 +1142,7 @@ export default function App() {
               setSelectedTurf(turf);
               setActiveTab('explore');
               setBookingStep('details');
-              setSelectedTime(null);
+              setSelectedTimes([]);
             }}
           />
         )}

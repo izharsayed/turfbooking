@@ -14,13 +14,21 @@ const getBaseUrl = () => {
 export const API_BASE_URL = getBaseUrl();
 console.log(`🔌 Mobile API Base URL resolved to: ${API_BASE_URL}`);
 
+export class ApiError extends Error {
+  constructor(public statusCode: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 interface ApiOptions extends RequestInit {
   body?: any;
+  _retry?: boolean;
 }
 
 export async function apiFetch<T = any>(path: string, options: ApiOptions = {}): Promise<T> {
-  const token = useAuthStore.getState().token;
-  
+  const { token, logout } = useAuthStore.getState();
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -41,11 +49,11 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
   }
 
   const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
-  
-  try {
+
+  const doFetch = async (): Promise<T> => {
     const response = await fetch(url, config);
     const text = await response.text();
-    
+
     let data: any;
     try {
       data = text ? JSON.parse(text) : {};
@@ -53,15 +61,37 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
       data = { message: text };
     }
 
-    if (!response.ok) {
-      const errorMsg = data.message || `API error: ${response.status}`;
-      throw new Error(errorMsg);
+    // Auto-logout on expired / invalid token
+    if (response.status === 401) {
+      console.warn(`🔐 401 Unauthorized on ${path} — clearing session`);
+      logout();
+      throw new ApiError(401, 'Session expired. Please log in again.');
     }
 
-    // In TurfBook backend, responses are wrapped: { success: boolean, message: string, data: any }
+    if (!response.ok) {
+      const errorMsg = data.message || `API error: ${response.status}`;
+      throw new ApiError(response.status, errorMsg);
+    }
+
+    // TurfBook backend wraps responses: { success, message, data }
     return data;
-  } catch (error) {
-    console.error(`❌ API call failed [${config.method || 'GET'} ${path}]:`, error);
+  };
+
+  try {
+    return await doFetch();
+  } catch (error: any) {
+    // Retry once on transient network errors (not 401/4xx/5xx)
+    if (!options._retry && error.name !== 'ApiError') {
+      console.warn(`⚠️ Network error on [${options.method || 'GET'} ${path}], retrying in 1s...`);
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        return await apiFetch(path, { ...options, _retry: true });
+      } catch (retryErr) {
+        console.error(`❌ API call failed after retry [${options.method || 'GET'} ${path}]:`, retryErr);
+        throw retryErr;
+      }
+    }
+    console.error(`❌ API call failed [${options.method || 'GET'} ${path}]:`, error);
     throw error;
   }
 }

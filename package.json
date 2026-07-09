@@ -54,5 +54,8 @@
       "prisma",
       "protobufjs"
     ]
+  },
+  "dependencies": {
+    "razorpay": "^2.9.6"
   }
 }

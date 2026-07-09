@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { turfRepository, bookingRepository } from '../../repositories/index.js';
+import { turfRepository, bookingRepository, userRepository } from '../../repositories/index.js';
 import { sendResponse } from '../../shared/utils/response.js';
 import { NotFoundError } from '../../shared/utils/errors.js';
 
@@ -46,7 +46,22 @@ router.get('/:id', async (req, res, next) => {
     if (!turf) {
       throw new NotFoundError('Turf not found');
     }
-    return sendResponse(res, 200, true, 'Turf details retrieved successfully', turf);
+
+    const ownerProfile = await userRepository.getOwnerProfile(turf.ownerId);
+
+    const responseData = {
+      ...turf,
+      ownerProfile: ownerProfile ? {
+        companyName: ownerProfile.companyName,
+        businessUpiId: ownerProfile.businessUpiId || 'merchant@upi',
+        advancePaymentPercent: ownerProfile.advancePaymentPercent || 30,
+        convenienceFee: ownerProfile.convenienceFee || 45,
+        taxRate: ownerProfile.taxRate || 18,
+        onlinePaymentsEnabled: ownerProfile.onlinePaymentsEnabled !== false,
+      } : null
+    };
+
+    return sendResponse(res, 200, true, 'Turf details retrieved successfully', responseData);
   } catch (error) {
     return next(error);
   }

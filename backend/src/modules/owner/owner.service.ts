@@ -19,13 +19,32 @@ export class OwnerService {
   public async getProfile(ownerId: string) {
     const user = await userRepository.findById(ownerId);
     if (!user) throw new NotFoundError('Owner profile not found');
-    return user;
+    const ownerProfile = await userRepository.getOwnerProfile(ownerId);
+    return {
+      user,
+      ownerProfile: ownerProfile || null
+    };
   }
 
   public async updateProfile(ownerId: string, data: any) {
     const user = await userRepository.findById(ownerId);
     if (!user) throw new NotFoundError('Owner profile not found');
-    return userRepository.update(ownerId, data);
+
+    const { name, phone, email, ...ownerProfileData } = data;
+
+    if (name || phone || email) {
+      const updates: any = {};
+      if (name) updates.name = name;
+      if (phone) updates.phone = phone;
+      if (email) updates.email = email;
+      await userRepository.update(ownerId, updates);
+    }
+
+    if (Object.keys(ownerProfileData).length > 0) {
+      await userRepository.updateOwnerProfile(ownerId, ownerProfileData);
+    }
+
+    return this.getProfile(ownerId);
   }
 
   // --- Turfs Management ---
@@ -61,7 +80,7 @@ export class OwnerService {
     if (!turf || turf.ownerId !== ownerId) {
       throw new NotFoundError('Turf not found or not owned by you');
     }
-    return turfRepository.update(turfId, { deletedAt: new Date() } as any);
+    return turfRepository.update(turfId, { deletedAt: new Date(), isActive: false } as any);
   }
 
   // --- Booking & Offline Booking ---
