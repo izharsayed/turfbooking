@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-09 11:10 IST
+> Last updated: 2026-07-09 16:43 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1148,6 +1148,50 @@ pnpm dev:backend      # start the server
 - Integrated a period selector tab bar (**Morning**, **Afternoon**, **Evening**, **Night**) to group the 24 hourly slots, preventing vertical scroll fatigue.
 - Re-formatted slot buttons to split the start time, divider, and end time onto separate lines, preventing ugly text wraps on narrow viewports.
 - **Why**: Connects the available slots panel to the backend, enabling dynamic slot blocking based on real booking dates, expands availability selection options to a full 24-hour day schedule, fixes text visibility bugs in Light Mode, implements 12-hour AM/PM time formatting, styles booked slots in red with an explicit status sub-label, and provides period filter tabs for simplified scheduling.
+
+### 97. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Removed all UI elements, API fetch operations, state variables, quick actions, dashboard buttons, navigation menu options, and rendering functions relating to the "Reports" module.
+- **Why**: Responds to user request to remove the reports module and its contents from the admin login.
+
+### 98. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Updated background turf image styling: increased opacity to `isDarkMode ? 0.75 : 0.70`, updated the height of the image wrapper to `h-[600px]`, and set the top gradient overlay values to start at `rgba(248,250,252, 0.0)` in Light Mode and `0.05` in Dark Mode.
+- **Why**: Responds to user request to make the background turf image fully visible in the admin dashboard, matching the visual appearance of the customer dashboard.
+
+### 99. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Updated `handleAddOwner` submit error catch block: checks for an array of specific Zod errors returned by the backend in `err.response?.data?.errors` and formats them into a descriptive, bulleted list showing exactly what fields failed validation (e.g., password length/requirements).
+- **Why**: Responds to user request to show the specific details of what is missing or incorrect in the credentials/fields when owner validation fails rather than a generic "Validation failed" alert.
+
+### 100. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Added a `Phone` column to the "Owner Approvals" table, mapping `owner.phone` data cell next to the email field, and updated empty state `colSpan` to 7.
+- **Why**: Responds to user request to display the turf owner's phone number inside the approvals view since phone numbers are utilized as primary login credentials.
+
+### 101. `frontend/src/pages/admin/AdminApp.tsx` & `backend/src/repositories/firebase/FirebaseAdminRepository.ts` — Modified
+- Renamed the "Total Customers" stats card in the Admin dashboard layout to "Total Owners" and mapped it to display `dashboardStats.totalTurfOwners`.
+- Updated the backend `FirebaseAdminRepository.getDashboardStats()` method: added real-time filtering for bookings created today (filtering `bookingsSnap` documents client-side using `createdAt >= startOfToday`) and summed up active today's revenue (summing `totalAmount` or `amount` for non-cancelled bookings created today).
+- **Why**: Responds to user request to make the dashboard stats card show the number of owners instead of customers and correct the date filtering/calculation for other stats cards (like Bookings Today and Revenue Today) so they properly reflect active database entries.
+
+### 102. `backend/src/repositories/firebase/FirebaseAdminRepository.ts` — Modified
+- Updated `listUsers` and `listOwners` methods to perform profiles fetch queries (`user_profiles` and `owner_profiles` Firestore collections) and map the correct names (`firstName + lastName` or `companyName`) to each user's `name` property.
+- **Why**: Responds to user request to fix the issue where owner names (showing emails instead) and user names (showing "No name") were not displaying in the Owner Approvals and Manage Users admin tables.
+
+### 103. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Changed the `<header>` background color class to `bg-transparent` and removed its bottom border in Light and Dark Modes.
+- Re-styled "System Online" and "Logout" buttons as floating glassmorphic pills with high-contrast borders (`border-slate-200/80` / `border-slate-700/50`), subtle shadows (`shadow-md`), and translucent backgrounds (`bg-white/90` / `bg-slate-900/80`) to remain visible on top of the grass turf background.
+- **Why**: Responds to user request to remove the solid/translucent header strip (the "white strip") in the Admin dashboard and highlight the buttons instead.
+
+### 104. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Changed the background turf image wrapper height from `h-[600px]` back to `h-full` and replaced the bottom fade-to-solid gradient with a soft overall linear-gradient (`rgba(248,250,252,0.05)` to `0.15` in Light Mode, and `0.1` to `0.2` in Dark Mode).
+- **Why**: Responds to user request to remove the white/greyish transition blur strip (the "white blur part") from the middle of the admin panel.
+
+### 105. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Imported `Menu` and `X` from `lucide-react` and added `isSidebarCollapsed` state hook.
+- Integrated a hamburger/close toggle button at the top header of the sidebar pane next to the TurfBook logo.
+- Adjusted sidebar width (`w-64` to `w-20` on collapse) and padding, and set text elements in logo, navigation buttons, and footer Theme toggle to hide when collapsed while rendering standard hover titles/tooltips instead.
+- **Why**: Responds to user request to add the hamburger toggle/collapsible layout to the side pane of the admin dashboard.
+
+### 106. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Updated the click handler for the collapsed "T" logo icon to expand the sidebar (`setIsSidebarCollapsed(false)`) as well as navigating to the dashboard view.
+- **Why**: Responds to user request to make the sidebar come out (expand) when clicking the "T" logo in the collapsed state.
 
 
 

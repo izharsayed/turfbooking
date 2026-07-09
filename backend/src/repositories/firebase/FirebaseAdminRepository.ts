@@ -31,7 +31,30 @@ export class FirebaseAdminRepository implements IAdminRepository {
 
     const totalTurfs = totalTurfsSnap.size;
     const activeTurfs = activeTurfsSnap.size;
-    const todayBookings = bookingsSnap.size;
+
+    // Filter bookings created today
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const allBookings = bookingsSnap.docs.map(d => {
+      const data = d.data();
+      let createdAtDate = new Date();
+      if (data.createdAt) {
+        if (typeof data.createdAt.toDate === 'function') {
+          createdAtDate = data.createdAt.toDate();
+        } else {
+          createdAtDate = new Date(data.createdAt);
+        }
+      }
+      return { id: d.id, ...data, createdAt: createdAtDate };
+    });
+
+    const todayBookingsList = allBookings.filter(b => b.createdAt >= startOfToday);
+    const todayBookingsCount = todayBookingsList.length;
+
+    const todayRevenueSum = todayBookingsList
+      .filter(b => b.status !== 'CANCELLED')
+      .reduce((sum, b) => sum + (Number(b.totalAmount) || Number(b.amount) || 0), 0);
 
     return {
       totalUsers:              customers.length,
@@ -45,10 +68,10 @@ export class FirebaseAdminRepository implements IAdminRepository {
       totalTurfs,
       activeTurfs,
       inactiveTurfs:           totalTurfs - activeTurfs,
-      todayBookings,
-      bookingsToday:           todayBookings, // frontend compat
-      todayRevenue:            0,
-      revenueToday:            0, // frontend compat
+      todayBookings:           todayBookingsCount,
+      bookingsToday:           todayBookingsCount, // frontend compat
+      todayRevenue:            todayRevenueSum,
+      revenueToday:            todayRevenueSum, // frontend compat
       monthlyRevenue:          0,
       platformRevenue:         0,
       ownerRevenue:            0,
@@ -79,12 +102,44 @@ export class FirebaseAdminRepository implements IAdminRepository {
     if (filters.role) query = query.where('role', '==', filters.role);
     if (filters.isActive !== undefined) query = query.where('isActive', '==', filters.isActive);
 
-    const snap = await query.get();
+    const [snap, profilesSnap, ownerProfilesSnap] = await Promise.all([
+      query.get(),
+      firestoreDb.collection('user_profiles').get(),
+      firestoreDb.collection('owner_profiles').get(),
+    ]);
+
+    const profilesMap = new Map();
+    profilesSnap.forEach(d => {
+      const data = d.data();
+      if (data.userId) {
+        profilesMap.set(data.userId, `${data.firstName || ''} ${data.lastName || ''}`.trim());
+      }
+    });
+
+    const ownerProfilesMap = new Map();
+    ownerProfilesSnap.forEach(d => {
+      const data = d.data();
+      if (data.userId) {
+        ownerProfilesMap.set(data.userId, data.companyName);
+      }
+    });
+
     const list: any[] = [];
     snap.forEach((doc: any) => {
       const data = doc.data();
       if (!data.deletedAt) {
-        list.push({ id: doc.id, ...data });
+        let name = '';
+        if (data.role === 'CUSTOMER') {
+          name = profilesMap.get(doc.id) || '';
+        } else if (data.role === 'TURF_OWNER') {
+          name = ownerProfilesMap.get(doc.id) || '';
+        }
+        list.push({ 
+          id: doc.id, 
+          ...data, 
+          name: name || data.name || 'No name',
+          isBlocked: !data.isActive
+        });
       }
     });
 
@@ -93,7 +148,8 @@ export class FirebaseAdminRepository implements IAdminRepository {
       return list.filter(
         (u) =>
           u.email?.toLowerCase().includes(searchLower) ||
-          u.phone?.toLowerCase().includes(searchLower)
+          u.phone?.toLowerCase().includes(searchLower) ||
+          u.name?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -101,7 +157,19 @@ export class FirebaseAdminRepository implements IAdminRepository {
   }
 
   public async listOwners(): Promise<any[]> {
-    const snap = await this.collection.where('role', '==', 'TURF_OWNER').get();
+    const [snap, ownerProfilesSnap] = await Promise.all([
+      this.collection.where('role', '==', 'TURF_OWNER').get(),
+      firestoreDb.collection('owner_profiles').get(),
+    ]);
+
+    const ownerProfilesMap = new Map();
+    ownerProfilesSnap.forEach(d => {
+      const data = d.data();
+      if (data.userId) {
+        ownerProfilesMap.set(data.userId, data.companyName);
+      }
+    });
+
     const list: any[] = [];
     snap.forEach((doc: any) => {
       const data = doc.data();
@@ -112,6 +180,7 @@ export class FirebaseAdminRepository implements IAdminRepository {
         list.push({ 
           id: doc.id, 
           ...data,
+          name: ownerProfilesMap.get(doc.id) || data.name || data.companyName || '',
           createdAt,
           updatedAt,
           ownerStatus: data.ownerStatus || (data.isActive ? 'APPROVED' : 'PENDING')
