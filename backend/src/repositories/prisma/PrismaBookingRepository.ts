@@ -43,6 +43,11 @@ export class PrismaBookingRepository implements IBookingRepository {
     return this.mapBooking(b);
   }
 
+  public async findAllPending(): Promise<Booking[]> {
+    const bookings = await prisma.booking.findMany({ where: { status: 'PENDING' } });
+    return bookings.map(this.mapBooking);
+  }
+
   private mapBooking(b: any): Booking {
     return {
       id: b.id,

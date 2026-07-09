@@ -58,5 +58,6 @@
   },
   "dependencies": {
     "@prisma/client": "5.22.0"
+    "razorpay": "^2.9.6"
   }
 }

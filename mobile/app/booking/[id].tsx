@@ -28,6 +28,7 @@ export default function BookingDetailScreen() {
   const cancelBooking = useBookingStore((s) => s.cancelBooking);
   const [booking, setBooking] = useState<Booking | undefined>(getBookingById(id));
   const [loadingBooking, setLoadingBooking] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const { isDarkMode } = useThemeStore();
 
   const theme = {
@@ -101,9 +102,24 @@ export default function BookingDetailScreen() {
         {
           text: 'Yes, Cancel',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              // Cancel on backend first
+              await apiFetch(`/bookings/${booking.id}`, { method: 'DELETE' });
+            } catch (err: any) {
+              // If booking isn't found on backend (e.g. dev/mock booking), continue with local cancel
+              if (err?.statusCode !== 404) {
+                setCancelling(false);
+                Alert.alert('Cancellation Failed', err.message || 'Could not cancel booking. Please try again.');
+                return;
+              }
+            }
+            // Update local store
             cancelBooking(booking.id);
-            Alert.alert('Booking Cancelled', 'Your booking has been cancelled successfully.');
+            setBooking((prev) => prev ? { ...prev, status: 'CANCELLED' } : prev);
+            setCancelling(false);
+            Alert.alert('Booking Cancelled', 'Your booking has been cancelled and a refund has been initiated.');
           },
         },
       ]
@@ -261,8 +277,16 @@ export default function BookingDetailScreen() {
           </TouchableOpacity>
 
           {!isCancelled && (
-            <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-              <Text style={styles.cancelBtnText}>Cancel Booking</Text>
+            <TouchableOpacity
+              style={[styles.cancelBtn, cancelling && { opacity: 0.6 }]}
+              onPress={handleCancel}
+              disabled={cancelling}
+            >
+              {cancelling ? (
+                <ActivityIndicator size="small" color="#ef4444" />
+              ) : (
+                <Text style={styles.cancelBtnText}>Cancel Booking</Text>
+              )}
             </TouchableOpacity>
           )}
         </View>

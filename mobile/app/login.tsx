@@ -24,6 +24,17 @@ export default function LoginScreen() {
   const { login } = useAuthStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
 
+  const safeRedirect = (path: string) => {
+    setTimeout(() => {
+      try {
+        router.replace(path as any);
+      } catch (err) {
+        console.warn('Redirect failed, retrying...', err);
+        setTimeout(() => router.replace(path as any), 300);
+      }
+    }, 100);
+  };
+
   const theme = {
     bg: isDarkMode ? '#030712' : '#f8fafc',
     card: isDarkMode ? 'rgba(15, 23, 42, 0.65)' : '#ffffff',
@@ -52,17 +63,29 @@ export default function LoginScreen() {
   ];
 
   const applyDummyLogin = async (account: typeof DUMMY_ACCOUNTS[0]) => {
+    // Helper to fetch with timeout
+    const fetchWithTimeout = async (path: string, options: any, timeoutMs = 1500) => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await apiFetch(path, {
+          ...options,
+          signal: controller.signal,
+        });
+        clearTimeout(id);
+        return res;
+      } catch (err) {
+        clearTimeout(id);
+        throw err;
+      }
+    };
+
     try {
-      // 1. Send OTP
-      await apiFetch('/auth/send-otp', {
+      // 1. Try real login via email/password backend route (password is 'password' for seeded users)
+      const res = await fetchWithTimeout('/auth/login', {
         method: 'POST',
-        body: { phone: account.phone },
-      });
-      // 2. Verify OTP with our dev bypass code (123456)
-      const res = await apiFetch('/auth/verify-otp', {
-        method: 'POST',
-        body: { phone: account.phone, code: '123456' },
-      });
+        body: { email: account.email, password: 'password' },
+      }, 1500);
 
       if (res.success && res.data) {
         login(
@@ -76,11 +99,11 @@ export default function LoginScreen() {
           res.data.accessToken
         );
         setDevDropdownOpen(false);
-        router.replace(res.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
+        safeRedirect(res.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
         return;
       }
     } catch (e) {
-      console.log('Real dev OTP login failed, falling back to bypass mode', e);
+      console.log('Real dev login failed or timed out, falling back to bypass mode', e);
     }
 
     // Offline / Backend Unavailable Fallback: Directly set store state
@@ -95,7 +118,7 @@ export default function LoginScreen() {
       'dev-token-bypass'
     );
     setDevDropdownOpen(false);
-    router.replace(account.role === 'TURF_OWNER' ? '/owner' : '/');
+    safeRedirect(account.role === 'TURF_OWNER' ? '/owner' : '/');
   };
   // ─────────────────────────────────────────────────────────────────────
 
@@ -165,7 +188,7 @@ export default function LoginScreen() {
           },
           loginRes.data.accessToken
         );
-        router.replace(loginRes.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
+        safeRedirect(loginRes.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
       } catch (e: any) {
         Alert.alert('Registration Failed', e.message || 'Something went wrong.');
       }
@@ -190,7 +213,7 @@ export default function LoginScreen() {
             },
             res.data.accessToken
           );
-          router.replace(res.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
+          safeRedirect(res.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
         } catch (e: any) {
           Alert.alert('OTP Verification Failed', e.message || 'Invalid or expired OTP');
         }
@@ -215,7 +238,7 @@ export default function LoginScreen() {
             },
             res.data.accessToken
           );
-          router.replace(res.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
+          safeRedirect(res.data.user.role === 'TURF_OWNER' ? '/owner' : '/');
         } catch (e: any) {
           Alert.alert('Login Failed', e.message || 'Invalid email or password');
         }
@@ -404,7 +427,7 @@ export default function LoginScreen() {
         </View>
 
         {/* Guest browse */}
-        <TouchableOpacity onPress={() => router.replace('/')} style={styles.guestButton}>
+        <TouchableOpacity onPress={() => safeRedirect('/')} style={styles.guestButton}>
           <Text style={[styles.guestButtonText, { color: theme.textMuted }]}>Continue as guest →</Text>
         </TouchableOpacity>
       </ScrollView>

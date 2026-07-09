@@ -51,6 +51,11 @@ export class FirebaseBookingRepository implements IBookingRepository {
     return this.mapBooking(id, doc.data());
   }
 
+  public async findAllPending(): Promise<Booking[]> {
+    const snap = await this.collection.where('status', '==', 'PENDING').get();
+    return snap.docs.map((doc) => this.mapBooking(doc.id, doc.data()));
+  }
+
   private mapBooking(id: string, data: any): Booking {
     return {
       id,

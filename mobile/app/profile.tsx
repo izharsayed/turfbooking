@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   Image,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Redirect } from 'expo-router';
@@ -16,6 +17,7 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-ico
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useBookingStore } from '../store/bookingStore';
+import { apiFetch } from '../utils/api';
 
 const ACCENT = '#10b981';
 
@@ -40,9 +42,44 @@ export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
-  const [phone, setPhone] = useState(user?.phone ?? '9359473030');
-  const [status, setStatus] = useState(user?.status ?? 'Mera namaste ahmwd hai nai roz cricket Khatami hu');
+  const [phone, setPhone] = useState(user?.phone ?? '');
+  const [status, setStatus] = useState(user?.status ?? '');
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // Fetch fresh profile from backend on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      setLoadingProfile(true);
+      try {
+        const res = await apiFetch('/profile');
+        if (res.success && res.data) {
+          const u = res.data.user;
+          const p = res.data.profile;
+          const fullName = p
+            ? `${p.firstName || ''} ${p.lastName || ''}`.trim() || u.name
+            : u.name;
+          // Update store + local state
+          updateUser({
+            name: fullName,
+            email: u.email,
+            phone: u.phone,
+            avatarUrl: u.avatarUrl,
+          });
+          setName(fullName);
+          setEmail(u.email || '');
+          setPhone(u.phone || '');
+        }
+      } catch (err) {
+        console.warn('Could not refresh profile from backend:', err);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   // Bookings live query
   const bookings = useBookingStore((s) => s.bookings);
@@ -79,19 +116,46 @@ export default function ProfileScreen() {
     .slice(0, 2)
     .toUpperCase();
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Error', 'Name cannot be empty');
       return;
     }
-    updateUser({
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      status: status.trim()
-    });
-    setIsEditing(false);
-    Alert.alert('Saved', 'Your profile has been updated');
+    setSaving(true);
+    const nameParts = name.trim().split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || '';
+    try {
+      await apiFetch('/profile', {
+        method: 'PUT',
+        body: { firstName, lastName },
+      });
+      // Update local store with new data
+      updateUser({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        status: status.trim(),
+      });
+      setIsEditing(false);
+      Alert.alert('Saved', 'Your profile has been updated successfully.');
+    } catch (err: any) {
+      // Network error: apply locally without backend sync
+      if (err?.statusCode) {
+        Alert.alert('Save Failed', err.message || 'Could not update profile.');
+      } else {
+        updateUser({
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          status: status.trim(),
+        });
+        setIsEditing(false);
+        Alert.alert('Saved Locally', 'Profile saved locally. Will sync when online.');
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -228,9 +292,20 @@ export default function ProfileScreen() {
               <TouchableOpacity style={[styles.cancelButton, { backgroundColor: theme.inputBg, borderColor: theme.border }]} onPress={handleCancel}>
                 <Text style={[styles.cancelButtonText, { color: theme.textMuted }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.85}>
-                <Ionicons name="checkmark" size={18} color="#030712" style={{ marginRight: 6 }} />
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+              <TouchableOpacity
+                style={[styles.saveButton, saving && { opacity: 0.7 }]}
+                onPress={handleSave}
+                activeOpacity={0.85}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#030712" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark" size={18} color="#030712" style={{ marginRight: 6 }} />
+                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>

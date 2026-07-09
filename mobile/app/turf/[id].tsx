@@ -55,14 +55,55 @@ export default function TurfDetailScreen() {
 
   const localBookings = useBookingStore((s) => s.bookings);
 
+  const normalizeSlot = (timeSlotStr: string): string => {
+    if (!timeSlotStr) return '';
+    const parts = timeSlotStr.split(' - ').map(s => s.trim());
+    if (parts.length !== 2) return timeSlotStr;
+
+    const toMinutes = (timeStr: string): number => {
+      const cleaned = timeStr.trim().toLowerCase();
+      const is12Hour = cleaned.includes('am') || cleaned.includes('pm');
+      if (is12Hour) {
+        const matches = cleaned.match(/^(\d+):(\d+)\s*(am|pm)$/);
+        if (matches) {
+          let hours = parseInt(matches[1], 10);
+          const minutes = parseInt(matches[2], 10);
+          const modifier = matches[3];
+          if (modifier === 'pm' && hours !== 12) hours += 12;
+          if (modifier === 'am' && hours === 12) hours = 0;
+          return hours * 60 + minutes;
+        }
+      }
+
+      const timeParts = cleaned.split(':').map(Number);
+      if (timeParts.length >= 2 && !isNaN(timeParts[0]) && !isNaN(timeParts[1])) {
+        return timeParts[0] * 60 + timeParts[1];
+      }
+      return 0;
+    };
+
+    const startMin = toMinutes(parts[0]);
+    const endMin = toMinutes(parts[1]);
+    return `${startMin}-${endMin}`;
+  };
+
   const isSlotBooked = (slotTime: string) => {
+    const targetNorm = normalizeSlot(slotTime);
+
     const isBackendBooked = bookedReservations.some((res) => {
       const bDate = res.bookingDate ? new Date(res.bookingDate).toISOString().split('T')[0] : '';
-      return bDate === selectedDate && res.slotId === slotTime;
+      if (bDate !== selectedDate) return false;
+
+      // Support comma-separated slotId values
+      const dbSlots = (res.slotId || '').split(',').map((s: string) => s.trim());
+      return dbSlots.some((dbSlot: string) => dbSlot && normalizeSlot(dbSlot) === targetNorm);
     });
 
     const isLocalBooked = localBookings.some((b) => {
-      return b.turfId === id && b.date === selectedDate && b.time === slotTime;
+      if (b.turfId !== id || b.date !== selectedDate) return false;
+
+      const localSlots = (b.time || '').split(',').map((s: string) => s.trim());
+      return localSlots.some((lSlot: string) => lSlot && normalizeSlot(lSlot) === targetNorm);
     });
 
     return isBackendBooked || isLocalBooked;
@@ -81,14 +122,18 @@ export default function TurfDetailScreen() {
   });
 
   const [selectedDate, setSelectedDate] = useState<string>(dateOptions[0].isoString);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  // Multi-slot selection — stores array of selected slot time strings
+  const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
 
   const [selectedSport, setSelectedSport] = useState<'Cricket' | 'Football'>(
     turf?.sport === 'Football' ? 'Football' : 'Cricket'
   );
   const [selectedCourt, setSelectedCourt] = useState<string>('Full Ground');
-  const [startTime, setStartTime] = useState<string>('');
-  const [endTime, setEndTime] = useState<string>('');
+
+  // From / To display: earliest selected start to latest selected end
+  const sortedTimes = [...selectedTimes].sort();
+  const startTime = sortedTimes.length > 0 ? sortedTimes[0].split(' - ')[0] : '';
+  const endTime = sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1].split(' - ')[1] : '';
 
   useEffect(() => {
     const fetchTurfDetails = async () => {
@@ -164,14 +209,19 @@ export default function TurfDetailScreen() {
       router.push('/login');
       return;
     }
-    if (!selectedTime) return;
+    if (selectedTimes.length === 0) return;
+
+    // Sort selected slots and pass them as comma-separated string
+    const sortedSlots = [...selectedTimes].sort();
+    const timeParam = sortedSlots.join(',');
 
     router.push({
       pathname: '/payment',
       params: {
         turfId: turf.id,
         date: selectedDate,
-        time: selectedTime,
+        time: timeParam,
+        slots: String(sortedSlots.length),
         court: selectedCourt,
         sport: selectedSport,
       },
@@ -377,51 +427,55 @@ export default function TurfDetailScreen() {
             </View>
           </View>
 
-          {/* Time range text input boxes From and To */}
+          {/* Time range display — auto-computed from selected slots */}
           <View style={styles.timeRangeContainer}>
             <View style={styles.timeInputWrapper}>
               <Text style={[styles.timeInputLabel, { color: theme.textMuted }]}>From</Text>
-              <View style={[styles.timeInputBox, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-                <Ionicons name="time-outline" size={16} color="#64748b" style={{ marginRight: 8 }} />
-                <TextInput
-                  value={startTime}
-                  onChangeText={setStartTime}
-                  placeholder="HH:MM"
-                  placeholderTextColor={theme.textMuted}
-                  style={[styles.timeTextEntry, { color: theme.text }]}
-                />
+              <View style={[styles.timeInputBox, { backgroundColor: theme.inputBg, borderColor: startTime ? '#10b981' : theme.border }]}>
+                <Ionicons name="time-outline" size={16} color={startTime ? '#10b981' : '#64748b'} style={{ marginRight: 8 }} />
+                <Text style={[styles.timeTextEntry, { color: startTime ? theme.text : theme.textMuted }]}>
+                  {startTime || 'HH:MM'}
+                </Text>
               </View>
             </View>
 
             <View style={styles.timeInputWrapper}>
               <Text style={[styles.timeInputLabel, { color: theme.textMuted }]}>To</Text>
-              <View style={[styles.timeInputBox, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-                <Ionicons name="time-outline" size={16} color="#64748b" style={{ marginRight: 8 }} />
-                <TextInput
-                  value={endTime}
-                  onChangeText={setEndTime}
-                  placeholder="HH:MM"
-                  placeholderTextColor={theme.textMuted}
-                  style={[styles.timeTextEntry, { color: theme.text }]}
-                />
+              <View style={[styles.timeInputBox, { backgroundColor: theme.inputBg, borderColor: endTime ? '#10b981' : theme.border }]}>
+                <Ionicons name="time-outline" size={16} color={endTime ? '#10b981' : '#64748b'} style={{ marginRight: 8 }} />
+                <Text style={[styles.timeTextEntry, { color: endTime ? theme.text : theme.textMuted }]}>
+                  {endTime || 'HH:MM'}
+                </Text>
               </View>
             </View>
           </View>
 
+          {/* Selected slots count badge */}
+          {selectedTimes.length > 0 && (
+            <View style={styles.selectedCountBadge}>
+              <Ionicons name="checkmark-circle" size={14} color="#10b981" />
+              <Text style={styles.selectedCountText}>
+                {selectedTimes.length} slot{selectedTimes.length > 1 ? 's' : ''} selected · {formatCurrency(turf.price * selectedTimes.length)} total
+              </Text>
+              <TouchableOpacity onPress={() => setSelectedTimes([])}>
+                <Text style={styles.clearSlotsText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Time Slots Grid display */}
           <View style={styles.slotsRowGrid}>
             {generated24Slots.map((time) => {
-              const isSel = selectedTime === time;
+              const isSel = selectedTimes.includes(time);
               const isBooked = isSlotBooked(time);
 
-              // format label display to match mockup start hours (e.g. 6:00 PM)
-              const startLabel = time.split(' - ')[0]; 
-              const [hours, minutes] = startLabel.split(':').map(Number);
+              const startLabel = time.split(' - ')[0];
+              const [hours] = startLabel.split(':').map(Number);
               const period = hours >= 12 ? 'PM' : 'AM';
               const displayHours = hours % 12 === 0 ? 12 : hours % 12;
-              
-              const displayLabel = isBooked 
-                ? `${displayHours}:00\nBooked` 
+
+              const displayLabel = isBooked
+                ? `${displayHours}:00\nBooked`
                 : `${displayHours}:00\n${period}`;
 
               return (
@@ -433,31 +487,36 @@ export default function TurfDetailScreen() {
                     {
                       backgroundColor: isBooked
                         ? 'rgba(239, 68, 68, 0.08)'
-                        : isSel 
-                          ? 'rgba(16, 185, 129, 0.15)' 
+                        : isSel
+                          ? 'rgba(16, 185, 129, 0.18)'
                           : (isDarkMode ? 'rgba(30, 41, 59, 0.4)' : '#f1f5f9'),
                       borderColor: isBooked
                         ? 'rgba(239, 68, 68, 0.4)'
-                        : isSel 
-                          ? '#10b981' 
+                        : isSel
+                          ? '#10b981'
                           : theme.border,
                       opacity: isBooked ? 0.8 : 1,
                     }
                   ]}
                   onPress={() => {
-                    setSelectedTime(time);
-                    const [start, end] = time.split(' - ');
-                    setStartTime(start);
-                    setEndTime(end);
+                    if (isBooked) return;
+                    setSelectedTimes((prev) =>
+                      prev.includes(time)
+                        ? prev.filter((t) => t !== time)
+                        : [...prev, time]
+                    );
                   }}
                 >
+                  {isSel && !isBooked && (
+                    <View style={styles.slotCheckDot} />
+                  )}
                   <Text style={[
-                    styles.slotBadgeText, 
-                    { 
-                      color: isBooked 
-                        ? '#f87171' 
-                        : isSel 
-                          ? '#10b981' 
+                    styles.slotBadgeText,
+                    {
+                      color: isBooked
+                        ? '#f87171'
+                        : isSel
+                          ? '#10b981'
                           : theme.text,
                       fontWeight: (isSel || isBooked) ? 'bold' : 'normal',
                       textAlign: 'center',
@@ -476,16 +535,24 @@ export default function TurfDetailScreen() {
       {/* Sticky booking bar */}
       <View style={[styles.bookingBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
         <View>
-          <Text style={styles.bookingBarLabel}>Total</Text>
-          <Text style={[styles.bookingBarPrice, { color: theme.text }]}>{formatCurrency(turf.price)}</Text>
+          <Text style={styles.bookingBarLabel}>
+            {selectedTimes.length > 1 ? `${selectedTimes.length} slots selected` : 'Total'}
+          </Text>
+          <Text style={[styles.bookingBarPrice, { color: theme.text }]}>
+            {formatCurrency(turf.price * Math.max(selectedTimes.length, 1))}
+          </Text>
         </View>
         <TouchableOpacity
-          style={[styles.bookButton, !selectedTime && styles.bookButtonDisabled]}
+          style={[styles.bookButton, selectedTimes.length === 0 && styles.bookButtonDisabled]}
           onPress={handleBook}
-          disabled={!selectedTime}
+          disabled={selectedTimes.length === 0}
         >
           <Text style={styles.bookButtonText}>
-            {isAuthenticated ? 'Book Slot' : 'Sign in to Book'}
+            {isAuthenticated
+              ? selectedTimes.length > 0
+                ? `Book ${selectedTimes.length} Slot${selectedTimes.length > 1 ? 's' : ''}`
+                : 'Select a Slot'
+              : 'Sign in to Book'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -877,5 +944,37 @@ const styles = StyleSheet.create({
     color: '#10b981',
     fontSize: 14,
     fontWeight: '600',
+  },
+  slotCheckDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#10b981',
+  },
+  selectedCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderRadius: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  selectedCountText: {
+    flex: 1,
+    color: '#10b981',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  clearSlotsText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

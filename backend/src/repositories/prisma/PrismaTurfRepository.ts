@@ -10,12 +10,12 @@ export class PrismaTurfRepository implements ITurfRepository {
   }
 
   public async findAllActive(): Promise<Turf[]> {
-    const turfs = await prisma.turf.findMany({ where: { isActive: true } });
+    const turfs = await prisma.turf.findMany({ where: { isActive: true, deletedAt: null } });
     return turfs.map(this.mapTurf);
   }
 
   public async findByCity(city: string): Promise<Turf[]> {
-    const turfs = await prisma.turf.findMany({ where: { city, isActive: true } });
+    const turfs = await prisma.turf.findMany({ where: { city, isActive: true, deletedAt: null } });
     return turfs.map(this.mapTurf);
   }
 
