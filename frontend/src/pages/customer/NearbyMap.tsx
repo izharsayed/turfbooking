@@ -136,7 +136,7 @@ export default function NearbyMap({ turfs, isDarkMode, onSelectTurf }: NearbyMap
     <div className="space-y-6">
       {/* Geofence Controls Banner */}
       <div className={`p-6 border rounded-3xl backdrop-blur-xl flex flex-col md:flex-row gap-6 justify-between items-center shadow-xl transition-colors duration-300 ${
-        isDarkMode ? 'bg-[#0f172a]/40 border-slate-800' : 'bg-white border-slate-200'
+        isDarkMode ? 'bg-[#0f172a]/40 border-slate-800' : 'bg-white/80 border-slate-200/50'
       }`}>
         <div className="flex-1 space-y-2">
           <div className="flex items-center gap-2">
@@ -187,8 +187,8 @@ export default function NearbyMap({ turfs, isDarkMode, onSelectTurf }: NearbyMap
       {/* Main Map & List Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sidebar list */}
-        <div className={`lg:col-span-1 rounded-3xl p-6 border flex flex-col justify-between max-h-[600px] overflow-y-auto ${
-          isDarkMode ? 'bg-[#0f172a]/20 border-slate-800' : 'bg-white border-slate-200'
+        <div className={`lg:col-span-1 rounded-3xl p-6 border flex flex-col justify-between max-h-[600px] overflow-y-auto backdrop-blur-md ${
+          isDarkMode ? 'bg-[#0f172a]/20 border-slate-800' : 'bg-white/80 border-slate-200/50'
         }`}>
           <div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
@@ -203,7 +203,7 @@ export default function NearbyMap({ turfs, isDarkMode, onSelectTurf }: NearbyMap
                   className={`p-4 border rounded-2xl transition-all duration-200 ${
                     isDarkMode
                       ? 'bg-slate-900/40 border-slate-850 hover:border-emerald-500/30'
-                      : 'bg-slate-50 border-slate-100 hover:border-emerald-500/20'
+                      : 'bg-slate-50/70 border-slate-200/40 hover:border-emerald-500/20'
                   }`}
                 >
                   <div className="flex justify-between items-start mb-2">
@@ -214,8 +214,8 @@ export default function NearbyMap({ turfs, isDarkMode, onSelectTurf }: NearbyMap
                   </div>
                   <p className="text-xs text-slate-400 mb-3">{turf.area}, {turf.city}</p>
                   
-                  <div className="flex items-center justify-between text-xs pt-3 border-t border-slate-800/40">
-                    <span className="font-semibold text-slate-300">
+                  <div className={`flex items-center justify-between text-xs pt-3 border-t ${isDarkMode ? 'border-slate-800/40' : 'border-slate-200'}`}>
+                    <span className={`font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-650'}`}>
                       {turf.distance.toFixed(1)} km away
                     </span>
                     <button
@@ -239,8 +239,8 @@ export default function NearbyMap({ turfs, isDarkMode, onSelectTurf }: NearbyMap
         </div>
 
         {/* Leaflet Map Card */}
-        <div className={`lg:col-span-2 h-[600px] rounded-3xl overflow-hidden border shadow-xl z-0 ${
-          isDarkMode ? 'border-slate-800 bg-[#0f172a]/20' : 'border-slate-200 bg-white'
+        <div className={`lg:col-span-2 h-[600px] rounded-3xl overflow-hidden border shadow-xl z-0 backdrop-blur-md ${
+          isDarkMode ? 'border-slate-800 bg-[#0f172a]/20' : 'border-slate-200 bg-white/80'
         }`}>
           {permissionState === 'loading' ? (
             <div className="w-full h-full flex items-center justify-center flex-col gap-3">
