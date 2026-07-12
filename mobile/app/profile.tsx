@@ -186,11 +186,7 @@ export default function ProfileScreen() {
     return 'soccer';
   };
 
-  const stats = [
-    { label: 'Games', value: String(bookings.length), icon: 'gamepad-variant', color: '#10b981' },
-    { label: 'Upcoming', value: String(bookings.filter((b) => b.status === 'UPCOMING').length), icon: 'calendar-clock', color: '#3b82f6' },
-    { label: 'Matches', value: String(teams.length * 2), icon: 'trophy', color: '#f59e0b' },
-  ];
+
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -362,19 +358,7 @@ export default function ProfileScreen() {
 
             </View>
 
-            {/* Stats Card */}
-            <View style={styles.statsCardContainer}>
-              {stats.map((s, idx) => (
-                <React.Fragment key={s.label}>
-                  {idx > 0 && <View style={styles.statsDividerLine} />}
-                  <View style={styles.statItem}>
-                    <MaterialCommunityIcons name={s.icon as any} size={20} color={s.color} />
-                    <Text style={styles.statsValueText}>{s.value}</Text>
-                    <Text style={styles.statsLabelText}>{s.label}</Text>
-                  </View>
-                </React.Fragment>
-              ))}
-            </View>
+
 
             {/* My Teams Section */}
             <View style={styles.teamsSection}>
