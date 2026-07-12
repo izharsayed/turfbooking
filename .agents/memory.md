@@ -1,6 +1,6 @@
 # ÃƒÂ°Ã…Â¸Ã‚Â§Ã‚ AI Agent Memory ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬  TurfBook Project
 
-> Last updated: 2026-07-12 11:25 IST
+> Last updated: 2026-07-12 11:30 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1641,4 +1641,9 @@ ormalizeSlot helper in mobile/app/turf/[id].tsx.
 ### 176. `mobile/utils/api.ts` — Modified
 - Mapped the catch block in the main `apiFetch` wrapper function to log 401 Unauthorized status rejections as a warning (`console.warn`) rather than an error (`console.error`).
 - **Why**: Prevents Expo from popping up a full-screen red developer LogBox error window when checking profile/session states on fresh loads where the token is cleared or expired.
+
+### 177. `mobile/app/index.tsx` & `mobile/app/profile.tsx` — Modified
+- Replaced the "Matches" (Trophy icon) bottom navigation tab item with a new "Booking" (Calendar icon) tab item.
+- Connected the "Booking" tab to trigger switching to the active bookings reservations list (confirming login session states where needed) or replacing route parameters on redirect.
+- **Why**: Fulfills navigation redesign requests to replace Matches with a direct, unified Bookings view tab.
 
