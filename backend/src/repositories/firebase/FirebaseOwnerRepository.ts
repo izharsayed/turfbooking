@@ -9,10 +9,12 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
       totalTurfsSnap,
       activeTurfsSnap,
       bookingsSnap,
+      reviewsSnap,
     ] = await Promise.all([
       firestoreDb.collection('turfs').where('ownerId', '==', ownerId).get(),
       firestoreDb.collection('turfs').where('ownerId', '==', ownerId).where('isActive', '==', true).get(),
       firestoreDb.collection('bookings').get(), // To filter bookings by turf owner in memory
+      firestoreDb.collection('reviews').get(), // To filter reviews by turf owner in memory
     ]);
 
     const totalTurfs = totalTurfsSnap.size;
@@ -21,22 +23,48 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
     // Filter bookings belonging to owner's turfs
     const ownerTurfIds = new Set(totalTurfsSnap.docs.map((doc) => doc.id));
     let todaysBookingsCount = 0;
+    let totalBookingsCount = 0;
     let todaysRevenue = 0;
     let totalRevenue = 0;
+    const uniqueCustomers = new Set<string>();
+
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
 
     bookingsSnap.forEach((doc) => {
       const data = doc.data();
-      if (ownerTurfIds.has(data.turfId)) {
+      if (ownerTurfIds.has(data.turfId) && !data.deletedAt && data.status !== 'CANCELLED') {
+        totalBookingsCount++;
+        
+        // Track unique customer identifier
+        const customerId = data.userId === ownerId 
+          ? (data.customerPhone || data.customerName || `offline_${doc.id}`)
+          : (data.userId || data.customerPhone || `online_${doc.id}`);
+        if (customerId) uniqueCustomers.add(customerId);
+
         const isPaid = data.paymentStatus === 'PAID' || data.status === 'CONFIRMED' || data.status === 'COMPLETED';
-        const amount = data.totalAmount || data.finalAmount || 0;
+        const amount = data.totalAmount || data.finalAmount || data.amount || 0;
         
         if (isPaid) {
           totalRevenue += amount;
         }
 
-        const createdDate = data.createdAt?.toDate?.() || new Date();
-        const startOfToday = new Date().setHours(0, 0, 0, 0);
-        if (createdDate.getTime() >= startOfToday) {
+        const bDate = data.bookingDate instanceof Date 
+          ? data.bookingDate 
+          : data.bookingDate?.toDate?.() || null;
+        let formattedDate = null;
+        if (bDate) {
+          const y = bDate.getFullYear();
+          const m = String(bDate.getMonth() + 1).padStart(2, '0');
+          const d = String(bDate.getDate()).padStart(2, '0');
+          formattedDate = `${y}-${m}-${d}`;
+        }
+        const bookingDateStr = data.date || formattedDate;
+
+        if (bookingDateStr === todayStr) {
           todaysBookingsCount++;
           if (isPaid) {
             todaysRevenue += amount;
@@ -45,8 +73,27 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
       }
     });
 
+    // Calculate average rating for owner's turfs
+    let totalRatingSum = 0;
+    let reviewCount = 0;
+    const recentReviewsList: any[] = [];
+
+    reviewsSnap.forEach((doc) => {
+      const data = doc.data();
+      if (ownerTurfIds.has(data.turfId)) {
+        totalRatingSum += data.rating || 0;
+        reviewCount++;
+        recentReviewsList.push({ id: doc.id, ...data });
+      }
+    });
+
+    const averageRating = reviewCount > 0 ? Number((totalRatingSum / reviewCount).toFixed(1)) : 0.0;
+    const occupancyRate = totalTurfs > 0 ? Number(((totalBookingsCount / (totalTurfs * 30)) * 100).toFixed(0)) : 0;
+
     return {
       todayBookings: todaysBookingsCount,
+      totalBookings: totalBookingsCount,
+      totalCustomers: uniqueCustomers.size,
       upcomingBookings: 0,
       completedBookings: 0,
       cancelledBookings: 0,
@@ -56,12 +103,14 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
       totalRevenue,
       totalTurfs,
       activeTurfs,
-      occupancyRate: 0.0,
+      occupancyRate,
+      fillRate: occupancyRate,
       mostBookedTurf: null,
       peakBookingHours: [],
-      recentCustomers: [],
-      recentReviews: [],
-      averageRating: 0.0,
+      recentCustomers: Array.from(uniqueCustomers),
+      recentReviews: recentReviewsList.slice(0, 5),
+      averageRating,
+      rating: averageRating,
       pendingPayments: 0,
       refundRequests: 0,
     };
@@ -117,7 +166,10 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
       const bDate = data.bookingDate instanceof Date 
         ? data.bookingDate 
         : data.bookingDate?.toDate?.() || new Date();
-      const formattedDate = bDate.toISOString().split('T')[0];
+      const y = bDate.getFullYear();
+      const m = String(bDate.getMonth() + 1).padStart(2, '0');
+      const d = String(bDate.getDate()).padStart(2, '0');
+      const formattedDate = `${y}-${m}-${d}`;
 
       list.push({
         id: doc.id,

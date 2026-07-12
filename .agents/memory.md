@@ -1,6 +1,6 @@
-﻿# ÃƒÂ°Ã…Â¸Ã‚Â§Ã‚ AI Agent Memory ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬  TurfBook Project
+# ÃƒÂ°Ã…Â¸Ã‚Â§Ã‚ AI Agent Memory ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬  TurfBook Project
 
-> Last updated: 2026-07-12 10:44 IST
+> Last updated: 2026-07-12 11:25 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1626,4 +1626,19 @@ ormalizeSlot helper in mobile/app/turf/[id].tsx.
 - Removed all obsolete password login forms, name registration modes, tab toggles, and complex logic, leaving strictly the mobile number OTP/Google login options.
 - Retained curved header design with overflow visible so features card floats perfectly.
 - Verified type safety via successful mobile npx tsc build check.
+
+### 174. `backend/src/repositories/firebase/FirebaseBookingRepository.ts`, `backend/src/repositories/prisma/PrismaBookingRepository.ts`, `backend/src/modules/user/booking.routes.ts`, & `mobile/app/index.tsx` — Modified
+- Mapped `timeSlot` from Firestore and Prisma databases in the booking repositories so human-readable slot times (e.g. `'17:00 - 18:00'`) are extracted instead of internal database keys (e.g. `'Monday-17'`).
+- Mapped the retrieved `timeSlot` in user booking details and listing endpoints in the backend to ensure a valid slot time is always sent to the mobile app.
+- Created a `getBookingTimestamp` helper function in the customer Home page and implemented dynamic sorting to ensure all **UPCOMING** bookings are positioned at the very top of the list (ordered ascending by slot time), followed by past/cancelled bookings (ordered descending by date).
+- **Why**: Fixes a time rendering bug where seeded/mock bookings showed internal database keys as time slots, and satisfies the request to group upcoming reservations on top.
+
+### 175. `backend/src/repositories/firebase/FirebaseBookingRepository.ts` & `mobile/utils/index.ts` — Modified
+- Patched `FirebaseBookingRepository.ts` to parse `data.date` as a fallback option when the `bookingDate` attribute is missing/undefined (which occurred for seeded database records).
+- Added defensive validation checks to the client-side `getBookingStatus` helper function, returning a safe `'COMPLETED'` fallback if a booking date is missing, empty, or fails number parsing.
+- **Why**: Fixes a visual state bug where seeded past reservations with undefined/missing date fields were incorrectly fallback-assigned to today's date and time, causing them to render as "UPCOMING" and cluttering the user's active bookings.
+
+### 176. `mobile/utils/api.ts` — Modified
+- Mapped the catch block in the main `apiFetch` wrapper function to log 401 Unauthorized status rejections as a warning (`console.warn`) rather than an error (`console.error`).
+- **Why**: Prevents Expo from popping up a full-screen red developer LogBox error window when checking profile/session states on fresh loads where the token is cleared or expired.
 

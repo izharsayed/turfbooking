@@ -30,16 +30,22 @@ export class FirebaseBookingRepository implements IBookingRepository {
     bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt'> & { bookingDate?: Date | string }
   ): Promise<Booking> {
     const docRef = this.collection.doc();
-    const newBooking = {
-      userId: bookingData.userId,
-      turfId: bookingData.turfId,
-      slotId: bookingData.slotId,
-      totalAmount: bookingData.totalAmount,
-      status: bookingData.status,
+    const newBooking: any = {
+      ...bookingData,
+      slotId: bookingData.slotId || '',
+      totalAmount: bookingData.totalAmount || 0,
       bookingDate: bookingData.bookingDate ? new Date(bookingData.bookingDate) : new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+
+    // Clean undefined values to prevent Firestore crashes
+    Object.keys(newBooking).forEach((key) => {
+      if (newBooking[key] === undefined) {
+        delete newBooking[key];
+      }
+    });
+
     await docRef.set(newBooking);
     return this.mapBooking(docRef.id, newBooking);
   }
@@ -62,11 +68,14 @@ export class FirebaseBookingRepository implements IBookingRepository {
       userId: data.userId,
       turfId: data.turfId,
       slotId: data.slotId,
-      bookingDate: data.bookingDate instanceof Date ? data.bookingDate : data.bookingDate?.toDate?.() || new Date(),
+      bookingDate: data.bookingDate 
+        ? (data.bookingDate instanceof Date ? data.bookingDate : data.bookingDate?.toDate?.() || new Date(data.bookingDate))
+        : (data.date ? new Date(data.date) : new Date()),
       totalAmount: data.totalAmount,
       status: data.status,
       createdAt: data.createdAt instanceof Date ? data.createdAt : data.createdAt?.toDate?.() || new Date(),
       updatedAt: data.updatedAt instanceof Date ? data.updatedAt : data.updatedAt?.toDate?.() || new Date(),
-    };
+      timeSlot: data.timeSlot || data.time || data.slotId,
+    } as any;
   }
 }

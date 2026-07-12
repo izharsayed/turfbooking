@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Image,
+  ImageBackground,
   Modal,
   ActivityIndicator,
 } from 'react-native';
@@ -83,7 +84,6 @@ export default function ProfileScreen() {
 
   // Bookings live query
   const bookings = useBookingStore((s) => s.bookings);
-  const playcoinsBalance = 350 + (bookings.length * 50);
 
   // Teams list state
   const [teams, setTeams] = useState<Array<{ name: string; sport: string }>>([
@@ -194,55 +194,61 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      <Image
-        source={require('../assets/turf-bg.jpg')}
-        style={[styles.backgroundImage as any, { opacity: theme.bgImageOpacity }]}
-        resizeMode="cover"
-      />
-      <View style={[styles.overlay, { backgroundColor: theme.overlayBg }]} />
-
-      {/* Header Profile Title bar */}
-      <View
-        style={[
-          styles.header,
-          { paddingTop: insets.top + 12, backgroundColor: theme.card, borderBottomColor: theme.border },
-        ]}
-      >
-        <View style={styles.headerLeftContainer}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={[styles.iconButton, { borderColor: theme.border }]}
-            hitSlop={8}
-          >
-            <Ionicons name="arrow-back" size={22} color={theme.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>My Profile</Text>
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity
-            onPress={toggleTheme}
-            style={[styles.iconButton, { borderColor: theme.border }]}
-            hitSlop={8}
-          >
-            <Ionicons name={isDarkMode ? 'sunny' : 'moon'} size={20} color={isDarkMode ? '#fbbf24' : '#6366f1'} />
-          </TouchableOpacity>
-          {!isEditing && (
-            <TouchableOpacity
-              onPress={() => setIsEditing(true)}
-              style={[styles.iconButton, { borderColor: theme.border }]}
-              hitSlop={8}
-            >
-              <MaterialCommunityIcons name="pencil" size={20} color={ACCENT} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        style={{ backgroundColor: theme.bg }}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 60, 80) }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Full-bleed background header */}
+        <ImageBackground
+          source={require('../assets/turf-bg.jpg')}
+          style={styles.headerBg}
+          imageStyle={styles.headerImage}
+          resizeMode="cover"
+        >
+          <View style={styles.darkOverlay} />
+          
+          <View style={[styles.headerInnerContent, { paddingTop: insets.top + 16 }]}>
+            {/* Top Navbar Row */}
+            <View style={styles.topNavbar}>
+              <TouchableOpacity 
+                style={styles.backBtn} 
+                activeOpacity={0.7}
+                onPress={() => router.back()}
+              >
+                <Ionicons name="arrow-back" size={22} color="#ffffff" />
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity 
+                  style={styles.themeBtn} 
+                  activeOpacity={0.7}
+                  onPress={toggleTheme}
+                >
+                  <Ionicons name={isDarkMode ? 'sunny' : 'moon'} size={20} color="#ffffff" />
+                </TouchableOpacity>
+
+                {!isEditing && (
+                  <TouchableOpacity 
+                    style={styles.editBtn} 
+                    activeOpacity={0.7}
+                    onPress={() => setIsEditing(true)}
+                  >
+                    <MaterialCommunityIcons name="pencil" size={20} color="#ffffff" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Header Content */}
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.headerTitleText}>My Profile</Text>
+            </View>
+          </View>
+        </ImageBackground>
+
+        {/* Profile Card & Info */}
+        <View style={styles.overlapWrapper}>
         {isEditing ? (
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <Text style={[styles.cardTitle, { color: theme.text }]}>Edit Profile</Text>
@@ -353,36 +359,18 @@ export default function ProfileScreen() {
                 </View>
               ) : null}
 
-              {/* Playcoins pill */}
-              <View style={styles.playcoinBanner}>
-                <View style={styles.playcoinLeft}>
-                  <View style={styles.coinBadge}>
-                    <FontAwesome5 name="coins" size={13} color="#030712" />
-                  </View>
-                  <View>
-                    <Text style={styles.playcoinLabel}>PLAYCOINS BALANCE</Text>
-                    <Text style={styles.playcoinValue}>{playcoinsBalance}</Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  style={styles.topUpButton}
-                  activeOpacity={0.85}
-                  onPress={() => Alert.alert('Playcoins', `You have ${playcoinsBalance} Playcoins!`)}
-                >
-                  <Text style={styles.topUpText}>Top up</Text>
-                </TouchableOpacity>
-              </View>
+
             </View>
 
             {/* Stats Card */}
-            <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={styles.statsCardContainer}>
               {stats.map((s, idx) => (
                 <React.Fragment key={s.label}>
-                  {idx > 0 && <View style={[styles.statDivider, { backgroundColor: theme.border }]} />}
+                  {idx > 0 && <View style={styles.statsDividerLine} />}
                   <View style={styles.statItem}>
-                    <MaterialCommunityIcons name={s.icon as any} size={18} color={s.color} />
-                    <Text style={[styles.statValue, { color: theme.text }]}>{s.value}</Text>
-                    <Text style={[styles.statLabel, { color: theme.textMuted }]}>{s.label}</Text>
+                    <MaterialCommunityIcons name={s.icon as any} size={20} color={s.color} />
+                    <Text style={styles.statsValueText}>{s.value}</Text>
+                    <Text style={styles.statsLabelText}>{s.label}</Text>
                   </View>
                 </React.Fragment>
               ))}
@@ -441,7 +429,7 @@ export default function ProfileScreen() {
                 icon={<MaterialCommunityIcons name="ticket-confirmation" size={17} color="#fff" />}
                 color="#10b981"
                 label="My Bookings"
-                onPress={() => router.push('/')}
+                onPress={() => router.replace({ pathname: '/', params: { tab: 'bookings' } })}
               />
               <View style={[styles.menuDivider, { backgroundColor: theme.border }]} />
               <MenuRow
@@ -451,14 +439,7 @@ export default function ProfileScreen() {
                 label="My Favourites"
                 onPress={() => Alert.alert('My Favourites', 'Favourites list is empty')}
               />
-              <View style={[styles.menuDivider, { backgroundColor: theme.border }]} />
-              <MenuRow
-                theme={theme}
-                icon={<FontAwesome5 name="coins" size={12} color="#fff" />}
-                color="#fbbf24"
-                label="Playcoins"
-                onPress={() => Alert.alert('Playcoins', `You have ${playcoinsBalance} Playcoins!`)}
-              />
+
             </View>
 
             {/* Menu Group 2 */}
@@ -469,7 +450,7 @@ export default function ProfileScreen() {
                 icon={<MaterialCommunityIcons name="calendar-refresh" size={16} color="#fff" />}
                 color="#ef4444"
                 label="Cancellation / Reschedule"
-                onPress={() => Alert.alert('Cancellation / Reschedule', 'Please contact support to reschedule slot')}
+                onPress={() => router.replace({ pathname: '/', params: { tab: 'support' } })}
               />
               <View style={[styles.menuDivider, { backgroundColor: theme.border }]} />
               <MenuRow
@@ -477,7 +458,7 @@ export default function ProfileScreen() {
                 icon={<Ionicons name="headset" size={16} color="#fff" />}
                 color="#3b82f6"
                 label="Help & Support"
-                onPress={() => Alert.alert('Help & Support', 'Reach us at support@turfbook.com')}
+                onPress={() => router.replace({ pathname: '/', params: { tab: 'support' } })}
               />
               <View style={[styles.menuDivider, { backgroundColor: theme.border }]} />
               <MenuRow
@@ -485,7 +466,7 @@ export default function ProfileScreen() {
                 icon={<Ionicons name="help-circle" size={17} color="#fff" />}
                 color="#6366f1"
                 label="FAQ"
-                onPress={() => Alert.alert('FAQ', 'Frequently asked questions')}
+                onPress={() => router.replace({ pathname: '/', params: { tab: 'support' } })}
               />
             </View>
 
@@ -559,6 +540,7 @@ export default function ProfileScreen() {
             </Modal>
           </>
         )}
+        </View>
       </ScrollView>
 
       {/* Bottom Navigation Bar */}
@@ -568,8 +550,8 @@ export default function ProfileScreen() {
           { paddingBottom: Math.max(insets.bottom, 10), backgroundColor: theme.card, borderTopColor: theme.border },
         ]}
       >
-        <TabItem icon="home-outline" label="Home" onPress={() => router.replace('/')} color={theme.textMuted} />
-        <TabItem icon="compass-outline" label="Explore" onPress={() => router.replace('/')} color={theme.textMuted} />
+        <TabItem icon="home-outline" label="Home" onPress={() => router.replace({ pathname: '/', params: { tab: 'explore' } })} color={theme.textMuted} />
+        <TabItem icon="map-outline" label="Nearby" onPress={() => router.replace({ pathname: '/', params: { tab: 'map' } })} color={theme.textMuted} />
         <TabItem icon="trophy-outline" label="Matches" onPress={() => Alert.alert('Matches', 'Matches feature coming soon!')} color={theme.textMuted} />
         <TabItem icon="person" label="Profile" onPress={() => {}} color={ACCENT} active />
       </View>
@@ -625,55 +607,80 @@ function TabItem({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#030712',
   },
-  backgroundImage: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    right: 0,
-    bottom: 0,
+  headerBg: {
+    width: '100%',
+    height: 240,
+    overflow: 'hidden',
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+  },
+  headerImage: {
     width: '100%',
     height: '100%',
-    opacity: 0.18,
+    resizeMode: 'cover',
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(3, 7, 18, 0.65)',
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  header: {
-    paddingBottom: 16,
+  headerInnerContent: {
+    flex: 1,
     paddingHorizontal: 20,
-    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
+    paddingBottom: 55,
   },
-  headerLeftContainer: {
+  darkOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  topNavbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    justifyContent: 'space-between',
+    width: '100%',
   },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    borderWidth: 1,
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+  themeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  editBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  headerTextWrap: {
+    marginTop: 10,
+  },
+  headerTitleText: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  overlapWrapper: {
+    marginTop: -40,
+    paddingHorizontal: 20,
+    zIndex: 20,
   },
 
   // Hero card
@@ -682,6 +689,11 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1.5,
     marginBottom: 18,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
   },
   heroTop: {
     flexDirection: 'row',
@@ -779,9 +791,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 14,
-    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+    backgroundColor: 'rgba(16, 185, 129, 0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(251, 191, 36, 0.25)',
+    borderColor: 'rgba(16, 185, 129, 0.15)',
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -795,20 +807,17 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: '#fbbf24',
     alignItems: 'center',
     justifyContent: 'center',
   },
   playcoinLabel: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#fbbf24',
     letterSpacing: 1,
   },
   playcoinValue: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#fbbf24',
   },
   topUpButton: {
     backgroundColor: '#fbbf24',
@@ -823,30 +832,38 @@ const styles = StyleSheet.create({
   },
 
   // Stats
-  statsCard: {
+  statsCardContainer: {
     flexDirection: 'row',
     borderRadius: 20,
     paddingVertical: 18,
-    borderWidth: 1.5,
+    backgroundColor: '#1e293b',
     marginBottom: 24,
     alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  statsDividerLine: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  statsValueText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  statsLabelText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
     gap: 5,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '800',
   },
 
   teamsSection: {

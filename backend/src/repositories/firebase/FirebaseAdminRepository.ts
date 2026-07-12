@@ -36,7 +36,7 @@ export class FirebaseAdminRepository implements IAdminRepository {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const allBookings = bookingsSnap.docs.map(d => {
+    const allBookings: any[] = bookingsSnap.docs.map(d => {
       const data = d.data();
       let createdAtDate = new Date();
       if (data.createdAt) {
@@ -104,8 +104,8 @@ export class FirebaseAdminRepository implements IAdminRepository {
 
     const [snap, profilesSnap, ownerProfilesSnap] = await Promise.all([
       query.get(),
-      firestoreDb.collection('user_profiles').get(),
-      firestoreDb.collection('owner_profiles').get(),
+      firestoreDb!.collection('user_profiles').get(),
+      firestoreDb!.collection('owner_profiles').get(),
     ]);
 
     const profilesMap = new Map();
@@ -159,7 +159,7 @@ export class FirebaseAdminRepository implements IAdminRepository {
   public async listOwners(): Promise<any[]> {
     const [snap, ownerProfilesSnap] = await Promise.all([
       this.collection.where('role', '==', 'TURF_OWNER').get(),
-      firestoreDb.collection('owner_profiles').get(),
+      firestoreDb!.collection('owner_profiles').get(),
     ]);
 
     const ownerProfilesMap = new Map();

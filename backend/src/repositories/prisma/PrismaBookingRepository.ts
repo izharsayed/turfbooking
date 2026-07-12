@@ -59,6 +59,7 @@ export class PrismaBookingRepository implements IBookingRepository {
       status: b.status,
       createdAt: b.createdAt,
       updatedAt: b.updatedAt,
-    };
+      timeSlot: b.timeSlot || b.time || b.slotId,
+    } as any;
   }
 }

@@ -16,7 +16,7 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-ico
 import { useBookingStore, type Booking } from '../../store/bookingStore';
 import { useThemeStore } from '../../store/themeStore';
 import { getTurfById } from '../../data/turfs';
-import { formatCurrency } from '../../utils';
+import { formatCurrency, getBookingStatus } from '../../utils';
 import { apiFetch } from '../../utils/api';
 
 const { width } = Dimensions.get('window');
@@ -141,7 +141,9 @@ export default function BookingDetailScreen() {
     }
   };
 
-  const isCancelled = booking.status === 'CANCELLED';
+  const visualStatus = getBookingStatus(booking.status, booking.date, booking.time);
+  const isCancelled = visualStatus === 'CANCELLED';
+  const isCompleted = visualStatus === 'COMPLETED';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -173,23 +175,29 @@ export default function BookingDetailScreen() {
             style={[
               styles.iconCircle,
               {
-                backgroundColor: isCancelled ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                borderColor: isCancelled ? '#ef4444' : '#10b981',
+                backgroundColor: isCancelled 
+                  ? 'rgba(239, 68, 68, 0.12)' 
+                  : isCompleted 
+                  ? 'rgba(59, 130, 246, 0.12)' 
+                  : 'rgba(16, 185, 129, 0.12)',
+                borderColor: isCancelled ? '#ef4444' : isCompleted ? '#3b82f6' : '#10b981',
               },
             ]}
           >
             <Ionicons
               name={isCancelled ? 'close' : 'checkmark-circle'}
               size={36}
-              color={isCancelled ? '#ef4444' : '#10b981'}
+              color={isCancelled ? '#ef4444' : isCompleted ? '#3b82f6' : '#10b981'}
             />
           </View>
           <Text style={[styles.successTitle, { color: theme.text }]}>
-            {isCancelled ? 'Booking Cancelled' : 'Booking Confirmed!'}
+            {isCancelled ? 'Booking Cancelled' : isCompleted ? 'Booking Completed' : 'Booking Confirmed!'}
           </Text>
           <Text style={[styles.successSubtitle, { color: theme.textMuted }]}>
             {isCancelled
               ? 'This booking is cancelled. Feel free to book another slot.'
+              : isCompleted
+              ? 'This booking is completed. We hope you had a great game!'
               : 'Show this ticket at the turf counter to start your session.'}
           </Text>
         </View>
@@ -203,9 +211,9 @@ export default function BookingDetailScreen() {
                 <Text style={styles.ticketLabel}>BOOKING ID</Text>
                 <Text style={[styles.ticketValue, { color: theme.text }]}>{booking.id}</Text>
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: isCancelled ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)' }]}>
-                <Text style={[styles.statusBadgeText, { color: isCancelled ? '#ef4444' : '#10b981' }]}>
-                  {booking.status}
+              <View style={[styles.statusBadge, { backgroundColor: isCancelled ? 'rgba(239, 68, 68, 0.15)' : isCompleted ? 'rgba(59, 130, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)' }]}>
+                <Text style={[styles.statusBadgeText, { color: isCancelled ? '#ef4444' : isCompleted ? '#3b82f6' : '#10b981' }]}>
+                  {visualStatus}
                 </Text>
               </View>
             </View>
@@ -259,6 +267,11 @@ export default function BookingDetailScreen() {
                 <Ionicons name="ban" size={60} color="rgba(239, 68, 68, 0.4)" />
                 <Text style={styles.cancelledText}>TICKET VOID</Text>
               </View>
+            ) : isCompleted ? (
+              <View style={styles.cancelledOverlay}>
+                <Ionicons name="checkmark-circle-outline" size={60} color="rgba(16, 185, 129, 0.4)" />
+                <Text style={[styles.cancelledText, { color: '#10b981' }]}>SESSION COMPLETED</Text>
+              </View>
             ) : (
               <View style={styles.qrContainer}>
                 <MaterialCommunityIcons name="qrcode" size={130} color={isDarkMode ? '#ffffff' : '#020617'} />
@@ -276,7 +289,7 @@ export default function BookingDetailScreen() {
             <Text style={styles.homeBtnText}>Back to Explore</Text>
           </TouchableOpacity>
 
-          {!isCancelled && (
+          {!isCancelled && !isCompleted && (
             <TouchableOpacity
               style={[styles.cancelBtn, cancelling && { opacity: 0.6 }]}
               onPress={handleCancel}

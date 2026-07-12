@@ -91,7 +91,11 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
         throw retryErr;
       }
     }
-    console.error(`❌ API call failed [${options.method || 'GET'} ${path}]:`, error);
+    if (error instanceof ApiError && error.statusCode === 401) {
+      console.warn(`🔐 API call unauthorized [${options.method || 'GET'} ${path}]: ${error.message}`);
+    } else {
+      console.error(`❌ API call failed [${options.method || 'GET'} ${path}]:`, error);
+    }
     throw error;
   }
 }

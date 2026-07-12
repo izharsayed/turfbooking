@@ -8,6 +8,7 @@ const CustomerApp = lazy(() => import('./pages/customer/CustomerApp'));
 const OwnerApp = lazy(() => import('./pages/owner/OwnerApp'));
 const AdminApp = lazy(() => import('./pages/admin/AdminApp'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
+const SignupPage = lazy(() => import('./pages/SignupPage'));
 
 function RoleRedirect() {
   const { isAuthenticated, user } = useAuthStore();
@@ -43,6 +44,7 @@ export default function App() {
         <Routes>
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
 
           {/* Root redirect */}
           <Route path="/" element={<RoleRedirect />} />
