@@ -552,7 +552,18 @@ export default function ProfileScreen() {
       >
         <TabItem icon="home-outline" label="Home" onPress={() => router.replace({ pathname: '/', params: { tab: 'explore' } })} color={theme.textMuted} />
         <TabItem icon="map-outline" label="Nearby" onPress={() => router.replace({ pathname: '/', params: { tab: 'map' } })} color={theme.textMuted} />
-        <TabItem icon="trophy-outline" label="Matches" onPress={() => Alert.alert('Matches', 'Matches feature coming soon!')} color={theme.textMuted} />
+        <TabItem 
+          icon="calendar-outline" 
+          label="Booking" 
+          onPress={() => {
+            if (!isAuthenticated) {
+              router.push('/login');
+            } else {
+              router.replace({ pathname: '/', params: { tab: 'bookings' } });
+            }
+          }} 
+          color={theme.textMuted} 
+        />
         <TabItem icon="person" label="Profile" onPress={() => {}} color={ACCENT} active />
       </View>
     </View>

@@ -599,10 +599,18 @@ export default function HomeScreen() {
           active={activeTab === 'map'}
         />
         <TabItem
-          icon="trophy-outline"
-          label="Matches"
-          onPress={() => Alert.alert('Matches', 'Matches feature coming soon!')}
-          color={theme.textMuted}
+          icon={activeTab === 'bookings' ? 'calendar' : 'calendar-outline'}
+          label="Booking"
+          onPress={() => {
+            if (!isAuthenticated) {
+              router.push('/login');
+            } else {
+              setActiveTab('bookings');
+              setSelectedMapTurf(null);
+            }
+          }}
+          color={activeTab === 'bookings' ? ACCENT : theme.textMuted}
+          active={activeTab === 'bookings'}
         />
         <TabItem
           icon="person-outline"
