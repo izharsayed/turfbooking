@@ -1,6 +1,6 @@
 # ÃƒÂ°Ã…Â¸Ã‚Â§Ã‚ AI Agent Memory ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬  TurfBook Project
 
-> Last updated: 2026-07-12 11:30 IST
+> Last updated: 2026-07-12 11:40 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1646,4 +1646,8 @@ ormalizeSlot helper in mobile/app/turf/[id].tsx.
 - Replaced the "Matches" (Trophy icon) bottom navigation tab item with a new "Booking" (Calendar icon) tab item.
 - Connected the "Booking" tab to trigger switching to the active bookings reservations list (confirming login session states where needed) or replacing route parameters on redirect.
 - **Why**: Fulfills navigation redesign requests to replace Matches with a direct, unified Bookings view tab.
+
+### 178. `mobile/app/profile.tsx` — Modified
+- Removed the statistics overview panel card (which displayed labels and counters for Games, Upcoming, and Matches) from the profile dashboard view.
+- **Why**: Cleans up unnecessary details on the customer profile page per scope alignment requests.
 
