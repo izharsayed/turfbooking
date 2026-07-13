@@ -318,6 +318,7 @@ router.get('/:id', authenticate as any, async (req: any, res, next) => {
  */
 router.delete('/:id', authenticate as any, async (req: any, res, next) => {
   try {
+    const { reason } = req.body;
     const b = await bookingRepository.findById(req.params.id);
     if (!b || b.userId !== req.user.id) {
       throw new NotFoundError('Booking not found');
@@ -327,8 +328,38 @@ router.delete('/:id', authenticate as any, async (req: any, res, next) => {
       return sendResponse(res, 200, true, 'Booking was already cancelled');
     }
 
+    // Enforce 3-hour cancellation limit
+    const timeSlotStr = (b as any).timeSlot || b.slotId || '';
+    const bookingDateVal = b.bookingDate;
+    if (bookingDateVal && timeSlotStr) {
+      const getSlotStartDateTime = (dateVal: Date | string, timeStr: string): Date | null => {
+        try {
+          const d = new Date(dateVal);
+          if (isNaN(d.getTime())) return null;
+          const startPart = timeStr.split('-')[0].trim();
+          const [hPart, mPart] = startPart.split(':');
+          const hr = parseInt(hPart, 10);
+          const mn = parseInt(mPart || '0', 10);
+          if (isNaN(hr)) return null;
+          d.setHours(hr, mn, 0, 0);
+          return d;
+        } catch {
+          return null;
+        }
+      };
+
+      const startDateTime = getSlotStartDateTime(bookingDateVal, timeSlotStr);
+      if (startDateTime) {
+        const now = new Date();
+        const diffHours = (startDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+        if (diffHours < 3) {
+          return sendResponse(res, 400, false, 'Cancellations are only allowed at least 3 hours before the slot start time.');
+        }
+      }
+    }
+
     // Mark booking as cancelled
-    await bookingRepository.updateStatus(req.params.id, 'CANCELLED');
+    await bookingRepository.updateStatus(req.params.id, 'CANCELLED', reason);
 
     // Mark associated payment as refunded/failed (if exists)
     const payment = await paymentRepository.findByBookingId(req.params.id);
@@ -339,6 +370,86 @@ router.delete('/:id', authenticate as any, async (req: any, res, next) => {
     }
 
     return sendResponse(res, 200, true, 'Booking cancelled successfully');
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * @openapi
+ * /bookings/{id}/reschedule:
+ *   put:
+ *     summary: Reschedule a booking
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - date
+ *               - time
+ *             properties:
+ *               date:
+ *                 type: string
+ *               time:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Booking rescheduled successfully
+ *       400:
+ *         description: Slot already booked or missing parameters
+ *       404:
+ *         description: Booking not found
+ */
+router.put('/:id/reschedule', authenticate as any, async (req: any, res, next) => {
+  try {
+    const { date, time } = req.body;
+    if (!date || !time) {
+      return sendResponse(res, 400, false, 'Date and time are required for rescheduling');
+    }
+
+    const b = await bookingRepository.findById(req.params.id);
+    if (!b || b.userId !== req.user.id) {
+      throw new NotFoundError('Booking not found');
+    }
+
+    if (b.status === 'CANCELLED') {
+      return sendResponse(res, 400, false, 'Cannot reschedule a cancelled booking');
+    }
+
+    // Check if the selected slot is already booked on the target date
+    const existingBookings = await bookingRepository.findByTurfId(b.turfId);
+    const targetDateStr = new Date(date).toISOString().split('T')[0];
+    
+    const isBooked = existingBookings.some((eb) => {
+      if (eb.id === b.id || eb.status === 'CANCELLED') return false;
+      const ebDate = eb.bookingDate ? new Date(eb.bookingDate).toISOString().split('T')[0] : '';
+      const ebTime = (eb as any).timeSlot || eb.slotId || '';
+      
+      // Split and match slots (since it can support comma-separated list of slots)
+      const ebSlots = ebTime.split(',').map((s: string) => s.trim());
+      const targetSlots = time.split(',').map((s: string) => s.trim());
+      
+      const hasOverlap = ebSlots.some((slot: string) => targetSlots.includes(slot));
+      return ebDate === targetDateStr && hasOverlap;
+    });
+
+    if (isBooked) {
+      return sendResponse(res, 400, false, 'The selected time slot is already booked on this date');
+    }
+
+    await bookingRepository.reschedule(req.params.id, date, time);
+    return sendResponse(res, 200, true, 'Booking rescheduled successfully');
   } catch (error) {
     return next(error);
   }

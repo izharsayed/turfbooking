@@ -23,8 +23,13 @@ const startServer = async () => {
   try {
     // Verify Database Connection (skip for Firebase provider)
     if (env.DATABASE_PROVIDER !== 'firebase') {
-      await prisma.$connect();
-      logger.info('💾 Database connection established successfully');
+      try {
+        await prisma.$connect();
+        logger.info('💾 Database connection established successfully');
+      } catch (dbError) {
+        logger.warn('⚠️ Database connection failed — server will start without DB. API routes requiring DB will fail.');
+        logger.warn(`   Reason: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+      }
     } else {
       logger.info('🔥 Using Firebase as database provider — skipping Prisma connection');
     }

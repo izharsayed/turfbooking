@@ -173,6 +173,9 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
 
       list.push({
         id: doc.id,
+        userId: data.userId || '',
+        turfId: data.turfId || '',
+        sportId: data.sportId || '',
         customerName: data.customerName || uProfile?.name || 'Customer',
         customerPhone: data.customerPhone || uProfile?.phone || '',
         turfName: turfMap.get(data.turfId) || 'Arena',

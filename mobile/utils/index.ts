@@ -25,8 +25,9 @@ export function getBookingStatus(
 
     const now = new Date();
     
-    // Parse dateStr like "2026-07-09"
-    const [year, month, day] = dateStr.split('-').map(Number);
+    // Parse dateStr (handles both "2026-07-09" and full ISO strings)
+    const cleanDateStr = dateStr ? dateStr.split('T')[0] : '';
+    const [year, month, day] = cleanDateStr.split('-').map(Number);
     if (isNaN(year) || isNaN(month) || isNaN(day)) {
       return 'COMPLETED';
     }

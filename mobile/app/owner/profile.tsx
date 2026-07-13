@@ -99,6 +99,7 @@ export default function OwnerProfileScreen() {
   };
 
   const fetchProfileData = async () => {
+    if (!isAuthenticated || !user) return;
     try {
       const [profileRes, dashboardRes, turfsRes] = await Promise.all([
         apiFetch('/owner/profile'),
@@ -197,7 +198,11 @@ export default function OwnerProfileScreen() {
 
   useEffect(() => {
     fetchProfileData();
-  }, []);
+  }, [isAuthenticated, user]);
+
+  // Guard: only for TURF_OWNER role
+  if (!isAuthenticated || !user) return <Redirect href="/login" />;
+  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
 
   const handleSave = async () => {
     if (!formName.trim()) {
@@ -325,9 +330,6 @@ export default function OwnerProfileScreen() {
       },
     ]);
   };
-
-  if (!isAuthenticated || !user) return <Redirect href="/login" />;
-  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
 
   if (loading) {
     return (

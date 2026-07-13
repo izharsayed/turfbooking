@@ -37,7 +37,15 @@ import {
   Menu,
   X,
   CloudRain,
-  Settings
+  Settings,
+  Lock,
+  Lightbulb,
+  PartyPopper,
+  CheckCircle2,
+  Star,
+  Flame,
+  Zap,
+  Cog
 } from 'lucide-react';
 
 interface Turf {
@@ -966,7 +974,7 @@ export default function App() {
               {[
                 { 
                   label: 'Total Revenue', 
-                  value: userRole === 'STAFF' ? '🔒 Locked' : formatCurrency(totalRevenue), 
+                  value: userRole === 'STAFF' ? <span className="inline-flex items-center gap-1"><Lock className="h-3.5 w-3.5" /> Locked</span> : formatCurrency(totalRevenue), 
                   icon: DollarSign, 
                   change: userRole === 'STAFF' ? 'Restricted Access' : '+18.4% this week', 
                   color: 'text-emerald-455' 
@@ -1090,7 +1098,7 @@ export default function App() {
                         <span className="text-[10px] font-bold text-emerald-400 block mb-0.5">WEATHER ADVISORY (AHMEDNAGAR)</span>
                         <p className="text-xs font-semibold text-slate-350">29°C — Partly Cloudy</p>
                         <p className="text-[10px] text-slate-400 mt-1 leading-normal">
-                          💡 Peak hours are clear. Recommend enabling standard floodlights from 18:00 to 22:00.
+                          <span className="inline-flex items-start gap-1"><Lightbulb className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" /> Peak hours are clear. Recommend enabling standard floodlights from 18:00 to 22:00.</span>
                         </p>
                       </div>
                     </div>
@@ -1345,7 +1353,7 @@ export default function App() {
                       {turf.sport}
                     </span>
                     <span className="absolute top-4 right-4 text-[10px] font-bold bg-slate-900/80 text-amber-400 px-3 py-1 rounded-full backdrop-blur-md">
-                      ★ {turf.rating}
+                      <Star className="h-3 w-3 fill-amber-400 text-amber-400 inline-block" /> {turf.rating}
                     </span>
                   </div>
 
@@ -1487,10 +1495,10 @@ export default function App() {
                               {formatCurrency(currentPrice)}/h
                             </span>
                             {isPeak && (
-                              <span className="text-[7.5px] bg-amber-500/15 border border-amber-500/20 text-amber-550 px-0.8 py-0.1 rounded font-black uppercase">🔥</span>
+                              <span className="text-[7.5px] bg-amber-500/15 border border-amber-500/20 text-amber-550 px-0.8 py-0.1 rounded font-black uppercase inline-flex items-center"><Flame className="h-2.5 w-2.5" /></span>
                             )}
                             {isWeekend && (
-                              <span className="text-[7.5px] bg-blue-500/15 border border-blue-500/20 text-blue-555 px-0.8 py-0.1 rounded font-black uppercase">⚡</span>
+                              <span className="text-[7.5px] bg-blue-500/15 border border-blue-500/20 text-blue-555 px-0.8 py-0.1 rounded font-black uppercase inline-flex items-center"><Zap className="h-2.5 w-2.5" /></span>
                             )}
                           </div>
                           {slot.blockReason ? (
@@ -1576,7 +1584,7 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="text-[10px] text-slate-450 font-bold">
-                    🔒 Dynamic pricing rules are read-only.
+                    <span className="inline-flex items-center gap-1"><Lock className="h-3 w-3" /> Dynamic pricing rules are read-only.</span>
                   </div>
                 )}
               </div>
@@ -1780,7 +1788,7 @@ export default function App() {
                                 <span key={addon} className={`text-[8px] px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider ${
                                   isDarkMode ? 'bg-slate-900 border border-slate-800 text-slate-400' : 'bg-slate-100 border border-slate-200 text-slate-650'
                                 }`}>
-                                  ⚙️ {addon.split(' ')[0]}
+                                  <span className="inline-flex items-center gap-0.5"><Cog className="h-2.5 w-2.5" /> {addon.split(' ')[0]}</span>
                                 </span>
                               ))}
                             </div>
@@ -1855,7 +1863,7 @@ export default function App() {
                     <div className="flex items-center gap-3">
                       <div className="flex text-amber-450 font-bold text-sm">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <span key={i} className={i < review.rating ? 'opacity-100' : 'opacity-20'}>★</span>
+                          <span key={i} className={i < review.rating ? 'opacity-100' : 'opacity-20'}><Star className="h-3.5 w-3.5 fill-current inline-block" /></span>
                         ))}
                       </div>
                       <span className="text-[10px] text-slate-500">{review.date}</span>
@@ -1899,7 +1907,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-                      🔒 Replies locked for staff role
+                      <span className="inline-flex items-center gap-1"><Lock className="h-3 w-3" /> Replies locked for staff role</span>
                     </div>
                   )}
                 </div>
@@ -1977,7 +1985,7 @@ export default function App() {
               </form>
             ) : (
               <div className="p-4 bg-slate-900/20 border border-slate-850 rounded-2xl text-xs text-slate-500 max-w-xl">
-                <span>🔒 Registering new staff members is disabled for restricted STAFF accounts. Please request owner permissions to add team accounts.</span>
+                <span className="inline-flex items-start gap-1.5"><Lock className="h-3.5 w-3.5 shrink-0 mt-0.5" /> Registering new staff members is disabled for restricted STAFF accounts. Please request owner permissions to add team accounts.</span>
               </div>
             )}
 
@@ -1992,7 +2000,7 @@ export default function App() {
                 >
                   <div className="space-y-1">
                     <span className="font-bold block text-sm">{staff.name}</span>
-                    <span className="text-[10px] text-slate-500 block">📞 {staff.phone}</span>
+                    <span className="text-[10px] text-slate-500 inline-flex items-center gap-0.5"><Phone className="h-2.5 w-2.5" /> {staff.phone}</span>
                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest inline-block ${
                       staff.role === 'MANAGER'
                         ? 'bg-blue-500/10 text-blue-500'
@@ -2029,7 +2037,7 @@ export default function App() {
 
             {settingsSuccess && (
               <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-450 rounded-2xl text-sm font-bold shadow-md transition-all duration-300">
-                🎉 {settingsSuccess}
+                <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> {settingsSuccess}</span>
               </div>
             )}
 

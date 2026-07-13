@@ -31,11 +31,14 @@ interface Turf {
   name: string;
   pricePerHour?: number;
   sport?: string;
+  sportId?: string;
   isActive?: boolean;
 }
 
 interface OwnerBooking {
   id: string;
+  turfId?: string;
+  sportId?: string;
   customerName?: string;
   turfName?: string;
   date?: string;
@@ -98,11 +101,8 @@ export default function OwnerBookingsScreen() {
     legendBorder: isDarkMode ? '#1e293b' : '#e2e8f0',
   };
 
-  // Guard: only for TURF_OWNER role
-  if (!isAuthenticated || !user) return <Redirect href="/login" />;
-  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
-
   const fetchData = async () => {
+    if (!isAuthenticated || !user) return;
     try {
       // Fetch turfs from backend
       const turfRes = await apiFetch('/owner/turfs');
@@ -113,6 +113,7 @@ export default function OwnerBookingsScreen() {
           name: t.name,
           pricePerHour: t.pricePerHour ?? t.price ?? 1200,
           sport: t.sport || 'Football',
+          sportId: t.sports?.[0]?.sportId || t.sports?.[0]?.sport?.id || (typeof t.sports?.[0] === 'string' ? t.sports[0] : '') || 'NHQKZB3YRCRhWBL95sUE',
           isActive: t.isActive ?? true,
         }));
       }
@@ -143,9 +144,14 @@ export default function OwnerBookingsScreen() {
   }, []);
 
   const onRefresh = useCallback(() => {
+    if (!isAuthenticated || !user) return;
     setRefreshing(true);
     fetchData();
-  }, [selectedTurf]);
+  }, [selectedTurf, isAuthenticated, user]);
+
+  // Guard: only for TURF_OWNER role
+  if (!isAuthenticated || !user) return <Redirect href="/login" />;
+  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
 
   const changeDate = (days: number) => {
     const next = new Date(selectedDate);
@@ -257,9 +263,9 @@ export default function OwnerBookingsScreen() {
     // Check online bookings
     const activeBookings = bookings.filter(b => b.status !== 'CANCELLED');
     const matchingBooking = activeBookings.find(b => {
-      const matchDate = b.date === dateKey;
+      const matchDate = b.date ? b.date.split('T')[0] === dateKey : false;
       if (!matchDate) return false;
-      const turfMatch = selectedTurf ? b.turfName?.toLowerCase().includes(selectedTurf.name.toLowerCase().split(' ')[0]) : true;
+      const turfMatch = selectedTurf ? (b.turfId === selectedTurf.id || b.turfName?.toLowerCase().includes(selectedTurf.name.toLowerCase().split(' ')[0])) : true;
       if (!turfMatch) return false;
       
       const bSlot = b.slotId || b.time || b.timeSlot || '';
@@ -393,7 +399,7 @@ export default function OwnerBookingsScreen() {
         method: 'POST',
         body: {
           turfId: selectedTurf.id,
-          sportId: selectedTurf.sport || 'Football',
+          sportId: selectedTurf.sportId || 'NHQKZB3YRCRhWBL95sUE',
           date: startDate.toISOString(),
           startTime: startDate.toISOString(),
           endTime: endDate.toISOString(),
@@ -404,6 +410,7 @@ export default function OwnerBookingsScreen() {
       });
 
       setOfflineBookings(prev => [...prev, newBooking]);
+      await fetchData();
       setBookingModalVisible(false);
       Alert.alert('Success', 'Offline booking added successfully.');
     } catch (err: any) {

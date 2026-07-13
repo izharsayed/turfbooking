@@ -182,11 +182,10 @@ export default function TurfDetailScreen() {
   }, [id]);
 
   const user = useAuthStore((s) => s.user);
-  const playcoinsBalance = 350 + (useBookingStore((s) => s.bookings).length * 50);
 
   const generated24Slots = Array.from({ length: 24 }, (_, i) => {
-    const startHour = i;
-    const endHour = (i + 1) % 24;
+    const startHour = (i + 12) % 24;
+    const endHour = (startHour + 1) % 24;
     const startStr = `${startHour.toString().padStart(2, '0')}:00`;
     const endStr = `${endHour.toString().padStart(2, '0')}:00`;
     return `${startStr} - ${endStr}`;
@@ -247,15 +246,11 @@ export default function TurfDetailScreen() {
             style={styles.headerAvatar}
           />
           <View>
-            <Text style={styles.greetText}>Hi {user?.name || 'ahmed'} 👋</Text>
+            <Text style={styles.greetText}>Hi {user?.name || 'ahmed'} <Ionicons name="hand-left-outline" size={16} color="#fbbf24" /></Text>
             <Text style={styles.greetSubText}>{'Ahmednagar >'}</Text>
           </View>
         </View>
         <View style={styles.greetRight}>
-          <View style={styles.headerPlaycoins}>
-            <FontAwesome5 name="coins" size={11} color="#fbbf24" style={{ marginRight: 5 }} />
-            <Text style={styles.playcoinsText}>{playcoinsBalance}</Text>
-          </View>
           <TouchableOpacity style={styles.headerBell} onPress={() => router.push('/profile')}>
             <Ionicons name="notifications-outline" size={20} color="#fff" />
           </TouchableOpacity>
@@ -271,9 +266,13 @@ export default function TurfDetailScreen() {
           <View style={styles.titleRow}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.title, { color: theme.text }]}>{turf.name}</Text>
-              <Text style={[styles.area, { color: theme.textMuted }]}>📍 {turf.area}</Text>
+              <Text style={[styles.area, { color: theme.textMuted }]}>
+                <Ionicons name="location-outline" size={14} color={theme.textMuted} /> {turf.area}
+              </Text>
             </View>
-            <Text style={styles.rating}>★ {turf.rating}</Text>
+            <Text style={styles.rating}>
+              <Ionicons name="star" size={14} color="#facc15" /> {turf.rating}
+            </Text>
           </View>
           <View style={styles.metaRow}>
             <View style={styles.sportBadge}>
@@ -375,9 +374,11 @@ export default function TurfDetailScreen() {
 
           {/* Select Court Options */}
           <Text style={[styles.panelSectionTitle, { color: theme.textMuted }]}>SELECT COURT</Text>
-          <Text style={[styles.courtHeaderName, { color: theme.text }]}>
-            {selectedSport === 'Cricket' ? '🏏 7A Cricket' : '⚽ Full Ground Futsal'}
-          </Text>
+            {selectedSport === 'Cricket' ? (
+              <Text style={[styles.courtHeaderName, { color: theme.text }]}><MaterialCommunityIcons name="cricket" size={16} color="#eab308" /> 7A Cricket</Text>
+            ) : (
+              <Text style={[styles.courtHeaderName, { color: theme.text }]}><Ionicons name="football" size={16} color="#10b981" /> Full Ground Futsal</Text>
+            )}
           <View style={styles.courtsRow}>
             <TouchableOpacity
               style={[
@@ -474,32 +475,43 @@ export default function TurfDetailScreen() {
               const period = hours >= 12 ? 'PM' : 'AM';
               const displayHours = hours % 12 === 0 ? 12 : hours % 12;
 
+              // Check if slot has passed
+              const [sYear, sMonth, sDay] = selectedDate.split('-').map(Number);
+              const slotStartTime = new Date(sYear, sMonth - 1, sDay, hours, 0, 0, 0);
+              const isPast = new Date().getTime() >= slotStartTime.getTime();
+
               const displayLabel = isBooked
                 ? `${displayHours}:00\nBooked`
-                : `${displayHours}:00\n${period}`;
+                : isPast
+                  ? `${displayHours}:00\nPassed`
+                  : `${displayHours}:00\n${period}`;
 
               return (
                 <TouchableOpacity
                   key={time}
-                  disabled={isBooked}
+                  disabled={isBooked || isPast}
                   style={[
                     styles.slotCardBadge,
                     {
                       backgroundColor: isBooked
                         ? 'rgba(239, 68, 68, 0.08)'
-                        : isSel
-                          ? 'rgba(16, 185, 129, 0.18)'
-                          : (isDarkMode ? 'rgba(30, 41, 59, 0.4)' : '#f1f5f9'),
+                        : isPast
+                          ? (isDarkMode ? 'rgba(30, 41, 59, 0.2)' : 'rgba(241, 245, 249, 0.5)')
+                          : isSel
+                            ? 'rgba(16, 185, 129, 0.18)'
+                            : (isDarkMode ? 'rgba(30, 41, 59, 0.4)' : '#f1f5f9'),
                       borderColor: isBooked
                         ? 'rgba(239, 68, 68, 0.4)'
-                        : isSel
-                          ? '#10b981'
-                          : theme.border,
-                      opacity: isBooked ? 0.8 : 1,
+                        : isPast
+                          ? (isDarkMode ? 'rgba(226, 232, 240, 0.1)' : 'rgba(226, 232, 240, 0.5)')
+                          : isSel
+                            ? '#10b981'
+                            : theme.border,
+                      opacity: isBooked ? 0.8 : isPast ? 0.4 : 1,
                     }
                   ]}
                   onPress={() => {
-                    if (isBooked) return;
+                    if (isBooked || isPast) return;
                     setSelectedTimes((prev) =>
                       prev.includes(time)
                         ? prev.filter((t) => t !== time)
@@ -507,7 +519,7 @@ export default function TurfDetailScreen() {
                     );
                   }}
                 >
-                  {isSel && !isBooked && (
+                  {isSel && !isBooked && !isPast && (
                     <View style={styles.slotCheckDot} />
                   )}
                   <Text style={[
@@ -515,12 +527,14 @@ export default function TurfDetailScreen() {
                     {
                       color: isBooked
                         ? '#f87171'
-                        : isSel
-                          ? '#10b981'
-                          : theme.text,
-                      fontWeight: (isSel || isBooked) ? 'bold' : 'normal',
+                        : isPast
+                          ? theme.textMuted
+                          : isSel
+                            ? '#10b981'
+                            : theme.text,
+                      fontWeight: (isSel || isBooked || isPast) ? 'bold' : 'normal',
                       textAlign: 'center',
-                      fontSize: isBooked ? 10 : 11,
+                      fontSize: (isBooked || isPast) ? 10 : 11,
                     }
                   ]}>
                     {displayLabel}

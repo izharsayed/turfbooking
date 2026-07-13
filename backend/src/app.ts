@@ -60,6 +60,7 @@ import adminRouter from './modules/admin/admin.routes.js';
 import ownerRouter from './modules/owner/owner.routes.js';
 import turfRouter from './modules/user/turf.routes.js';
 import bookingRouter from './modules/user/booking.routes.js';
+import supportRouter from './modules/user/support.routes.js';
 
 // Mounting Feature API Routers (Skeletons)
 app.use('/api/v1/auth', authRouter);
@@ -68,6 +69,7 @@ app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/owner', ownerRouter);
 app.use('/api/v1/turfs', turfRouter);
 app.use('/api/v1/bookings', bookingRouter);
+app.use('/api/v1/tickets', supportRouter);
 
 // Global Error Handler
 app.use(errorHandler);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,9 @@ import {
   Image,
   Alert,
   Platform,
+  RefreshControl,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, Callout, PROVIDER_DEFAULT } from '../components/CustomMap';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -79,6 +82,69 @@ function TabItem({
   );
 }
 
+const faqs = [
+  {
+    q: 'Can I cancel my slot booking?',
+    a: 'Yes! Cancellations are free up to 3 hours before the slot start time. The refund is credited back to your original payment method.',
+  },
+  {
+    q: 'How long do refunds take to process?',
+    a: 'Once cancelled, refunds are initiated immediately and usually reflect in your bank account in 2-3 business days.',
+  },
+  {
+    q: 'How do I reschedule a booking?',
+    a: 'You can reschedule from your reservation ticket details page. Select a new date and open slot at least 3 hours before the game start time.',
+  },
+  {
+    q: 'Can I book multiple slots at once?',
+    a: 'Yes, you can select multiple slots at once from the turf details grid and proceed to checkout.',
+  },
+  {
+    q: 'Is my payment secure?',
+    a: 'Absolutely. All transactions are securely processed through Razorpay encryption protocols.',
+  },
+];
+
+const getCategoryColor = (cat: string) => {
+  switch (cat?.toUpperCase()) {
+    case 'PAYMENTS': return '#ef4444';
+    case 'BOOKINGS': return '#3b82f6';
+    case 'TECHNICAL': return '#10b981';
+    case 'COMPLAINT': return '#f59e0b';
+    default: return '#6b7280';
+  }
+};
+
+const getCategoryBg = (cat: string) => {
+  switch (cat?.toUpperCase()) {
+    case 'PAYMENTS': return 'rgba(239, 68, 68, 0.1)';
+    case 'BOOKINGS': return 'rgba(59, 130, 246, 0.1)';
+    case 'TECHNICAL': return 'rgba(16, 185, 129, 0.1)';
+    case 'COMPLAINT': return 'rgba(245, 158, 11, 0.1)';
+    default: return 'rgba(107, 114, 128, 0.1)';
+  }
+};
+
+const getStatusColor = (status: string) => {
+  switch (status?.toUpperCase()) {
+    case 'OPEN': return '#3b82f6';
+    case 'IN_PROGRESS': return '#f59e0b';
+    case 'RESOLVED': return '#10b981';
+    case 'CLOSED': return '#6b7280';
+    default: return '#6b7280';
+  }
+};
+
+const getStatusBg = (status: string) => {
+  switch (status?.toUpperCase()) {
+    case 'OPEN': return 'rgba(59, 130, 246, 0.1)';
+    case 'IN_PROGRESS': return 'rgba(245, 158, 11, 0.1)';
+    case 'RESOLVED': return 'rgba(16, 185, 129, 0.1)';
+    case 'CLOSED': return 'rgba(107, 114, 128, 0.1)';
+    default: return 'rgba(107, 114, 128, 0.1)';
+  }
+};
+
 export default function HomeScreen() {
   const router = useRouter();
   const { tab } = useLocalSearchParams<{ tab?: string }>();
@@ -87,6 +153,126 @@ export default function HomeScreen() {
   const bookings = useBookingStore((s) => s.bookings);
   const setBookings = useBookingStore((s) => s.setBookings);
   const { isDarkMode, toggleTheme } = useThemeStore();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'explore' | 'bookings' | 'map' | 'support'>('explore');
+  const [selectedMapTurf, setSelectedMapTurf] = useState<Turf | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSport, setSelectedSport] = useState<string>('All');
+  const [loadedTurfs, setLoadedTurfs] = useState<Turf[]>(turfs);
+  const [loadingTurfs, setLoadingTurfs] = useState(false);
+
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
+  const mapRef = useRef<MapView | null>(null);
+
+  // Help & Support state variables
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
+  const [ticketSubject, setTicketSubject] = useState('');
+  const [ticketCategory, setTicketCategory] = useState('PAYMENTS');
+  const [ticketDescription, setTicketDescription] = useState('');
+  const [submittingTicket, setSubmittingTicket] = useState(false);
+  const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(null);
+  const [supportSubTab, setSupportSubTab] = useState<'faq' | 'tickets'>('faq');
+
+  const fetchTickets = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setLoadingTickets(true);
+    try {
+      const res = await apiFetch('/tickets');
+      if (res.success && Array.isArray(res.data)) {
+        setTickets(res.data);
+      }
+    } catch (err) {
+      console.log('Failed to fetch support tickets', err);
+    } finally {
+      setLoadingTickets(false);
+    }
+  }, [isAuthenticated]);
+
+  const handleRaiseTicket = async () => {
+    if (!ticketSubject || !ticketDescription) return;
+    setSubmittingTicket(true);
+    try {
+      const res = await apiFetch('/tickets', {
+        method: 'POST',
+        body: {
+          subject: ticketSubject,
+          description: ticketDescription,
+          category: ticketCategory,
+        },
+      });
+
+      if (res.success) {
+        Alert.alert('Ticket Raised', 'Support ticket raised successfully!');
+        setTicketSubject('');
+        setTicketDescription('');
+        setSupportModalVisible(false);
+        fetchTickets();
+      } else {
+        Alert.alert('Submission Failed', res.message || 'Could not submit support ticket.');
+      }
+    } catch (err: any) {
+      Alert.alert('Submission Failed', err.message || 'Could not submit support ticket. Please try again.');
+    } finally {
+      setSubmittingTicket(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'support' && isAuthenticated) {
+      fetchTickets();
+    }
+  }, [activeTab, isAuthenticated, fetchTickets]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (activeTab === 'explore') {
+        const res = await apiFetch('/turfs');
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          const normalized = res.data.map((bt: any) => ({
+            id: bt.id,
+            name: bt.name,
+            sport: Array.isArray(bt.sports) ? bt.sports[0] : (bt.sport || 'Football'),
+            price: bt.pricePerHour || bt.price || 1200,
+            rating: bt.rating || 4.5,
+            area: bt.location?.address || bt.area || 'Ahmednagar',
+            image: Array.isArray(bt.images) && bt.images.length > 0 ? bt.images[0] : (bt.image || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60'),
+            latitude: bt.location?.latitude || bt.latitude || 19.1158,
+            longitude: bt.location?.longitude || bt.longitude || 74.742,
+            description: bt.description || '',
+            amenities: bt.amenities || [],
+            slots: bt.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
+          }));
+          setLoadedTurfs(normalized);
+        }
+      } else if (activeTab === 'bookings' && isAuthenticated) {
+        const res = await apiFetch('/bookings');
+        if (res.success && Array.isArray(res.data)) {
+          const mapped = res.data.map((b: any) => ({
+            id: b.id,
+            turfId: b.turfId,
+            turfName: b.turfName,
+            area: b.area,
+            date: b.date,
+            time: b.time,
+            amount: b.amount,
+            status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : 'CANCELLED',
+          }));
+          setBookings(mapped);
+        }
+      } else if (activeTab === 'support' && isAuthenticated) {
+        await fetchTickets();
+      }
+    } catch (err) {
+      console.log('Error refreshing dashboard data', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [activeTab, isAuthenticated, fetchTickets]);
 
   useEffect(() => {
     if (tab === 'explore' || tab === 'bookings' || tab === 'map' || tab === 'support') {
@@ -107,17 +293,6 @@ export default function HomeScreen() {
     bgImageOpacity: isDarkMode ? 0.35 : 0.22,
     overlayBg: isDarkMode ? 'rgba(3, 7, 18, 0.5)' : 'rgba(248, 250, 252, 0.6)',
   };
-
-  const [activeTab, setActiveTab] = useState<'explore' | 'bookings' | 'map' | 'support'>('explore');
-  const [selectedMapTurf, setSelectedMapTurf] = useState<Turf | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSport, setSelectedSport] = useState<string>('All');
-  const [loadedTurfs, setLoadedTurfs] = useState<Turf[]>(turfs);
-  const [loadingTurfs, setLoadingTurfs] = useState(false);
-
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
-  const mapRef = useRef<MapView | null>(null);
 
   useEffect(() => {
     const fetchTurfs = async () => {
@@ -299,7 +474,7 @@ export default function HomeScreen() {
                       {isFootball ? (
                         <MaterialCommunityIcons name="soccer" size={18} color="#10b981" />
                       ) : (
-                        <Text style={styles.pinEmoji}>🏏</Text>
+                        <MaterialCommunityIcons name="cricket" size={18} color="#eab308" />
                       )}
                     </View>
                     <View style={[styles.pinArrow, { borderTopColor: markerColor }]} />
@@ -337,7 +512,9 @@ export default function HomeScreen() {
               <View style={styles.mapCardHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.mapCardTitle, { color: theme.text }]}>{selectedMapTurf.name}</Text>
-                  <Text style={[styles.mapCardArea, { color: theme.textMuted }]}>📍 {selectedMapTurf.area}</Text>
+                  <Text style={[styles.mapCardArea, { color: theme.textMuted }]}>
+                    <Ionicons name="location-outline" size={13} color={theme.textMuted} /> {selectedMapTurf.area}
+                  </Text>
                 </View>
                 <TouchableOpacity onPress={() => setSelectedMapTurf(null)} style={{ padding: 4 }}>
                   <Ionicons name="close-circle-outline" size={22} color={theme.textMuted} />
@@ -347,7 +524,9 @@ export default function HomeScreen() {
                 <View style={styles.mapCardBadge}>
                   <Text style={styles.mapCardBadgeText}>{selectedMapTurf.sport}</Text>
                 </View>
-                <Text style={[styles.mapCardRating, { color: isDarkMode ? '#facc15' : '#eab308' }]}>★ {selectedMapTurf.rating}</Text>
+                <Text style={[styles.mapCardRating, { color: isDarkMode ? '#facc15' : '#eab308' }]}>
+                  <Ionicons name="star" size={13} color={isDarkMode ? '#facc15' : '#eab308'} /> {selectedMapTurf.rating}
+                </Text>
                 <Text style={[styles.mapCardPrice, { color: theme.text }]}>{formatCurrency(selectedMapTurf.price)}/hr</Text>
               </View>
               <TouchableOpacity
@@ -361,10 +540,19 @@ export default function HomeScreen() {
         </View>
       )}
 
-      <ScrollView
-        style={[styles.scroll, activeTab === 'map' && { display: 'none' }]}
-        contentContainerStyle={{ paddingBottom: 100 }}
-      >
+      {activeTab !== 'map' && (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#10b981']}
+              tintColor="#10b981"
+            />
+          }
+        >
         {/* Tab 1: Explore */}
         {activeTab === 'explore' && (
           <View style={styles.section}>
@@ -389,11 +577,16 @@ export default function HomeScreen() {
             >
               {['All', 'Football', 'Cricket', 'Box Cricket'].map((sport) => {
                 const isActive = selectedSport === sport;
-                let sportIcon = '';
-                if (sport === 'All') sportIcon = '🏟️';
-                else if (sport === 'Football') sportIcon = '⚽';
-                else if (sport === 'Cricket') sportIcon = '🏏';
-                else if (sport === 'Box Cricket') sportIcon = '🥅';
+                let sportIcon = null;
+                if (sport === 'All') {
+                  sportIcon = <MaterialCommunityIcons name="stadium-variant" size={14} color={isActive ? '#030712' : '#10b981'} />;
+                } else if (sport === 'Football') {
+                  sportIcon = <Ionicons name="football" size={14} color={isActive ? '#030712' : '#10b981'} />;
+                } else if (sport === 'Cricket') {
+                  sportIcon = <MaterialCommunityIcons name="cricket" size={14} color={isActive ? '#030712' : '#eab308'} />;
+                } else if (sport === 'Box Cricket') {
+                  sportIcon = <MaterialCommunityIcons name="soccer-field" size={14} color={isActive ? '#030712' : '#10b981'} />;
+                }
 
                 return (
                   <TouchableOpacity
@@ -451,7 +644,9 @@ export default function HomeScreen() {
 
                   {/* Rating overlay badge on top-right */}
                   <View style={styles.cardRatingOverlayBadge}>
-                    <Text style={styles.cardRatingOverlayBadgeText}>★ {turf.rating}</Text>
+                    <Text style={styles.cardRatingOverlayBadgeText}>
+                      <Ionicons name="star" size={10} color="#facc15" /> {turf.rating}
+                    </Text>
                   </View>
                 </View>
 
@@ -462,7 +657,7 @@ export default function HomeScreen() {
                         {turf.name}
                       </Text>
                       <Text style={[styles.cardAreaNew, { color: theme.textMuted }]}>
-                        📍 {turf.area}
+                        <Ionicons name="location-outline" size={11} color={theme.textMuted} /> {turf.area}
                       </Text>
                     </View>
                     <View style={styles.cardPriceWrapper}>
@@ -548,28 +743,225 @@ export default function HomeScreen() {
 
         {/* Tab 4: Support */}
         {activeTab === 'support' && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Help center</Text>
-            <Text style={[styles.detailDesc, { color: theme.textMuted }]}>
-              Encountered issues with payment settlement or double slot booking? Create a ticket and
-              our 24/7 staff support will address it immediately.
-            </Text>
+          <View style={styles.supportContainer}>
+            <View style={styles.supportHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 4 }]}>Help & Support</Text>
+              <Text style={[styles.detailDesc, { color: theme.textMuted, marginBottom: 16 }]}>
+                Find quick answers to common questions or submit a support query below.
+              </Text>
+            </View>
 
-            <TouchableOpacity
-              style={[
-                styles.supportButton,
-                {
-                  backgroundColor: theme.card,
-                  borderColor: theme.border,
-                },
-              ]}
-              onPress={() => Alert.alert('Ticket Raised', 'Support ticket raised successfully!')}
-            >
-              <Text style={[styles.supportButtonText, { color: theme.text }]}>Raise Support Ticket</Text>
-            </TouchableOpacity>
+            {/* Sub Tabs Switcher */}
+            <View style={[styles.supportTabSwitcher, { backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.4)' : '#f1f5f9', borderColor: theme.border }]}>
+              <TouchableOpacity
+                style={[styles.supportSubTabItem, supportSubTab === 'faq' && { backgroundColor: theme.card }]}
+                onPress={() => setSupportSubTab('faq')}
+              >
+                <Text style={[styles.supportSubTabText, { color: supportSubTab === 'faq' ? '#10b981' : theme.textMuted, fontWeight: supportSubTab === 'faq' ? 'bold' : 'normal' }]}>
+                  FAQs
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.supportSubTabItem, supportSubTab === 'tickets' && { backgroundColor: theme.card }]}
+                onPress={() => setSupportSubTab('tickets')}
+              >
+                <Text style={[styles.supportSubTabText, { color: supportSubTab === 'tickets' ? '#10b981' : theme.textMuted, fontWeight: supportSubTab === 'tickets' ? 'bold' : 'normal' }]}>
+                  My Tickets
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {supportSubTab === 'faq' ? (
+              <View style={styles.faqSection}>
+                {/* Accordion List */}
+                {faqs.map((faq, index) => {
+                  const isExp = expandedFaqIndex === index;
+                  return (
+                    <View key={index} style={[styles.faqCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                      <TouchableOpacity
+                        style={styles.faqQuestionHeader}
+                        onPress={() => setExpandedFaqIndex(isExp ? null : index)}
+                      >
+                        <Text style={[styles.faqQuestionText, { color: theme.text }]}>{faq.q}</Text>
+                        <Ionicons
+                          name={isExp ? 'chevron-up-outline' : 'chevron-down-outline'}
+                          size={18}
+                          color={theme.textMuted}
+                        />
+                      </TouchableOpacity>
+                      {isExp && (
+                        <View style={[styles.faqAnswerContainer, { borderTopColor: theme.border }]}>
+                          <Text style={[styles.faqAnswerText, { color: theme.textMuted }]}>{faq.a}</Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+
+                {/* Contact Channels */}
+                <Text style={[styles.channelTitle, { color: theme.text, marginTop: 24 }]}>Still Need Help?</Text>
+                <View style={styles.channelsContainer}>
+                  <TouchableOpacity
+                    style={[styles.channelCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+                    onPress={() => Alert.alert('Calling Support', 'Connecting you to our helpline +1-800-TURF-BOOK...')}
+                  >
+                    <Ionicons name="call-outline" size={20} color="#10b981" />
+                    <Text style={[styles.channelLabel, { color: theme.text }]}>Call Helpline</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.channelCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+                    onPress={() => Alert.alert('WhatsApp Support', 'Opening WhatsApp Support...')}
+                  >
+                    <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+                    <Text style={[styles.channelLabel, { color: theme.text }]}>WhatsApp Us</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.ticketsSection}>
+                {/* Tickets History List */}
+                {!isAuthenticated ? (
+                  <View style={styles.emptySupportContainer}>
+                    <Text style={{ color: theme.textMuted, textAlign: 'center' }}>
+                      Please sign in to view and create support tickets.
+                    </Text>
+                  </View>
+                ) : loadingTickets && tickets.length === 0 ? (
+                  <ActivityIndicator size="small" color="#10b981" style={{ marginVertical: 30 }} />
+                ) : tickets.length === 0 ? (
+                  <View style={styles.emptySupportContainer}>
+                    <Ionicons name="chatbubbles-outline" size={48} color={theme.textMuted} style={{ opacity: 0.5, marginBottom: 8 }} />
+                    <Text style={{ color: theme.textMuted, textAlign: 'center', fontSize: 13 }}>
+                      You haven't raised any support tickets yet.
+                    </Text>
+                  </View>
+                ) : (
+                  tickets.map((t) => (
+                    <View key={t.id} style={[styles.ticketCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                      <View style={styles.ticketHeaderRow}>
+                        <View style={[styles.ticketCategoryBadge, { backgroundColor: getCategoryBg(t.category) }]}>
+                          <Text style={[styles.ticketCategoryBadgeText, { color: getCategoryColor(t.category) }]}>
+                            {t.category}
+                          </Text>
+                        </View>
+                        <View style={[styles.ticketStatusBadge, { backgroundColor: getStatusBg(t.status) }]}>
+                          <Text style={[styles.ticketStatusBadgeText, { color: getStatusColor(t.status) }]}>
+                            {t.status}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.ticketSubjectText, { color: theme.text }]}>{t.subject}</Text>
+                      <Text style={[styles.ticketDescText, { color: theme.textMuted }]}>{t.description}</Text>
+                      <Text style={[styles.ticketDateText, { color: theme.textMuted }]}>
+                        {new Date(t.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  ))
+                )}
+
+                {isAuthenticated && (
+                  <TouchableOpacity
+                    style={styles.raiseTicketFloatingBtn}
+                    onPress={() => setSupportModalVisible(true)}
+                  >
+                    <Ionicons name="add-circle" size={18} color="#020617" />
+                    <Text style={styles.raiseTicketFloatingBtnText}>New Support Ticket</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
+      )}
+
+      {/* Raise Ticket Modal */}
+      <Modal
+        visible={supportModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setSupportModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Raise Support Ticket</Text>
+              <TouchableOpacity onPress={() => setSupportModalVisible(false)}>
+                <Ionicons name="close-circle-outline" size={24} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Category selector chips */}
+              <Text style={[styles.inputLabel, { color: theme.textMuted, marginBottom: 8 }]}>Category</Text>
+              <View style={styles.ticketCategoryChipsContainer}>
+                {['PAYMENTS', 'BOOKINGS', 'TECHNICAL', 'COMPLAINT'].map((cat) => {
+                  const isActive = ticketCategory === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.ticketCategoryChip,
+                        {
+                          backgroundColor: isActive ? 'rgba(16, 185, 129, 0.1)' : theme.card,
+                          borderColor: isActive ? '#10b981' : theme.border,
+                        }
+                      ]}
+                      onPress={() => setTicketCategory(cat)}
+                    >
+                      <Text style={[styles.ticketCategoryChipText, { color: isActive ? '#10b981' : theme.textMuted, fontWeight: isActive ? 'bold' : 'normal' }]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Subject Input */}
+              <Text style={[styles.inputLabel, { color: theme.textMuted, marginTop: 20, marginBottom: 8 }]}>Subject</Text>
+              <TextInput
+                style={[styles.supportTextInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+                placeholder="Briefly state the issue..."
+                placeholderTextColor={theme.textMuted}
+                value={ticketSubject}
+                onChangeText={setTicketSubject}
+              />
+
+              {/* Description Input */}
+              <Text style={[styles.inputLabel, { color: theme.textMuted, marginTop: 20, marginBottom: 8 }]}>Description</Text>
+              <TextInput
+                style={[styles.supportTextArea, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+                placeholder="Describe your issue in detail..."
+                placeholderTextColor={theme.textMuted}
+                value={ticketDescription}
+                onChangeText={setTicketDescription}
+                multiline
+                numberOfLines={4}
+              />
+
+              {/* Submit Button */}
+              <TouchableOpacity
+                style={[
+                  styles.submitTicketBtn,
+                  {
+                    backgroundColor: ticketSubject && ticketDescription ? '#10b981' : 'rgba(16, 185, 129, 0.3)',
+                    marginTop: 30,
+                  }
+                ]}
+                disabled={!ticketSubject || !ticketDescription || submittingTicket}
+                onPress={handleRaiseTicket}
+              >
+                {submittingTicket ? (
+                  <ActivityIndicator size="small" color="#020617" />
+                ) : (
+                  <Text style={styles.submitTicketText}>Submit Ticket</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Bottom Navigation Bar */}
       <View
@@ -1125,5 +1517,230 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
+  },
+  supportContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 40,
+  },
+  supportHeader: {
+    marginBottom: 5,
+  },
+  supportTabSwitcher: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    padding: 4,
+    marginBottom: 20,
+  },
+  supportSubTabItem: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supportSubTabText: {
+    fontSize: 13,
+  },
+  faqSection: {
+    gap: 12,
+  },
+  faqCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 16,
+    elevation: 1,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  faqQuestionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  faqQuestionText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    flex: 1,
+    paddingRight: 10,
+  },
+  faqAnswerContainer: {
+    borderTopWidth: 1,
+    marginTop: 10,
+    paddingTop: 10,
+  },
+  faqAnswerText: {
+    fontSize: 12.5,
+    lineHeight: 18,
+  },
+  channelTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  channelsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  channelCard: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  channelLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  ticketsSection: {
+    gap: 12,
+    paddingBottom: 20,
+  },
+  emptySupportContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ticketCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 16,
+  },
+  ticketHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  ticketCategoryBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  ticketCategoryBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  ticketStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  ticketStatusBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  ticketSubjectText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  ticketDescText: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  ticketDateText: {
+    fontSize: 10,
+  },
+  raiseTicketFloatingBtn: {
+    backgroundColor: '#10b981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 6,
+    marginTop: 10,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  raiseTicketFloatingBtnText: {
+    color: '#020617',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(3, 7, 18, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: 1.5,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  ticketCategoryChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  ticketCategoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  ticketCategoryChipText: {
+    fontSize: 11,
+  },
+  supportTextInput: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+    padding: 12,
+    fontSize: 13,
+  },
+  supportTextArea: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+    padding: 12,
+    fontSize: 13,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  submitTicketBtn: {
+    width: '100%',
+    paddingVertical: 15,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitTicketText: {
+    color: '#020617',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  menuDivider: {
+    height: 1,
+    width: '100%',
   },
 });

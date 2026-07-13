@@ -70,10 +70,8 @@ export default function OwnerTurfsScreen() {
     modalBg: isDarkMode ? '#0f172a' : '#ffffff',
   };
 
-  if (!isAuthenticated || !user) return <Redirect href="/login" />;
-  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
-
   const fetchTurfs = async () => {
+    if (!isAuthenticated || !user) return;
     try {
       const res = await apiFetch('/owner/turfs');
       if (res.success && res.data?.length) {
@@ -92,9 +90,14 @@ export default function OwnerTurfsScreen() {
   useEffect(() => { fetchTurfs(); }, []);
 
   const onRefresh = useCallback(() => {
+    if (!isAuthenticated || !user) return;
     setRefreshing(true);
     fetchTurfs();
-  }, []);
+  }, [isAuthenticated, user]);
+
+  // Guard: only for TURF_OWNER role
+  if (!isAuthenticated || !user) return <Redirect href="/login" />;
+  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
 
   const openAddModal = () => {
     setEditingTurf(null);
