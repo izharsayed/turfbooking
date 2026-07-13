@@ -227,7 +227,7 @@ export default function App() {
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="mb-10 flex items-center justify-between">
           <div>
-            <h1 className={`text-3xl font-extrabold tracking-tight mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Dashboard Overview</h1>
+            <h1 className={`text-4xl font-black tracking-tight mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Dashboard Overview</h1>
             <p className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}>Real-time stats and management controls for TurfBook system.</p>
           </div>
         </div>
@@ -724,7 +724,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="p-8 pb-16">
+        <div className="px-8 pt-5 pb-16">
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'owners' && renderOwners()}
           {activeTab === 'users' && renderUsers()}

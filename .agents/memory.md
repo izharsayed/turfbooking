@@ -1,6 +1,10 @@
-﻿# Ã°Å¸Â§Â  AI Agent Memory Ã¢â‚¬â€ TurfBook Project
+# Ã°Å¸Â§Â  AI Agent Memory Ã¢â‚¬â€ TurfBook Project
 
+<<<<<<< HEAD
 > Last updated: 2026-07-09 18:02 IST
+=======
+> Last updated: 2026-07-10 12:20 IST
+>>>>>>> 57205da (updated)
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1202,49 +1206,20 @@ pnpm dev:backend      # start the server
 - On network error: keeps session alive (offline-friendly behavior).
 - **Why**: Cold start with a stale token would show the home screen briefly before silently failing.
 
-### 103. `backend/src/modules/user/booking.routes.ts` Ã¢â‚¬â€ Modified
-- Added `DELETE /bookings/:id` route for customer booking cancellation.
-- Verifies booking ownership (`booking.userId === req.user.id`).
-- Updates booking status to `CANCELLED` and payment status to `REFUNDED` (if PAID) or `FAILED` (if PENDING).
-- **Why**: Mobile app needed a real backend endpoint to cancel bookings (was previously local-store-only).
+### 107. `frontend/src/pages/owner/OwnerApp.tsx` — Modified
+- Changed the background turf image wrapper height from `h-[600px]` to `h-full` and increased image opacity to `0.70` in Light Mode and `0.75` in Dark Mode.
+- Replaced the bottom fade-to-solid white/grey gradient overlay with a soft overall linear-gradient.
+- **Why**: Responds to user request to remove the faded white background (white color from behind) in the Owner dashboard and make the green turf background fully visible.
 
-### 104. `mobile/app/booking/[id].tsx` Ã¢â‚¬â€ Modified
-- `handleCancel` now calls `DELETE /bookings/:id` on backend before updating the local Zustand store.
-- On 404 (dev/mock booking): silently falls through to local cancel.
-- Shows `ActivityIndicator` spinner on the Cancel button while the API request is in-flight.
-- **Why**: Cancellations were not persisted to the database.
-
-### 105. `mobile/app/profile.tsx` Ã¢â‚¬â€ Modified
-- Added `useEffect` to fetch `GET /profile` on mount and populate name, email, phone fields from backend.
-- `handleSave` now calls `PUT /profile` with `{ firstName, lastName }` before updating local Zustand store.
-- Falls back to local-only save on network errors (offline-friendly).
-- Shows `ActivityIndicator` spinner on Save button while API call is in-flight.
-- **Why**: Profile edits were not persisted to the database.
-
-### 106. `mobile/app/_layout.tsx` Ã¢â‚¬â€ Critical Fix (App Not Loading)
-- Removed `if (!isHydrated) return (...)` early return from `RootLayout`.
-- Expo Router requires the `<Stack>` navigator to mount on the **very first render** Ã¢â‚¬â€ a conditional early return before it prevented the root navigator from initializing, causing a blank screen / spinner stuck forever.
-- The hydration loading overlay is now rendered as an `absoluteFillObject` view with `zIndex: 999` **on top of the mounted Stack** instead.
-- **Why**: App was completely stuck on a spinner and wouldn't load because the root layout navigator never initialized.
-
-### 107. `mobile/store/authStore.ts` Ã¢â‚¬â€ Fixed ESM/CJS Import
-- Changed `import AsyncStorage from '@react-native-async-storage/async-storage'` to `require(...).default`.
-- TypeScript was throwing `TS1479: The current file is a CommonJS module...` because the package ships as ESM.
-- Metro/Expo handles `require()` for React Native packages at runtime correctly.
-- **Why**: TypeScript compile error `TS1479` was preventing Metro from bundling the app.
-
-### 108. `mobile/store/authStore.ts` + `mobile/app/_layout.tsx` Ã¢â‚¬â€ Final Fix (Stuck on Loading)
-- Removed `isHydrated` / `setHydrated` / `onRehydrateStorage` entirely from authStore Ã¢â‚¬â€ these caused the app to permanently hang if the callback never fired.
-- Removed hydration overlay from `_layout.tsx` Ã¢â‚¬â€ `<Stack>` now always renders immediately with no conditional gates.
-### 108. `mobile/store/authStore.ts` + `mobile/app/_layout.tsx` â€” Final Fix (Stuck on Loading)
-- Removed `isHydrated` / `setHydrated` / `onRehydrateStorage` entirely from authStore â€” these caused the app to permanently hang if the callback never fired.
-- Removed hydration overlay from `_layout.tsx` â€” `<Stack>` now always renders immediately with no conditional gates.
+### 108. `mobile/store/authStore.ts` + `mobile/app/_layout.tsx` — Final Fix (Stuck on Loading)
+- Removed `isHydrated` / `setHydrated` / `onRehydrateStorage` entirely from authStore — these caused the app to permanently hang if the callback never fired.
+- Removed hydration overlay from `_layout.tsx` — `<Stack>` now always renders immediately with no conditional gates.
 - `AuthBootstrap` now fires token validation 500ms after mount using `setTimeout` (non-blocking).
-- AsyncStorage persist still works for login persistence â€” it just hydrates silently in the background without any UI gate.
+- AsyncStorage persist still works for login persistence — it just hydrates silently in the background without any UI gate.
 - **Why**: `onRehydrateStorage` callback was unreliable and `isHydrated` never became `true`, causing infinite loading.
 
-### 109. Multi-Slot Selection â€” `mobile/app/turf/[id].tsx` + `mobile/app/payment/index.tsx`
-- Changed `selectedTime: string | null` to `selectedTimes: string[]` â€” slot tap toggles selection.
+### 109. Multi-Slot Selection — `mobile/app/turf/[id].tsx` + `mobile/app/payment/index.tsx`
+- Changed `selectedTime: string | null` to `selectedTimes: string[]` — slot tap toggles selection.
 - `startTime`/`endTime` are computed from sorted selectedTimes (shows full session span).
 - Green dot indicator on selected slots, counter badge with Clear button.
 - Booking bar shows 'N slots selected' + total = price x slotCount.
@@ -1252,7 +1227,7 @@ pnpm dev:backend      # start the server
 - Payment screen parses slotList/slotCount from params, multiplies basePrice x slotCount.
 - **Why**: Users requested ability to select multiple slots in one booking.
 
-### 110. `mobile/store/authStore.ts` â€” Resilient Storage Wrapper
+### 110. `mobile/store/authStore.ts` — Resilient Storage Wrapper
 - Wrapped AsyncStorage operations inside a resilient custom StateStorage implementation.
 - All actions (getItem, setItem, removeItem) are protected with try-catch blocks that intercept native-module-null errors.
 - Automatically falls back to in-memory key-value dictionary if native storage is unavailable.
@@ -1265,30 +1240,36 @@ pnpm dev:backend      # start the server
 - Added logger confirmation notification when payment is verified successfully in POST /bookings/verify.
 - Verified clean TypeScript compilation on backend and mobile.
 
-### 112. `frontend/src/pages/customer/CustomerApp.tsx` â€” Modified
-- Renamed the maps tab in the navigation bar from "ðŸ“ Nearby Maps" to "ðŸ“ Nearby Turfs".
+### 112. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+- Renamed the maps tab in the navigation bar from "📍 Nearby Maps" to "📍 Nearby Turfs".
 - **Why**: Responds to user request to label the tab text to accurately reflect proximity turf venues.
 
-
-### 112. Mobile Slot Normalization & Matching
-- Added a robust 
-ormalizeSlot helper in mobile/app/turf/[id].tsx.
+### 113. Mobile Slot Normalization & Matching
+- Added a robust `normalizeSlot` helper in `mobile/app/turf/[id].tsx`.
 - Converts 12-hour AM/PM format slots (from the web app) and 24-hour format slots (from the mobile app) into equivalent minute-ranges from midnight.
-- Updated isSlotBooked to compare normalized values and handle comma-separated multi-slot fields.
+- Updated `isSlotBooked` to compare normalized values and handle comma-separated multi-slot fields.
 - **Why**: Bookings created via the web app (stored as 12-hour AM/PM strings like '01:00 AM - 02:00 AM') failed to show as booked in the mobile app due to string mismatch against the 24-hour format slots ('01:00 - 02:00').
 
-
-### 113. Owner Panel Settings Integration
+### 114. Owner Panel Settings Integration
 - Added a new 'Settings' tab to the Owner Dashboard sidebar layout with Settings icon.
 - Settings page includes configuration forms for Payments & Razorpay Credentials (Key ID, Secret, Advance pay %, Convenience fee, Tax rate, toggle status).
 - Settings page includes forms for General Business Details & Operations (Brand Name, GSTIN, Billing Email, Address, Auto-cancellation timer limit, Operations hours, alert toggles).
-- Updated backend owner profile service to fetch and update both User details and Owner Profile fields (storing dynamic settings in Firestore) via PUT /owner/profile.
+- Updated backend owner profile service to fetch and update both User details and Owner Profile fields (storing dynamic settings in Firestore) via `PUT /owner/profile`.
 - Verified clean Vite production build check (0 errors).
 
-
-### 114. Dynamic Owner UPI Direct Settlement
-- Added Business UPI ID field to Owner Panel Settings dashboard (OwnerApp.tsx).
-- Updated backend GET /turfs/:id route to query and return owner's profile settings (including companyName, businessUpiId, convenienceFee, advance split, taxRate) to the mobile app client.
-- Updated mobile app checkout screen (payment/index.tsx) to dynamically read turf.ownerProfile.businessUpiId and turf.ownerProfile.companyName to dynamically construct the UPI Intent Deep Link (upi://pay) rather than using a hardcoded merchant VPA address.
+### 115. Dynamic Owner UPI Direct Settlement
+- Added Business UPI ID field to Owner Panel Settings dashboard (`OwnerApp.tsx`).
+- Updated backend `GET /turfs/:id` route to query and return owner's profile settings (including `companyName`, `businessUpiId`, `convenienceFee`, `advance split`, `taxRate`) to the mobile app client.
+- Updated mobile app checkout screen (`payment/index.tsx`) to dynamically read `turf.ownerProfile.businessUpiId` and `turf.ownerProfile.companyName` to dynamically construct the UPI Intent Deep Link (`upi://pay`) rather than using a hardcoded merchant VPA address.
 - Verified clean builds across both mobile and web clients.
+
+### 116. `frontend/src/pages/customer/CustomerApp.tsx` & `NearbyMap.tsx` — Modified
+- Extended background turf image to span full height (`h-full` instead of `h-[600px]`) and set non-fading linear-gradient overlay in CustomerApp.
+- Applied responsive glassmorphic cards and containers styling to search filters, turf listings cards, benefits, details drawer modal, configure slot box, checkout details, bookings history, and support tickets.
+- Converted hardcoded `text-white` colors to theme-responsive colors to fix text visibility issues in light mode.
+- **Why**: Responds to user request to remove the solid/faded white background from the customer panel, make the background image fully visible throughout the page (like in the admin panel), and resolve text visibility issues in light mode.
+### 117. `frontend/src/pages/admin/AdminApp.tsx` — Modified
+- Increased the size of the "Dashboard Overview" heading to `text-4xl font-black` (was `text-3xl font-extrabold`).
+- Decreased the top padding of the main content wrapper layout from `p-8` to `px-8 pt-5` to shift the heading slightly upwards.
+- **Why**: Responds to user request to move the Dashboard Overview title slightly upside and make its font size larger.
 

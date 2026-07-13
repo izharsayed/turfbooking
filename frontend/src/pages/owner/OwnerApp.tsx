@@ -695,20 +695,19 @@ export default function App() {
       isDarkMode ? 'bg-[#030712] text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* Background Turf Image */}
-      <div className="fixed top-0 left-0 w-full h-[600px] pointer-events-none overflow-hidden z-0">
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none overflow-hidden z-0">
         <img
           src="/images/turf-bg.jpg"
           alt="Sports Turf Background"
           className="w-full h-full object-cover object-center"
-          style={{ opacity: isDarkMode ? 0.30 : 0.16 }}
+          style={{ opacity: isDarkMode ? 0.75 : 0.70 }}
         />
-        {/* Very light fade only at the very bottom */}
         <div
           className="absolute inset-0"
           style={{
             background: isDarkMode
-              ? 'linear-gradient(to bottom, rgba(3,7,18,0.05) 0%, rgba(3,7,18,0.25) 55%, rgba(3,7,18,0.98) 100%)'
-              : 'linear-gradient(to bottom, rgba(248,250,252,0.0) 0%, rgba(248,250,252,0.15) 60%, rgba(248,250,252,1) 100%)'
+              ? 'linear-gradient(to bottom, rgba(3,7,18,0.1) 0%, rgba(3,7,18,0.2) 100%)'
+              : 'linear-gradient(to bottom, rgba(248,250,252,0.05) 0%, rgba(248,250,252,0.15) 100%)'
           }}
         />
       </div>
