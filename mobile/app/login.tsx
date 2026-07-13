@@ -321,11 +321,7 @@ export default function LoginScreen() {
   };
 
   const handleSignUpClick = () => {
-    Alert.alert(
-      'Instant Registration',
-      'TurfBook uses secure mobile verification. Enter your mobile number and tap "Continue with Mobile" to sign up instantly!',
-      [{ text: 'OK' }]
-    );
+    router.push('/signup');
   };
 
   return (

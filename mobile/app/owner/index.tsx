@@ -81,7 +81,7 @@ export default function OwnerDashboard() {
     {
       id: '2',
       title: 'New Review Received',
-      message: 'A customer left a 4.8★ review: "Great turf and well maintained."',
+      message: 'A customer left a 4.8 star review: "Great turf and well maintained."',
       time: '1h ago',
       read: false,
       icon: 'star-outline',
@@ -110,11 +110,8 @@ export default function OwnerDashboard() {
     alertBg: isDarkMode ? 'rgba(16,185,129,0.08)' : '#e6fbf4',
   };
 
-  // Guard: only for TURF_OWNER role
-  if (!isAuthenticated || !user) return <Redirect href="/login" />;
-  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
-
   const fetchDashboard = async () => {
+    if (!isAuthenticated || !user) return;
     try {
       // Fetch dashboard stats from backend
       const res = await apiFetch('/owner/dashboard');
@@ -172,9 +169,14 @@ export default function OwnerDashboard() {
   useEffect(() => { fetchDashboard(); }, []);
 
   const onRefresh = useCallback(() => {
+    if (!isAuthenticated || !user) return;
     setRefreshing(true);
     fetchDashboard();
-  }, []);
+  }, [isAuthenticated, user]);
+
+  // Guard: only for TURF_OWNER role
+  if (!isAuthenticated || !user) return <Redirect href="/login" />;
+  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
 
   if (loading) {
     return (
@@ -224,7 +226,7 @@ export default function OwnerDashboard() {
 
             {/* Slogans and status */}
             <View style={styles.headerGreetings}>
-              <Text style={styles.helloText}>Hello, Owner 👋</Text>
+              <Text style={styles.helloText}>Hello, Owner <Ionicons name="hand-left-outline" size={18} color="#fbbf24" /></Text>
               <Text style={styles.arenaTitle}>TurfBook Arena</Text>
               <View style={styles.statusRow}>
                 <View style={styles.statusDot} />

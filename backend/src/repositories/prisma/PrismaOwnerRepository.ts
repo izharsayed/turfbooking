@@ -62,10 +62,44 @@ export class PrismaOwnerRepository implements IOwnerRepository {
   }
 
   public async listBookings(ownerId: string): Promise<any[]> {
-    return prisma.booking.findMany({
+    const bookings = await prisma.booking.findMany({
       where: { turf: { ownerId }, deletedAt: null },
       include: { user: { include: { profile: true } }, turf: true },
       orderBy: { createdAt: 'desc' },
+    });
+
+    return bookings.map((b: any) => {
+      const bDate = b.date;
+      const y = bDate.getFullYear();
+      const m = String(bDate.getMonth() + 1).padStart(2, '0');
+      const d = String(bDate.getDate()).padStart(2, '0');
+      const formattedDate = `${y}-${m}-${d}`;
+
+      // Convert startTime / endTime to a display slot string e.g. "17:00 - 18:00"
+      const sh = String(b.startTime.getHours()).padStart(2, '0');
+      const sm = String(b.startTime.getMinutes()).padStart(2, '0');
+      const eh = String(b.endTime.getHours()).padStart(2, '0');
+      const em = String(b.endTime.getMinutes()).padStart(2, '0');
+      const timeSlotStr = `${sh}:${sm} - ${eh}:${em}`;
+
+      const fName = b.user?.profile?.firstName || '';
+      const lName = b.user?.profile?.lastName || '';
+      const fullName = `${fName} ${lName}`.trim() || b.user?.name || 'Customer';
+
+      return {
+        id: b.id,
+        userId: b.userId,
+        turfId: b.turfId,
+        sportId: b.sportId,
+        customerName: fullName,
+        customerPhone: b.user?.phone || '',
+        turfName: b.turf?.name || 'Arena',
+        date: formattedDate,
+        time: timeSlotStr,
+        amount: b.finalAmount,
+        status: b.bookingStatus,
+        createdAt: b.createdAt,
+      };
     });
   }
 

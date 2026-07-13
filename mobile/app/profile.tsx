@@ -434,7 +434,7 @@ export default function ProfileScreen() {
                 icon={<MaterialCommunityIcons name="calendar-refresh" size={16} color="#fff" />}
                 color="#ef4444"
                 label="Cancellation / Reschedule"
-                onPress={() => router.replace({ pathname: '/', params: { tab: 'support' } })}
+                onPress={() => router.replace({ pathname: '/', params: { tab: 'bookings' } })}
               />
               <View style={[styles.menuDivider, { backgroundColor: theme.border }]} />
               <MenuRow

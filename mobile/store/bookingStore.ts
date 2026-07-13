@@ -28,6 +28,7 @@ interface BookingState {
   setBookings: (bookings: Booking[]) => void;
   addBooking: (booking: NewBooking) => Booking;
   cancelBooking: (id: string) => void;
+  rescheduleBooking: (id: string, date: string, time: string) => void;
   getBookingById: (id: string | undefined) => Booking | undefined;
 }
 
@@ -58,6 +59,13 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     set((state) => ({
       bookings: state.bookings.map((b) =>
         b.id === id ? { ...b, status: 'CANCELLED' } : b
+      ),
+    }));
+  },
+  rescheduleBooking: (id, date, time) => {
+    set((state) => ({
+      bookings: state.bookings.map((b) =>
+        b.id === id ? { ...b, date, time } : b
       ),
     }));
   },

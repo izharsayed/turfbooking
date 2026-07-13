@@ -35,10 +35,24 @@ export class PrismaBookingRepository implements IBookingRepository {
     return this.mapBooking(b);
   }
 
-  public async updateStatus(id: string, status: Booking['status']): Promise<Booking> {
+  public async updateStatus(id: string, status: Booking['status'], reason?: string): Promise<Booking> {
     const b = await prisma.booking.update({
       where: { id },
-      data: { status },
+      data: {
+        status,
+        ...(reason ? { cancellationReason: reason } : {}),
+      },
+    });
+    return this.mapBooking(b);
+  }
+
+  public async reschedule(id: string, date: Date | string, slotId: string): Promise<Booking> {
+    const b = await prisma.booking.update({
+      where: { id },
+      data: {
+        bookingDate: new Date(date),
+        slotId: slotId,
+      },
     });
     return this.mapBooking(b);
   }

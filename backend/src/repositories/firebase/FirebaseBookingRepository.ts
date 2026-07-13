@@ -50,9 +50,24 @@ export class FirebaseBookingRepository implements IBookingRepository {
     return this.mapBooking(docRef.id, newBooking);
   }
 
-  public async updateStatus(id: string, status: Booking['status']): Promise<Booking> {
+  public async updateStatus(id: string, status: Booking['status'], reason?: string): Promise<Booking> {
     const docRef = this.collection.doc(id);
-    await docRef.update({ status, updatedAt: new Date() });
+    const updateData: any = { status, updatedAt: new Date() };
+    if (reason) {
+      updateData.cancellationReason = reason;
+    }
+    await docRef.update(updateData);
+    const doc = await docRef.get();
+    return this.mapBooking(id, doc.data());
+  }
+
+  public async reschedule(id: string, date: Date | string, slotId: string): Promise<Booking> {
+    const docRef = this.collection.doc(id);
+    await docRef.update({
+      bookingDate: new Date(date),
+      slotId: slotId,
+      updatedAt: new Date(),
+    });
     const doc = await docRef.get();
     return this.mapBooking(id, doc.data());
   }

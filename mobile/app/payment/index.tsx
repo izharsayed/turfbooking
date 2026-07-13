@@ -99,12 +99,8 @@ export default function PaymentCheckoutScreen() {
     fetchDetails();
   }, [params.turfId]);
 
-  const bookingsCount = useBookingStore((s) => s.bookings).length;
-  const playcoinsBalance = 350 + bookingsCount * 50;
-
-  const [usePlaycoins, setUsePlaycoins] = useState(false);
   const [payOption, setPayOption] = useState<'full' | 'advance'>('full');
-  const [selectedMethod, setSelectedMethod] = useState<'upi' | 'card' | 'net' | 'coins'>('upi');
+  const [selectedMethod, setSelectedMethod] = useState<'upi' | 'card' | 'net'>('upi');
   const [selectedUpiApp, setSelectedUpiApp] = useState<string | null>('Google Pay');
   const [upiId, setUpiId] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'gateway_simulation' | 'success' | 'failed'>('idle');
@@ -160,12 +156,11 @@ export default function PaymentCheckoutScreen() {
   // Calculate pricing breakdown — multiply by number of slots selected
   const basePrice = turf.price * slotCount;
   const convenienceFee = 45;
-  const playcoinsDiscount = usePlaycoins ? Math.min(playcoinsBalance * 0.5, basePrice * 0.2) : 0;
-  const finalTotal = basePrice + convenienceFee - playcoinsDiscount;
+  const finalTotal = basePrice + convenienceFee;
 
-  // Advance Payment: 30% of base price + convenienceFee - playcoinsDiscount
+  // Advance Payment: 30% of base price + convenienceFee
   const advanceAmount = Math.round(basePrice * 0.3);
-  const advanceTotal = advanceAmount + convenienceFee - playcoinsDiscount;
+  const advanceTotal = advanceAmount + convenienceFee;
 
   const amountToPay = payOption === 'full' ? finalTotal : advanceTotal;
 
@@ -193,6 +188,7 @@ export default function PaymentCheckoutScreen() {
           amount: amountToPay,
           totalAmount: finalTotal,
           time: params.time,
+          date: params.date,
         },
       });
 
@@ -447,7 +443,7 @@ export default function PaymentCheckoutScreen() {
 
           <TouchableOpacity
             style={{ width: '100%', backgroundColor: '#10b981', paddingVertical: 15, borderRadius: 12, alignItems: 'center' }}
-            onPress={() => router.replace('/')}
+            onPress={() => router.replace({ pathname: '/', params: { tab: 'bookings' } })}
           >
             <Text style={{ color: '#020617', fontWeight: 'bold', fontSize: 16 }}>Go to Bookings</Text>
           </TouchableOpacity>
@@ -484,7 +480,9 @@ export default function PaymentCheckoutScreen() {
           <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <Text style={styles.sectionLabel}>BOOKING DETAILS</Text>
             <Text style={[styles.turfName, { color: theme.text }]}>{turf.name}</Text>
-            <Text style={[styles.areaText, { color: theme.textMuted }]}>📍 {turf.area}</Text>
+            <Text style={[styles.areaText, { color: theme.textMuted }]}>
+              <Ionicons name="location-outline" size={12} color={theme.textMuted} /> {turf.area}
+            </Text>
 
             <View style={styles.dividerThin} />
 
@@ -551,28 +549,6 @@ export default function PaymentCheckoutScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Playcoins Reward Discount Strip */}
-          {playcoinsBalance > 0 && (
-            <View style={[styles.discountStrip, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <FontAwesome5 name="coins" size={18} color="#fbbf24" />
-                <View>
-                  <Text style={[styles.discountTitle, { color: theme.text }]}>
-                    Apply Playcoins (Bal: {playcoinsBalance})
-                  </Text>
-                  <Text style={[styles.discountDesc, { color: theme.textMuted }]}>
-                    Redeem to save ₹{Math.min(playcoinsBalance * 0.5, basePrice * 0.2)}
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={usePlaycoins}
-                onValueChange={setUsePlaycoins}
-                trackColor={{ false: '#475569', true: '#10b981' }}
-                thumbColor="#ffffff"
-              />
-            </View>
-          )}
 
           {/* Payment Methods */}
           <Text style={[styles.sectionHeader, { color: theme.text }]}>Select Payment Method</Text>
@@ -718,12 +694,6 @@ export default function PaymentCheckoutScreen() {
               <Text style={[styles.breakdownVal, { color: theme.text }]}>{formatCurrency(convenienceFee)}</Text>
             </View>
 
-            {usePlaycoins && (
-              <View style={styles.breakdownRow}>
-                <Text style={styles.discountLabel}>Playcoins Discount</Text>
-                <Text style={styles.discountVal}>- {formatCurrency(playcoinsDiscount)}</Text>
-              </View>
-            )}
 
             {payOption === 'advance' && (
               <>
