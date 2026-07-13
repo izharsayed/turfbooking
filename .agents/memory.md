@@ -1,15 +1,11 @@
-# Ã°Å¸Â§Â  AI Agent Memory Ã¢â‚¬â€ TurfBook Project
+# 🧠 AI Agent Memory — TurfBook Project
 
-<<<<<<< HEAD
-> Last updated: 2026-07-09 18:02 IST
-=======
-> Last updated: 2026-07-10 12:20 IST
->>>>>>> 57205da (updated)
+> Last updated: 2026-07-13 12:05 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
 
-## Ã°Å¸â€œÂ¦ Project Overview
+## 📖 Project Overview
 
 - **Name**: TurfBook (Turf Booking Platform)
 - **Repo Root**: `d:\PROJECTS\TurfBook`
@@ -1272,4 +1268,30 @@ pnpm dev:backend      # start the server
 - Increased the size of the "Dashboard Overview" heading to `text-4xl font-black` (was `text-3xl font-extrabold`).
 - Decreased the top padding of the main content wrapper layout from `p-8` to `px-8 pt-5` to shift the heading slightly upwards.
 - **Why**: Responds to user request to move the Dashboard Overview title slightly upside and make its font size larger.
+
+### 118. `package.json` — Modified
+- Fixed a syntax error (missing comma between dependency declarations for `@prisma/client` and `razorpay`).
+- **Why**: The missing comma caused esbuild to fail when trying to run the Vite dev server with `Expected "," in JSON but found "razorpay"`.
+
+### 119. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+- Resolved git merge conflict markers inside the checkout booking step.
+- Unified the theme-responsive container styles and labels from the incoming branch with the multi-slot selection and surcharge pricing calculations from the local branch.
+- **Why**: Merging the main branch created conflict markers that crashed the Vite dev server at build time.
+
+### 120. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+- Added new states for simulated payment gateway and imported extra icons (`ShieldAlert`, `Wallet`).
+- Refactored the `handleBookSlot` function to accept a `paymentStatus` parameter (`CONFIRMED` | `FAILED`) and re-throw server-side checkout errors.
+- Created a beautiful, high-fidelity simulated Razorpay Payment Gateway popup overlay featuring interactive mock checkout tabs (UPI / Wallet and Cards), input fields, processing loader states, simulated success/failure actions, and error recovery flows.
+- Swapped the default 3-second auto-confirm redirect on the "Pay" button with launching this new simulated gateway.
+- **Why**: Responds to user request to fix the Paytm/UPI checkout flow where selecting Paytm/UPI bypassed the payment interface and directly confirmed the booking.
+
+### 121. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+- Defaulted the initial `selectedPaymentMethod` state to `'paytm'`.
+- Removed Google Pay (`gpay`) and PhonePe (`phonepe`) options from the checkout page payment method selection menu, converting it to a single full-width button for Paytm/UPI.
+- Cleaned up a tag hierarchy discrepancy in the checkout container panel where there was an extra `</div>` tag.
+- **Why**: Responds to user request to hide Google Pay and PhonePe options from the customer booking checkout panel.
+
+
+
+
 
