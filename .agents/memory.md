@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-13 12:35 IST
+> Last updated: 2026-07-13 16:15 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1360,4 +1360,45 @@ pnpm dev:backend      # start the server
 - Removed Google Pay (`gpay`) and PhonePe (`phonepe`) options from the checkout page payment method selection menu, converting it to a single full-width button for Paytm/UPI.
 - Cleaned up a tag hierarchy discrepancy in the checkout container panel where there was an extra `</div>` tag.
 - **Why**: Responds to user request to hide Google Pay and PhonePe options from the customer booking checkout panel.
+
+### 135. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+- Created a new `qrVerifyStatus` state hook to track QR Code mock checkout steps.
+- Removed the automatic background `setTimeout` auto-confirmation callback from the "Generate QR Code" option, avoiding unintended auto-confirms when the user cancels or navigates back.
+- Refactored the QR Code container layout to render state-driven outcomes (idle with a new manual "Verify Mock Payment" button, verifying spinner loader, checkmark success, or error alert with retry button), aligning with the premium payment gateway interface theme.
+- **Why**: Resolves the bug where navigating to/checking the payment options caused the application to auto-confirm bookings without any actual payment or verification.
+
+### 136. `frontend/src/pages/customer/NearbyMap.tsx` — Modified
+- Replaced Leaflet `L.divIcon` HTML string's `⚽` emoji with a crisp inline vector pin SVG.
+- Replaced the warning geofencing alert `📍` emoji with the Lucide `MapPin` React component inside a flex layout.
+- Replaced the marker popup text `📍` emoji with `MapPin` and the turf card rating `★` character with `Star` icon component loops.
+- **Why**: Responds to user request to replace raw emojis with high-fidelity React icons from the Lucide library.
+
+### 137. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+- Imported `Star`, `Flame`, and `Loader2` from `lucide-react`.
+- Removed `💬` emoji from the mock SMS alert string.
+- Replaced the navigation tab header `📍` emoji with an inline Lucide layout adding `Search`, `Calendar`, `HelpCircle`, and `MapPin` icons to the tab button text.
+- Replaced the turf details rating `★` symbol and peak hour surcharge `🔥` emoji with `Star` and `Flame` icon components.
+- Replaced `⏳` inside the QR waiting state with `Loader2` spin animation.
+- Removed emojis from the demo quick login options dropdown menu.
+- **Why**: Responds to user request to replace raw emojis with high-fidelity React icons from the Lucide library.
+
+### 138. `frontend/src/pages/owner/OwnerApp.tsx` — Modified
+- Imported `Lightbulb`, `Lock`, `Flame`, `Zap`, `Sparkles`, `Star`, and `Wrench` from `lucide-react`.
+- Replaced metric card locked revenue `🔒` emoji text with `Lock` icon JSX node.
+- Replaced weather advisor recommendation `💡` emoji with `Lightbulb` icon.
+- Replaced slot surcharge badges `🔥` and `⚡` emojis with `Flame` and `Zap` icons.
+- Replaced dynamic pricing rules footer `🔒` emoji with `Lock` icon.
+- Replaced rented addons directory `⚙️` badge emoji with `Wrench` icon.
+- Replaced reviews card rating `★` star loops with `Star` icon loop components.
+- Replaced replies locked warning `🔒` emoji with `Lock` icon.
+- Replaced staff registry warning `🔒` emoji and directory phone `📞` emoji with `Lock` and `Phone` icon components.
+- Replaced settings success alert `🎉` emoji with `Sparkles` icon.
+- **Why**: Responds to user request to replace raw emojis with high-fidelity React icons from the Lucide library.
+
+### 139. `frontend/src/pages/owner/OwnerApp.tsx` — Modified
+- Imported `MapContainer`, `TileLayer`, `Marker`, `useMapEvents` from `react-leaflet`, and Leaflet CSS/L objects.
+- Defined a `selectLocationIcon` Leaflet divIcon using a customized inline map-pin vector SVG matching the customer-facing pin design.
+- Implemented a `MapEventsHandler` React helper component to listen to map clicks and update the form's `turfLat` and `turfLng` state values, while centering the view on manual coordinate updates.
+- Embedded the interactive `MapContainer` directly below the latitude and longitude inputs in the "Register New Turf Arena" and "Modify Turf Details" forms.
+- **Why**: Responds to user request to show the selected turf coordinates on an interactive map and allow updating them by clicking directly on the map.
 

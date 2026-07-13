@@ -48,7 +48,10 @@ import {
   Landmark,
   CreditCard,
   ShieldAlert,
-  Wallet
+  Wallet,
+  Star,
+  Flame,
+  Loader2
 } from 'lucide-react';
 
 interface Turf {
@@ -163,6 +166,7 @@ export default function App() {
   const [gatewayStatus, setGatewayStatus] = useState<'idle' | 'processing' | 'verify_action' | 'success' | 'failed'>('idle');
   const [gatewaySelectedMethod, setGatewaySelectedMethod] = useState<'upi' | 'card' | 'netbanking' | 'wallet'>('upi');
   const [gatewayErrorMessage, setGatewayErrorMessage] = useState('');
+  const [qrVerifyStatus, setQrVerifyStatus] = useState<'idle' | 'verifying' | 'success' | 'failed'>('idle');
   
   // Auth Form State
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
@@ -356,7 +360,7 @@ export default function App() {
       setOtpLoading(false);
       setOtpSent(true);
       // Simulate SMS alert or show mock OTP code (e.g. 123456)
-      alert(`💬 SMS OTP Sent to ${phone}: [ 123456 ] (Mock OTP for testing)`);
+      alert(`[OTP Sent] SMS OTP Sent to ${phone}: [ 123456 ] (Mock OTP for testing)`);
     }, 800);
   };
 
@@ -539,7 +543,7 @@ export default function App() {
               explore: 'Explore',
               bookings: 'My Bookings',
               support: 'Support Help',
-              nearby: '📍 Nearby Turfs'
+              nearby: 'Nearby Turfs'
             };
             const isActive = activeTab === tab;
             return (
@@ -563,7 +567,13 @@ export default function App() {
                       : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                {labels[tab]}
+                <span className="flex items-center justify-center gap-1.5 font-bold text-xs">
+                  {tab === 'explore' && <Search className="h-3.5 w-3.5" />}
+                  {tab === 'bookings' && <Calendar className="h-3.5 w-3.5" />}
+                  {tab === 'support' && <HelpCircle className="h-3.5 w-3.5" />}
+                  {tab === 'nearby' && <MapPin className="h-3.5 w-3.5" />}
+                  {labels[tab]}
+                </span>
               </button>
             );
           })}
@@ -692,8 +702,9 @@ export default function App() {
                       <div>
                         <div className="flex justify-between items-start mb-3">
                           <h3 className={`font-bold text-xl leading-snug ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{turf.name}</h3>
-                          <span className="text-emerald-400 font-extrabold text-sm flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
-                            ★ {turf.rating}
+                          <span className="text-emerald-450 font-extrabold text-sm flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
+                            <Star className="h-3.5 w-3.5 fill-emerald-500 text-emerald-500" />
+                            {turf.rating}
                           </span>
                         </div>
                         <p className="text-sm text-slate-400 flex items-center gap-1.5 mb-6">
@@ -860,7 +871,9 @@ export default function App() {
                               <span className="text-[9px] font-black flex items-center gap-0.5">
                                 {formatCurrency(price)}
                                 {isPeak && !booked && (
-                                  <span className="text-[8px] filter saturate-150" title="Peak Hour Surcharge">🔥</span>
+                                  <span className="text-[8px] filter saturate-150 flex items-center" title="Peak Hour Surcharge">
+                                    <Flame className="h-2.5 w-2.5 text-amber-500 fill-amber-500" />
+                                  </span>
                                 )}
                               </span>
                             </div>
@@ -928,39 +941,126 @@ export default function App() {
                     <div className="flex justify-between items-center pb-3 border-b border-slate-800/60">
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">UPI QR Code</span>
                       <button 
-                        onClick={() => setShowQRCode(false)} 
+                        onClick={() => {
+                          setShowQRCode(false);
+                          setQrVerifyStatus('idle');
+                        }} 
                         className="text-xs text-rose-400 hover:text-rose-350 font-bold transition-colors animate-pulse"
                       >
                         Cancel QR
                       </button>
                     </div>
                     
-                    <div className="inline-block p-4 bg-white rounded-2xl shadow-lg relative border-4 border-emerald-500/30">
-                      <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1 rounded-tl-md"></div>
-                      <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-500 -mt-1 -mr-1 rounded-tr-md"></div>
-                      <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-500 -mb-1 -ml-1 rounded-bl-md"></div>
-                      <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-500 -mb-1 -mr-1 rounded-br-md"></div>
-                      
-                      <img 
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                          `upi://pay?pa=turfbook@upi&pn=TurfBook&am=${getSelectedSlotPrice()}&cu=INR`
-                        )}`} 
-                        alt="UPI QR Code" 
-                        className="w-44 h-44 object-contain mx-auto"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-slate-350">
-                        Scan with Google Pay, PhonePe, Paytm, or any UPI app
-                      </p>
-                      <div className="flex justify-center items-center gap-2 text-[10px] text-emerald-450 font-extrabold tracking-wider bg-emerald-500/10 py-1.5 px-3 rounded-full w-fit mx-auto animate-pulse">
-                        <span>Waiting for payment confirmation... ⏳</span>
+                    {qrVerifyStatus === 'idle' && (
+                      <div className="space-y-4">
+                        <div className="inline-block p-4 bg-white rounded-2xl shadow-lg relative border-4 border-emerald-500/30">
+                          <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1 rounded-tl-md"></div>
+                          <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-500 -mt-1 -mr-1 rounded-tr-md"></div>
+                          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-500 -mb-1 -ml-1 rounded-bl-md"></div>
+                          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-500 -mb-1 -mr-1 rounded-br-md"></div>
+                          
+                          <img 
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                              `upi://pay?pa=turfbook@upi&pn=TurfBook&am=${getSelectedSlotPrice()}&cu=INR`
+                            )}`} 
+                            alt="UPI QR Code" 
+                            className="w-44 h-44 object-contain mx-auto"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-slate-350">
+                            Scan with Google Pay, PhonePe, Paytm, or any UPI app
+                          </p>
+                          <div className="flex justify-center items-center gap-2 text-[10px] text-emerald-450 font-extrabold tracking-wider bg-emerald-500/10 py-1.5 px-3 rounded-full w-fit mx-auto animate-pulse">
+                            <span className="flex items-center gap-1">
+                              Waiting for payment confirmation...
+                              <Loader2 className="h-3 w-3 animate-spin text-emerald-450" />
+                            </span>
+                          </div>
+                          
+                          <div className="pt-2">
+                            <Button
+                              variant="primary"
+                              className="w-full py-4 shadow-lg shadow-emerald-500/20 font-bold rounded-xl flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-all text-white"
+                              onClick={() => {
+                                setQrVerifyStatus('verifying');
+                                setTimeout(async () => {
+                                  try {
+                                    await handleBookSlot('CONFIRMED');
+                                    setQrVerifyStatus('success');
+                                  } catch (err) {
+                                    setQrVerifyStatus('failed');
+                                  }
+                                }, 2500);
+                              }}
+                            >
+                              Verify Mock Payment
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-slate-500">
-                        Do not refresh this page. Confirms automatically on payment.
-                      </p>
-                    </div>
+                    )}
+
+                    {qrVerifyStatus === 'verifying' && (
+                      <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                        <div className="h-12 w-12 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin"></div>
+                        <div className="text-center">
+                          <h4 className="font-extrabold text-white text-base">Verifying UPI Transaction</h4>
+                          <p className="text-xs text-slate-400 mt-1.5">Checking status with bank server...</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {qrVerifyStatus === 'success' && (
+                      <div className="flex flex-col items-center justify-center py-8 space-y-4 animate-scaleUp">
+                        <div className="h-16 w-16 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/30">
+                          <CheckCircle className="h-10 w-10 text-emerald-400 animate-pulse" />
+                        </div>
+                        <div className="text-center">
+                          <h4 className="font-black text-white text-lg font-bold">Payment Confirmed</h4>
+                          <p className="text-xs text-slate-400 mt-1">Generating booking ticket...</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {qrVerifyStatus === 'failed' && (
+                      <div className="flex flex-col items-center justify-center py-6 space-y-4 animate-scaleUp">
+                        <div className="h-16 w-16 bg-rose-500/10 rounded-full flex items-center justify-center border border-rose-500/30">
+                          <ShieldAlert className="h-10 w-10 text-rose-400" />
+                        </div>
+                        <div className="text-center">
+                          <h4 className="font-extrabold text-white text-lg">Verification Failed</h4>
+                          <p className="text-xs text-rose-400 mt-1">No transaction found for this QR session.</p>
+                        </div>
+                        <div className="flex gap-3 w-full max-w-[280px] mx-auto pt-2">
+                          <Button
+                            variant="primary"
+                            className="flex-1 py-3 text-xs font-bold rounded-xl"
+                            onClick={() => {
+                              setQrVerifyStatus('verifying');
+                              setTimeout(async () => {
+                                try {
+                                  await handleBookSlot('CONFIRMED');
+                                  setQrVerifyStatus('success');
+                                } catch (err) {
+                                  setQrVerifyStatus('failed');
+                                }
+                              }, 2500);
+                            }}
+                          >
+                            Retry Verify
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="flex-1 py-3 text-xs font-bold rounded-xl border-slate-800 text-slate-400"
+                            onClick={() => setQrVerifyStatus('idle')}
+                          >
+                            Back to QR
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1016,11 +1116,8 @@ export default function App() {
                         variant="outline"
                         className="py-4 border-slate-800 text-slate-400 hover:text-slate-200 font-bold rounded-xl hover:scale-[1.02] transition-all"
                         onClick={() => {
+                          setQrVerifyStatus('idle');
                           setShowQRCode(true);
-                          // Auto confirm after 4.5 seconds to simulate user paying the QR code
-                          setTimeout(() => {
-                            handleBookSlot();
-                          }, 4500);
                         }}
                       >
                         Generate QR Code
@@ -1242,9 +1339,12 @@ export default function App() {
               {/* QUICK DEMO LOGIN DROPDOWN */}
               {authMode === 'login' && (
                 <div>
-                  <label className={`text-xs block mb-2 font-bold uppercase tracking-wider ${
+                  <label className={`text-xs mb-2 font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                     isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
-                  }`}>⚡ Quick Demo Login</label>
+                  }`}>
+                    <Zap className="h-3.5 w-3.5 fill-emerald-500/10 text-emerald-500 shrink-0" />
+                    <span>Quick Demo Login</span>
+                  </label>
                   <select
                     value={role}
                     onChange={(e) => {
@@ -1267,9 +1367,9 @@ export default function App() {
                         : 'bg-white border-slate-200 text-slate-700 focus:border-emerald-500/50 shadow-sm'
                     }`}
                   >
-                    <option value="customer">👤 Customer (9876543210)</option>
-                    <option value="owner">🏟️ Turf Owner (9999988888)</option>
-                    <option value="admin">🛠️ System Admin (8888877777)</option>
+                    <option value="customer">Customer (9876543210)</option>
+                    <option value="owner">Turf Owner (9999988888)</option>
+                    <option value="admin">System Admin (8888877777)</option>
                   </select>
                 </div>
               )}
