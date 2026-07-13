@@ -26,8 +26,159 @@ interface ApiOptions extends RequestInit {
   _retry?: boolean;
 }
 
+const handleMockFetch = (path: string, options: ApiOptions): any => {
+  const cleanPath = path.split('?')[0];
+  const { user } = useAuthStore.getState();
+
+  const mockUser = user || {
+    id: 'dev-google-customer',
+    email: 'google.mock@turfbook.com',
+    name: 'Google Mock User',
+    phone: '+919999988888',
+    role: 'CUSTOMER',
+  };
+
+  if (cleanPath === '/profile') {
+    const nameParts = mockUser.name.split(' ');
+    return {
+      success: true,
+      data: {
+        user: {
+          id: mockUser.id,
+          email: mockUser.email,
+          name: mockUser.name,
+          phone: mockUser.phone || '+919999988888',
+          role: mockUser.role,
+          avatarUrl: mockUser.avatarUrl || null,
+        },
+        profile: {
+          firstName: nameParts[0] || 'Google',
+          lastName: nameParts.slice(1).join(' ') || 'Mock User',
+        }
+      }
+    };
+  }
+
+  if (cleanPath === '/bookings') {
+    return {
+      success: true,
+      data: [
+        {
+          id: 'mock-booking-1',
+          turfId: 'mock-turf-1',
+          date: new Date().toISOString().split('T')[0],
+          timeSlot: '17:00 - 18:00',
+          status: 'UPCOMING',
+          totalPrice: 1200,
+          turf: {
+            name: 'Arena Turf Dome',
+            location: 'Kothrud, Pune',
+            images: ['https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=500'],
+          }
+        }
+      ]
+    };
+  }
+
+  if (cleanPath === '/turfs') {
+    return {
+      success: true,
+      data: [
+        {
+          id: 'mock-turf-1',
+          name: 'Arena Turf Dome',
+          location: 'Kothrud, Pune',
+          pricePerHour: 1200,
+          images: ['https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=500'],
+          rating: 4.8,
+        }
+      ]
+    };
+  }
+
+  if (cleanPath.startsWith('/owner/')) {
+    if (cleanPath === '/owner/profile') {
+      return {
+        success: true,
+        data: {
+          user: {
+            id: mockUser.id,
+            email: mockUser.email,
+            name: mockUser.name,
+            phone: mockUser.phone || '9999988888',
+            role: 'TURF_OWNER',
+          },
+          ownerProfile: {
+            businessName: mockUser.name || 'Ahmednagar Sports Arena',
+          }
+        }
+      };
+    }
+    if (cleanPath === '/owner/dashboard') {
+      return {
+        success: true,
+        data: {
+          totalRevenue: 24000,
+          totalBookings: 20,
+          occupancyRate: 75,
+        }
+      };
+    }
+    if (cleanPath === '/owner/bookings') {
+      return {
+        success: true,
+        data: []
+      };
+    }
+    if (cleanPath === '/owner/bookings/offline') {
+      return {
+        success: true,
+        message: 'Offline booking created successfully (Mock)',
+        data: {
+          id: `mock-offline-booking-${Date.now()}`,
+          ...(options.body as any)
+        }
+      };
+    }
+    if (cleanPath === '/owner/turfs') {
+      return {
+        success: true,
+        data: []
+      };
+    }
+  }
+
+  if (cleanPath.startsWith('/admin/')) {
+    if (cleanPath === '/admin/dashboard') {
+      return {
+        success: true,
+        data: {
+          occupancy: 65,
+          revenue: 150000,
+          pendingOwners: 2,
+          activeUsers: 120,
+        }
+      };
+    }
+    return {
+      success: true,
+      data: []
+    };
+  }
+
+  return null;
+};
+
 export async function apiFetch<T = any>(path: string, options: ApiOptions = {}): Promise<T> {
   const { token, logout } = useAuthStore.getState();
+
+  if (token === 'dev-token-bypass') {
+    const mockRes = handleMockFetch(path, options);
+    if (mockRes) {
+      console.log(`🤖 [Mock API] Intercepted ${options.method || 'GET'} ${path}`);
+      return mockRes as T;
+    }
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -69,7 +220,11 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
     }
 
     if (!response.ok) {
-      const errorMsg = data.message || `API error: ${response.status}`;
+      let errorMsg = data.message || `API error: ${response.status}`;
+      if (data.errors && Array.isArray(data.errors)) {
+        const details = data.errors.map((e: any) => `${e.path || e.field || 'field'}: ${e.message}`).join(', ');
+        errorMsg += ` (${details})`;
+      }
       throw new ApiError(response.status, errorMsg);
     }
 
@@ -87,11 +242,15 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
       try {
         return await apiFetch(path, { ...options, _retry: true });
       } catch (retryErr) {
-        console.error(`❌ API call failed after retry [${options.method || 'GET'} ${path}]:`, retryErr);
+        console.warn(`❌ API call failed after retry [${options.method || 'GET'} ${path}]:`, retryErr);
         throw retryErr;
       }
     }
-    console.error(`❌ API call failed [${options.method || 'GET'} ${path}]:`, error);
+    if (error instanceof ApiError && error.statusCode === 401) {
+      console.warn(`🔐 API call unauthorized [${options.method || 'GET'} ${path}]: ${error.message}`);
+    } else {
+      console.warn(`❌ API call failed [${options.method || 'GET'} ${path}]:`, error.message || error);
+    }
     throw error;
   }
 }

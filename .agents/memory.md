@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-13 12:05 IST
+> Last updated: 2026-07-13 12:35 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1269,29 +1269,95 @@ pnpm dev:backend      # start the server
 - Decreased the top padding of the main content wrapper layout from `p-8` to `px-8 pt-5` to shift the heading slightly upwards.
 - **Why**: Responds to user request to move the Dashboard Overview title slightly upside and make its font size larger.
 
-### 118. `package.json` — Modified
+### 118. Reimplemented Premium Mobile Login and Removed Old Code
+- Cleaned up mobile/app/login.tsx completely to match the upload design screenshot.
+- Removed all obsolete password login forms, name registration modes, tab toggles, and complex logic, leaving strictly the mobile number OTP/Google login options.
+- Retained curved header design with overflow visible so features card floats perfectly.
+- Verified type safety via successful mobile npx tsc build check.
+
+### 119. `backend/src/repositories/firebase/FirebaseBookingRepository.ts`, `backend/src/repositories/prisma/PrismaBookingRepository.ts`, `backend/src/modules/user/booking.routes.ts`, & `mobile/app/index.tsx` — Modified
+- Mapped `timeSlot` from Firestore and Prisma databases in the booking repositories so human-readable slot times (e.g. `'17:00 - 18:00'`) are extracted instead of internal database keys (e.g. `'Monday-17'`).
+- Mapped the retrieved `timeSlot` in user booking details and listing endpoints in the backend to ensure a valid slot time is always sent to the mobile app.
+- Created a `getBookingTimestamp` helper function in the customer Home page and implemented dynamic sorting to ensure all **UPCOMING** bookings are positioned at the very top of the list (ordered ascending by slot time), followed by past/cancelled bookings (ordered descending by date).
+- **Why**: Fixes a time rendering bug where seeded/mock bookings showed internal database keys as time slots, and satisfies the request to group upcoming reservations on top.
+
+### 120. `backend/src/repositories/firebase/FirebaseBookingRepository.ts` & `mobile/utils/index.ts` — Modified
+- Patched `FirebaseBookingRepository.ts` to parse `data.date` as a fallback option when the `bookingDate` attribute is missing/undefined (which occurred for seeded database records).
+- Added defensive validation checks to the client-side `getBookingStatus` helper function, returning a safe `'COMPLETED'` fallback if a booking date is missing, empty, or fails number parsing.
+- **Why**: Fixes a visual state bug where seeded past reservations with undefined/missing date fields were incorrectly fallback-assigned to today's date and time, causing them to render as "UPCOMING" and cluttering the user's active bookings.
+
+### 121. `mobile/utils/api.ts` — Modified
+- Mapped the catch block in the main `apiFetch` wrapper function to log 401 Unauthorized status rejections as a warning (`console.warn`) rather than an error (`console.error`).
+- **Why**: Prevents Expo from popping up a full-screen red developer LogBox error window when checking profile/session states on fresh loads where the token is cleared or expired.
+
+### 122. `mobile/app/index.tsx` & `mobile/app/profile.tsx` — Modified
+- Replaced the "Matches" (Trophy icon) bottom navigation tab item with a new "Booking" (Calendar icon) tab item.
+- Connected the "Booking" tab to trigger switching to the active bookings reservations list (confirming login session states where needed) or replacing route parameters on redirect.
+- **Why**: Fulfills navigation redesign requests to replace Matches with a direct, unified Bookings view tab.
+
+### 123. `mobile/app/profile.tsx` — Modified
+- Removed the statistics overview panel card (which displayed labels and counters for Games, Upcoming, and Matches) from the profile dashboard view.
+- **Why**: Cleans up unnecessary details on the customer profile page per scope alignment requests.
+
+### 124. Google Sign-In Authentication Implementation — Created | Modified
+- **`mobile/package.json`**: Added `@react-native-google-signin/google-signin` package dependency.
+- **`mobile/app.json`**: Registered the `@react-native-google-signin/google-signin` config plugin and configured `iosUrlScheme` placeholder.
+- **`mobile/.env`**: Created a new environment configuration file with placeholders for `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` and `EXPO_PUBLIC_FIREBASE_API_KEY`.
+- **`mobile/app/login.tsx`**:
+  - Implemented dynamic loading (`import(...)`) of `@react-native-google-signin/google-signin` to resolve TypeScript compilation ESM conflict (TS1479) and prevent native binding crashes.
+  - Added an Expo Go runtime check to prompt the developer with a simulated Google Auth modal when running in Expo Go or when configuration is missing.
+  - Directly bypasses backend token verification in simulated mode instead of hitting `/auth/google` with a mock string, preventing backend validation rejections from triggering full-screen developer LogBox console errors.
+  - Coded the production flow: retrieve Google ID Token -> exchange for Firebase ID Token using the Google Identity Toolkit REST API (bypassing heavy JS/native client SDKs) -> send Firebase ID Token to backend `/auth/google` route for session token generation.
+- **Why**: Implements "Continue with Google" authentication for the Turf Booking mobile app as requested by the user, while keeping the development setup fully functional and error-free in Expo Go.
+
+### 125. `mobile/app/_layout.tsx` — Modified
+- Bypassed silent profile validation (`/profile` request) in `AuthBootstrap` if the session token is `'dev-token-bypass'`.
+- **Why**: Prevents simulated Google sign-ins and offline developer quick logins from being automatically logged out and redirected on mount due to backend 401 response checks.
+
+### 126. `mobile/utils/api.ts` — Modified
+- Implemented a local mock API interceptor (`handleMockFetch`) inside the `apiFetch` wrapper that handles requests when using `'dev-token-bypass'`.
+- Returns mock responses for `/profile`, `/bookings`, `/turfs`, `/owner/*`, and `/admin/*` routes.
+- **Why**: Ensures simulated/bypass developer logins (like simulated Google accounts or offline quick logins) have access to full mock profiles, reservation lists, and dashboards without triggering backend token validation rejections or console error red screens.
+
+### 127. `mobile/app/login.tsx` — Modified
+- Replaced the flat red Material `google` icon on the Google Sign-in button with the official 4-colored Google "G" logo SVG using `react-native-svg`.
+- **Why**: Fulfills user request to show the official multi-colored Google logo icon, enhancing visual fidelity and brand aesthetics.
+
+### 128. `frontend/src/pages/customer/CustomerApp.tsx` — Fixed
+- Resolved a Git merge conflict in the booking checkout component.
+- Preserved the multi-slot selection display (`selectedTimes` array rendering) and combined it with dynamic `isDarkMode` text/background styling.
+- **Why**: Fixes a build-breaking syntax error caused by unresolved conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) from recent upstream pulls.
+
+### 129. `mobile/utils/api.ts` — Modified
+- Mapped `POST /owner/bookings/offline` to return a successful mock response in simulated developer mode (`dev-token-bypass`).
+- Extracted and appended specific invalid property errors (Zod validation detail arrays) directly into the thrown `ApiError` message text.
+- Replaced `console.error` calls in `apiFetch` with `console.warn` to suppress blocking full-screen Metro bundler LogBox red screens in development mode when handled errors are thrown.
+- **Why**: Enhances developer ergonomics and provides detailed visual diagnostic alerts when API calls fail validation on the server.
+
+### 130. `mobile/app/owner/bookings.tsx` — Modified
+- Added client-side character length validation (10 to 15 digits) to the optional phone number input field in the offline booking modal.
+- Caught errors in the offline booking creation process and displayed their messages in an `Alert.alert` window instead of silently swallowing the exception.
+- **Why**: Prevents invalid-length phone strings from causing silent failures or backend Zod validation rejections, and alerts the user of any API issues dynamically.
+
+### 131. `package.json` — Modified
 - Fixed a syntax error (missing comma between dependency declarations for `@prisma/client` and `razorpay`).
 - **Why**: The missing comma caused esbuild to fail when trying to run the Vite dev server with `Expected "," in JSON but found "razorpay"`.
 
-### 119. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+### 132. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
 - Resolved git merge conflict markers inside the checkout booking step.
 - Unified the theme-responsive container styles and labels from the incoming branch with the multi-slot selection and surcharge pricing calculations from the local branch.
 - **Why**: Merging the main branch created conflict markers that crashed the Vite dev server at build time.
 
-### 120. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+### 133. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
 - Added new states for simulated payment gateway and imported extra icons (`ShieldAlert`, `Wallet`).
 - Refactored the `handleBookSlot` function to accept a `paymentStatus` parameter (`CONFIRMED` | `FAILED`) and re-throw server-side checkout errors.
 - Created a beautiful, high-fidelity simulated Razorpay Payment Gateway popup overlay featuring interactive mock checkout tabs (UPI / Wallet and Cards), input fields, processing loader states, simulated success/failure actions, and error recovery flows.
 - Swapped the default 3-second auto-confirm redirect on the "Pay" button with launching this new simulated gateway.
 - **Why**: Responds to user request to fix the Paytm/UPI checkout flow where selecting Paytm/UPI bypassed the payment interface and directly confirmed the booking.
 
-### 121. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
+### 134. `frontend/src/pages/customer/CustomerApp.tsx` — Modified
 - Defaulted the initial `selectedPaymentMethod` state to `'paytm'`.
 - Removed Google Pay (`gpay`) and PhonePe (`phonepe`) options from the checkout page payment method selection menu, converting it to a single full-width button for Paytm/UPI.
 - Cleaned up a tag hierarchy discrepancy in the checkout container panel where there was an extra `</div>` tag.
 - **Why**: Responds to user request to hide Google Pay and PhonePe options from the customer booking checkout panel.
-
-
-
-
 

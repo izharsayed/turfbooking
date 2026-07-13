@@ -266,7 +266,7 @@ export default function App() {
       }
     };
 
-    const splitParts = clean.split('-');
+    const splitParts = clean.split(/[-–]/);
     if (splitParts.length !== 2) return clean;
     
     const startMin = toMinutes(splitParts[0]);
@@ -413,7 +413,7 @@ export default function App() {
 
   const handleBookSlot = async (paymentStatus: 'CONFIRMED' | 'FAILED' = 'CONFIRMED') => {
     if (!isAuthenticated) {
-      setAuthMode('login');
+      navigate('/login');
       return;
     }
     if (selectedTimes.length === 0 || !selectedTurf) return;
@@ -547,7 +547,7 @@ export default function App() {
                 key={tab}
                 onClick={() => {
                   if ((tab === 'bookings' || tab === 'support') && !isAuthenticated) {
-                    setAuthMode('login');
+                    navigate('/login');
                   } else {
                     setActiveTab(tab);
                     setSelectedTurf(null);
@@ -594,7 +594,7 @@ export default function App() {
           ) : (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setAuthMode('login')}
+                onClick={() => navigate('/login')}
                 className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
                   isDarkMode ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                 }`}
@@ -602,7 +602,7 @@ export default function App() {
                 Login
               </button>
               <button
-                onClick={() => setAuthMode('register')}
+                onClick={() => navigate('/signup')}
                 className="px-5 py-2 rounded-xl text-sm font-bold bg-emerald-500 hover:bg-emerald-400 text-white shadow-md shadow-emerald-500/25 transition-all duration-200"
               >
                 Sign Up
@@ -884,7 +884,7 @@ export default function App() {
                     disabled={selectedTimes.length === 0}
                     onClick={() => {
                       if (!isAuthenticated) {
-                        setAuthMode('login');
+                        navigate('/login');
                       } else {
                         setBookingStep('checkout');
                       }

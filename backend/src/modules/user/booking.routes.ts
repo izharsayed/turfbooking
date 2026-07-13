@@ -46,7 +46,7 @@ router.get('/', authenticate as any, async (req: any, res, next) => {
           amount: b.totalAmount,
           status: b.status === 'CONFIRMED' ? 'active' : b.status === 'COMPLETED' ? 'completed' : 'cancelled',
           date: b.bookingDate ? new Date(b.bookingDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          time: b.slotId || '17:00 - 18:00',
+          time: (b as any).timeSlot || b.slotId || '17:00 - 18:00',
           timestamp: b.createdAt ? new Date(b.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
         };
       })
@@ -102,7 +102,7 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
       if (bDate !== targetDate) return false;
 
       const bookedSlots = (b.slotId || '').split(',');
-      const hasOverlap = targetSlots.some((slot) => bookedSlots.includes(slot));
+      const hasOverlap = targetSlots.some((slot: string) => bookedSlots.includes(slot));
       if (!hasOverlap) return false;
 
       // If already confirmed, it's a conflict
@@ -287,7 +287,7 @@ router.get('/:id', authenticate as any, async (req: any, res, next) => {
       amount: b.totalAmount,
       status: b.status === 'CONFIRMED' ? 'active' : b.status === 'COMPLETED' ? 'completed' : 'cancelled',
       date: b.bookingDate ? new Date(b.bookingDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      time: b.slotId || '17:00 - 18:00',
+      time: (b as any).timeSlot || b.slotId || '17:00 - 18:00',
       timestamp: b.createdAt ? new Date(b.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
     };
     return sendResponse(res, 200, true, 'Booking retrieved successfully', result);

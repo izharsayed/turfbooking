@@ -165,10 +165,10 @@ export class FirebaseUserRepository implements IUserRepository {
 
   public async updateProfile(userId: string, profileData: any): Promise<any> {
     const docRef = this.profileCollection.doc(userId);
-    await docRef.update({
+    await docRef.set({
       ...profileData,
       updatedAt: new Date(),
-    });
+    }, { merge: true });
     const doc = await docRef.get();
     return doc.data();
   }
@@ -181,10 +181,10 @@ export class FirebaseUserRepository implements IUserRepository {
 
   public async updateOwnerProfile(userId: string, ownerProfileData: any): Promise<any> {
     const docRef = this.ownerProfileCollection.doc(userId);
-    await docRef.update({
+    await docRef.set({
       ...ownerProfileData,
       updatedAt: new Date(),
-    });
+    }, { merge: true });
     const doc = await docRef.get();
     return doc.data();
   }

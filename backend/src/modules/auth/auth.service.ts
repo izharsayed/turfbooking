@@ -116,14 +116,28 @@ export class AuthService {
 
   // --- Login ---
   public async login(email: string, pass: string, deviceMetadata: any = {}) {
-    // 1. Check lockout state
-    if (await sessionManager.isAccountLocked(email)) {
+    let searchEmail = email;
+
+    // Check if the email is a phone-based auto-email (e.g. "9876543210@turfbook.com")
+    if (email.endsWith('@turfbook.com')) {
+      const phoneCandidate = email.split('@')[0];
+      if (/^[0-9]{10,15}$/.test(phoneCandidate)) {
+        // Find the user by their phone number first to get their actual email
+        const userByPhone = await userRepository.findByPhone(phoneCandidate);
+        if (userByPhone) {
+          searchEmail = userByPhone.email;
+        }
+      }
+    }
+
+    // 1. Check lockout state using the resolved email
+    if (await sessionManager.isAccountLocked(searchEmail)) {
       throw new AuthenticationError('Account locked due to too many failed attempts. Try again in 15 minutes.');
     }
 
-    const credentials = await userRepository.findByEmailWithPassword(email);
+    const credentials = await userRepository.findByEmailWithPassword(searchEmail);
     if (!credentials) {
-      await sessionManager.trackFailedLoginAttempt(email);
+      await sessionManager.trackFailedLoginAttempt(searchEmail);
       throw new AuthenticationError('Invalid email or password');
     }
 
@@ -137,7 +151,7 @@ export class AuthService {
     // 3. Verify password
     const isMatch = await bcrypt.compare(pass, passwordHash);
     if (!isMatch) {
-      const lockStatus = await sessionManager.trackFailedLoginAttempt(email);
+      const lockStatus = await sessionManager.trackFailedLoginAttempt(searchEmail);
       if (lockStatus.locked) {
         throw new AuthenticationError('Account locked due to too many failed attempts. Try again in 15 minutes.');
       }
@@ -145,7 +159,7 @@ export class AuthService {
     }
 
     // Reset failed counter
-    await sessionManager.resetFailedAttempts(email);
+    await sessionManager.resetFailedAttempts(searchEmail);
 
     // 4. Issue Tokens
     return this.createSession(user, deviceMetadata);

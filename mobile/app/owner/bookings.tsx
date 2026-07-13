@@ -8,18 +8,31 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  ImageBackground,
+  Dimensions,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../utils/api';
 
 const ACCENT = '#10b981';
+const TURF_BG = require('../../assets/turf-bg.jpg');
 
-const FILTER_TABS = ['All', 'Confirmed', 'Completed', 'Cancelled'] as const;
-type FilterTab = typeof FILTER_TABS[number];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SLOT_WIDTH = (SCREEN_WIDTH - 40 - 12) / 2;
+
+interface Turf {
+  id: string;
+  name: string;
+  pricePerHour?: number;
+  sport?: string;
+  isActive?: boolean;
+}
 
 interface OwnerBooking {
   id: string;
@@ -27,108 +40,403 @@ interface OwnerBooking {
   turfName?: string;
   date?: string;
   time?: string;
+  slotId?: string;
+  timeSlot?: string;
   amount?: number;
   status?: string;
 }
 
-const MOCK_BOOKINGS: OwnerBooking[] = [
-  { id: 'BK001', customerName: 'Ahmed Khan', turfName: 'Green Arena', date: '2026-07-10', time: '17:00 - 18:00', amount: 700, status: 'CONFIRMED' },
-  { id: 'BK002', customerName: 'Raj Patel', turfName: 'Box Cricket Zone', date: '2026-07-10', time: '15:00 - 16:00', amount: 550, status: 'CONFIRMED' },
-  { id: 'BK003', customerName: 'Sara Ali', turfName: 'Green Arena', date: '2026-07-09', time: '10:00 - 11:00', amount: 700, status: 'COMPLETED' },
-  { id: 'BK004', customerName: 'Mohan Sharma', turfName: 'Premier Ground', date: '2026-07-08', time: '08:00 - 09:00', amount: 450, status: 'CANCELLED' },
-  { id: 'BK005', customerName: 'Priya Mehta', turfName: 'Green Arena', date: '2026-07-08', time: '19:00 - 20:00', amount: 700, status: 'COMPLETED' },
-  { id: 'BK006', customerName: 'Zaid Ansari', turfName: 'Box Cricket Zone', date: '2026-07-11', time: '18:00 - 19:00', amount: 550, status: 'CONFIRMED' },
-];
+interface OfflineBooking {
+  turfId: string;
+  date: string;
+  slotIndex: number;
+  customerName: string;
+  customerPhone?: string;
+  amount: number;
+}
 
 export default function OwnerBookingsScreen() {
   const { user, isAuthenticated } = useAuthStore();
   const { isDarkMode } = useThemeStore();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
+  // State
+  const [turfs, setTurfs] = useState<Turf[]>([]);
+  const [selectedTurf, setSelectedTurf] = useState<Turf | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [bookings, setBookings] = useState<OwnerBooking[]>([]);
+  const [blockedSlots, setBlockedSlots] = useState<Set<string>>(new Set());
+  const [offlineBookings, setOfflineBookings] = useState<OfflineBooking[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<FilterTab>('All');
+
+  // Modals visibility
+  const [turfModalVisible, setTurfModalVisible] = useState(false);
+  const [dateModalVisible, setDateModalVisible] = useState(false);
+  const [bookingModalVisible, setBookingModalVisible] = useState(false);
+  
+  // Offline booking form state
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+  const [formName, setFormName] = useState('');
+  const [formPhone, setFormPhone] = useState('');
+  const [formAmount, setFormAmount] = useState('1200');
+
+  // Detailed Slot view state
+  const [activeSlotDetails, setActiveSlotDetails] = useState<any>(null);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
 
   const theme = {
-    bg: isDarkMode ? '#030712' : '#f1f5f9',
+    bg: isDarkMode ? '#030712' : '#f8fafc',
     card: isDarkMode ? '#0f172a' : '#ffffff',
-    cardBorder: isDarkMode ? '#1e293b' : '#e2e8f0',
-    text: isDarkMode ? '#ffffff' : '#0f172a',
+    cardBorder: isDarkMode ? '#1e293b' : '#f1f5f9',
+    text: isDarkMode ? '#ffffff' : '#1e293b',
     textMuted: isDarkMode ? '#94a3b8' : '#64748b',
-    headerBg: isDarkMode ? '#0f172a' : '#ffffff',
-    tabBg: isDarkMode ? '#1e293b' : '#f1f5f9',
-    tabActiveBg: ACCENT,
+    divider: isDarkMode ? '#1e293b' : '#f1f5f9',
+    dropdownBg: isDarkMode ? '#1e293b' : '#f8fafc',
+    legendBorder: isDarkMode ? '#1e293b' : '#e2e8f0',
   };
 
+  // Guard: only for TURF_OWNER role
   if (!isAuthenticated || !user) return <Redirect href="/login" />;
   if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
 
-  const fetchBookings = async () => {
+  const fetchData = async () => {
     try {
-      const res = await apiFetch('/owner/bookings');
-      if (res.success && res.data) {
-        setBookings(res.data);
-      } else {
-        setBookings(MOCK_BOOKINGS);
+      // Fetch turfs from backend
+      const turfRes = await apiFetch('/owner/turfs');
+      let loadedTurfs: Turf[] = [];
+      if (turfRes.success && turfRes.data && turfRes.data.length > 0) {
+        loadedTurfs = turfRes.data.map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          pricePerHour: t.pricePerHour ?? t.price ?? 1200,
+          sport: t.sport || 'Football',
+          isActive: t.isActive ?? true,
+        }));
       }
-    } catch {
-      setBookings(MOCK_BOOKINGS);
+      setTurfs(loadedTurfs);
+      if (!selectedTurf && loadedTurfs.length > 0) {
+        setSelectedTurf(loadedTurfs[0]);
+      }
+
+      // Fetch bookings from backend
+      const bookingRes = await apiFetch('/owner/bookings');
+      if (bookingRes.success && bookingRes.data) {
+        setBookings(bookingRes.data);
+      } else {
+        setBookings([]);
+      }
+    } catch (err) {
+      console.log('Error fetching owner schedule data', err);
+      setTurfs([]);
+      setBookings([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => { fetchBookings(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchBookings();
-  }, []);
+    fetchData();
+  }, [selectedTurf]);
 
-  const handleCancel = (bookingId: string) => {
+  const changeDate = (days: number) => {
+    const next = new Date(selectedDate);
+    next.setDate(selectedDate.getDate() + days);
+    setSelectedDate(next);
+  };
+
+  const getLocalDateString = (date: Date) => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const formatDateLabel = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  // derived status style
+  const getSlotStyles = (status: string) => {
+    switch (status) {
+      case 'BOOKED':
+        return {
+          bg: isDarkMode ? '#064e3b' : '#e6fbf4',
+          border: isDarkMode ? '#047857' : '#10b98122',
+          text: isDarkMode ? '#34d399' : '#047857',
+          badgeBg: isDarkMode ? '#047857' : '#d1fae5',
+          badgeText: isDarkMode ? '#34d399' : '#065f46',
+        };
+      case 'PENDING':
+        return {
+          bg: isDarkMode ? '#78350f' : '#fffbeb',
+          border: isDarkMode ? '#b45309' : '#f59e0b22',
+          text: isDarkMode ? '#fbbf24' : '#b45309',
+          badgeBg: isDarkMode ? '#b45309' : '#fef3c7',
+          badgeText: isDarkMode ? '#fbbf24' : '#92400e',
+        };
+      case 'BLOCKED':
+        return {
+          bg: isDarkMode ? '#7f1d1d' : '#fef2f2',
+          border: isDarkMode ? '#b91c1c' : '#ef444422',
+          text: isDarkMode ? '#fca5a5' : '#b91c1c',
+          badgeBg: isDarkMode ? '#b91c1c' : '#fee2e2',
+          badgeText: isDarkMode ? '#fca5a5' : '#991b1b',
+        };
+      case 'OPEN':
+      default:
+        return {
+          bg: isDarkMode ? '#1e293b' : '#f8fafc',
+          border: isDarkMode ? '#334155' : '#cbd5e144',
+          text: isDarkMode ? '#cbd5e1' : '#64748b',
+          badgeBg: isDarkMode ? '#334155' : '#f1f5f9',
+          badgeText: isDarkMode ? '#cbd5e1' : '#475569',
+        };
+    }
+  };
+
+  // Helper to parse slot start hour
+  const parseStartHour = (timeStr: string): number | null => {
+    if (!timeStr) return null;
+    const startPart = timeStr.split(/[-–]/)[0]?.trim().toUpperCase();
+    if (!startPart) return null;
+
+    const ampm = startPart.includes('PM') ? 'PM' : startPart.includes('AM') ? 'AM' : null;
+    const timeOnly = startPart.replace('AM', '').replace('PM', '').trim();
+    const parts = timeOnly.split(':');
+    if (parts.length === 0) return null;
+
+    let hour = parseInt(parts[0], 10);
+    if (isNaN(hour)) return null;
+
+    if (ampm) {
+      if (ampm === 'PM' && hour !== 12) {
+        hour += 12;
+      } else if (ampm === 'AM' && hour === 12) {
+        hour = 0;
+      }
+    }
+    return hour;
+  };
+
+  // Derive slots state dynamically
+  const dateKey = getLocalDateString(selectedDate);
+  const slotsList = Array.from({ length: 24 }, (_, i) => {
+    const getAmPm = (hour: number) => {
+      if (hour === 24 || hour === 0) return 'AM';
+      return hour >= 12 ? 'PM' : 'AM';
+    };
+    const get12Hour = (hour: number) => {
+      const h = hour % 12;
+      return h === 0 ? 12 : h;
+    };
+
+    const displayStartHr = get12Hour(i).toString().padStart(2, '0');
+    const displayEndHr = get12Hour(i + 1).toString().padStart(2, '0');
+    const startAmPm = getAmPm(i);
+    const endAmPm = getAmPm(i + 1);
+
+    const timeRangeStr = `${displayStartHr}:00 ${startAmPm} – ${displayEndHr}:00 ${endAmPm}`;
+    
+    // Check local blocked slots
+    const isBlockedLocally = blockedSlots.has(`${selectedTurf?.id}_${dateKey}_${i}`);
+    
+    // Check online bookings
+    const activeBookings = bookings.filter(b => b.status !== 'CANCELLED');
+    const matchingBooking = activeBookings.find(b => {
+      const matchDate = b.date === dateKey;
+      if (!matchDate) return false;
+      const turfMatch = selectedTurf ? b.turfName?.toLowerCase().includes(selectedTurf.name.toLowerCase().split(' ')[0]) : true;
+      if (!turfMatch) return false;
+      
+      const bSlot = b.slotId || b.time || b.timeSlot || '';
+      const slots = bSlot.split(',').map((s: string) => s.trim());
+      return slots.some((s: string) => {
+        const startHour = parseStartHour(s);
+        return startHour === i;
+      });
+    });
+
+    // Check offline bookings
+    const matchingOffline = offlineBookings.find(ob => ob.turfId === selectedTurf?.id && ob.date === dateKey && ob.slotIndex === i);
+
+    let status = 'OPEN';
+    let customerName = '';
+    let bookingId = '';
+    let amount = selectedTurf?.pricePerHour ?? 1200;
+
+    // Hardcode mockup matches specifically for 13 May 2024 or current date to match image
+    if (matchingBooking) {
+      status = matchingBooking.status === 'PENDING' ? 'PENDING' : 'BOOKED';
+      customerName = matchingBooking.customerName || 'Customer';
+      amount = matchingBooking.amount || amount;
+      bookingId = matchingBooking.id;
+    } else if (matchingOffline) {
+      status = 'BOOKED';
+      customerName = matchingOffline.customerName;
+      amount = matchingOffline.amount;
+    } else if (isBlockedLocally) {
+      status = 'BLOCKED';
+    }
+
+    // Peak hour surcharges 18:00 - 22:00
+    if (i >= 18 && i <= 21 && status === 'OPEN') {
+      amount = (selectedTurf?.pricePerHour ?? 1200) + 300;
+    } else if (i >= 18 && i <= 21 && status === 'BLOCKED') {
+      amount = 1500;
+    }
+
+    // No hardcoded mock slots — all data comes from backend
+
+    return {
+      index: i,
+      timeRange: timeRangeStr,
+      price: amount,
+      status,
+      customerName,
+      bookingId,
+    };
+  });
+
+  const handleSlotPress = (slot: any) => {
+    if (slot.status === 'OPEN') {
+      Alert.alert(
+        `Slot ${slot.timeRange}`,
+        'Choose action for this available slot:',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Block Slot',
+            onPress: () => {
+              const newBlocked = new Set(blockedSlots);
+              newBlocked.add(`${selectedTurf?.id}_${dateKey}_${slot.index}`);
+              setBlockedSlots(newBlocked);
+            },
+          },
+          {
+            text: 'Add Offline Booking',
+            onPress: () => {
+              setSelectedSlotIndex(slot.index);
+              setFormAmount(slot.price.toString());
+              setFormName('');
+              setFormPhone('');
+              setBookingModalVisible(true);
+            },
+          },
+        ]
+      );
+    } else if (slot.status === 'BLOCKED') {
+      Alert.alert(
+        `Unblock Slot ${slot.timeRange}`,
+        'Do you want to make this slot available for bookings again?',
+        [
+          { text: 'No', style: 'cancel' },
+          {
+            text: 'Yes, Unblock',
+            onPress: () => {
+              const newBlocked = new Set(blockedSlots);
+              newBlocked.delete(`${selectedTurf?.id}_${dateKey}_${slot.index}`);
+              setBlockedSlots(newBlocked);
+            },
+          },
+        ]
+      );
+    } else {
+      // Booked or Pending
+      setActiveSlotDetails(slot);
+      setDetailsModalVisible(true);
+    }
+  };
+
+  const submitOfflineBooking = async () => {
+    if (!formName.trim()) {
+      Alert.alert('Error', 'Please enter customer name');
+      return;
+    }
+    const phone = formPhone.trim();
+    if (phone && (phone.length < 10 || phone.length > 15)) {
+      Alert.alert('Error', 'Phone number must be between 10 and 15 digits');
+      return;
+    }
+    if (selectedSlotIndex === null || !selectedTurf) return;
+
+    const newBooking: OfflineBooking = {
+      turfId: selectedTurf.id,
+      date: dateKey,
+      slotIndex: selectedSlotIndex,
+      customerName: formName.trim(),
+      customerPhone: phone || undefined,
+      amount: Number(formAmount) || 1200,
+    };
+
+    try {
+      // Build ISO datetime strings matching backend manualBookingSchema
+      const startHour = selectedSlotIndex;
+      const endHour = selectedSlotIndex + 1;
+      const startDate = new Date(`${dateKey}T${startHour.toString().padStart(2, '0')}:00:00.000Z`);
+      const endDate = new Date(`${dateKey}T${endHour.toString().padStart(2, '0')}:00:00.000Z`);
+
+      await apiFetch('/owner/bookings/offline', {
+        method: 'POST',
+        body: {
+          turfId: selectedTurf.id,
+          sportId: selectedTurf.sport || 'Football',
+          date: startDate.toISOString(),
+          startTime: startDate.toISOString(),
+          endTime: endDate.toISOString(),
+          customerName: formName.trim(),
+          customerPhone: phone || '0000000000',
+          finalAmount: Number(formAmount) || 1200,
+        },
+      });
+
+      setOfflineBookings(prev => [...prev, newBooking]);
+      setBookingModalVisible(false);
+      Alert.alert('Success', 'Offline booking added successfully.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to add offline booking');
+    }
+  };
+
+
+  const cancelActiveBooking = async (bookingId: string, slotIndex: number) => {
     Alert.alert(
       'Cancel Booking',
-      'Are you sure you want to cancel this booking? The customer will be notified.',
+      'Are you sure you want to cancel this booking?',
       [
         { text: 'No', style: 'cancel' },
         {
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
-            try {
-              await apiFetch(`/owner/bookings/${bookingId}/cancel`, { method: 'PUT' });
-            } catch {}
-            setBookings((prev) =>
-              prev.map((b) => b.id === bookingId ? { ...b, status: 'CANCELLED' } : b)
-            );
+            if (bookingId) {
+              try {
+                await apiFetch(`/owner/bookings/${bookingId}/cancel`, { method: 'PUT' });
+              } catch {}
+              setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'CANCELLED' } : b));
+            } else {
+              // Local offline booking cancellation
+              setOfflineBookings(prev => prev.filter(ob => !(ob.turfId === selectedTurf?.id && ob.date === dateKey && ob.slotIndex === slotIndex)));
+            }
+            setDetailsModalVisible(false);
             Alert.alert('Done', 'Booking cancelled successfully.');
           },
         },
       ]
     );
-  };
-
-  const filtered = bookings.filter((b) => {
-    if (activeTab === 'All') return true;
-    return b.status?.toUpperCase() === activeTab.toUpperCase();
-  });
-
-  const formatDate = (d?: string) => {
-    if (!d) return '';
-    try {
-      return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-    } catch { return d; }
-  };
-
-  const statusColor = (status?: string) => {
-    switch (status?.toUpperCase()) {
-      case 'CONFIRMED': return { text: '#10b981', bg: 'rgba(16,185,129,0.12)' };
-      case 'COMPLETED': return { text: '#10b981', bg: 'rgba(16,185,129,0.12)' };
-      case 'CANCELLED': return { text: '#ef4444', bg: 'rgba(239,68,68,0.12)' };
-      default: return { text: '#64748b', bg: 'rgba(100,116,139,0.12)' };
-    }
   };
 
   if (loading) {
@@ -141,95 +449,315 @@ export default function OwnerBookingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.headerBg, paddingTop: insets.top + 12, borderBottomColor: theme.cardBorder }]}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Bookings</Text>
-        <View style={[styles.countBadge, { backgroundColor: 'rgba(99,102,241,0.12)' }]}>
-          <Text style={[styles.countBadgeText, { color: ACCENT }]}>{filtered.length}</Text>
+      {/* Full-bleed Header Background */}
+      <ImageBackground
+        source={TURF_BG}
+        style={[styles.headerBg, { paddingTop: insets.top + 16 }] as any}
+        imageStyle={styles.headerImage}
+      >
+        <View style={styles.darkOverlay} />
+        
+        {/* Top bar back button row */}
+        <View style={styles.topBarRow}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.push('/owner')}>
+            <Ionicons name="arrow-back" size={20} color="#ffffff" />
+          </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Filter Tabs */}
-      <View style={[styles.tabsRow, { backgroundColor: theme.headerBg, borderBottomColor: theme.cardBorder }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContent}>
-          {FILTER_TABS.map((tab) => {
-            const isActive = activeTab === tab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                style={[
-                  styles.filterTab,
-                  { backgroundColor: isActive ? ACCENT : theme.tabBg },
-                ]}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Text style={[styles.filterTabText, { color: isActive ? '#fff' : theme.textMuted }]}>{tab}</Text>
-              </TouchableOpacity>
-            );
-          })}
+        {/* Text descriptions */}
+        <View style={styles.headerTitles}>
+          <Text style={styles.headerTitleText}>Slots Schedule</Text>
+          <Text style={styles.headerSubtitleText}>Manage your turf slots and availability</Text>
+        </View>
+      </ImageBackground>
+
+      {/* Main card panels */}
+      <View style={[styles.overlapCard, { backgroundColor: theme.card }]}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 150 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
+        >
+          {/* Dropdown selectors and Settings row */}
+          <View style={styles.selectorRow}>
+            <TouchableOpacity 
+              style={[styles.dropdownBtn, { backgroundColor: theme.dropdownBg, borderColor: theme.cardBorder }]}
+              onPress={() => setTurfModalVisible(true)}
+            >
+              <MaterialCommunityIcons name="soccer-field" size={18} color={ACCENT} style={{ marginRight: 6 }} />
+              <Text style={[styles.dropdownLabel, { color: theme.text }]} numberOfLines={1}>
+                {selectedTurf ? selectedTurf.name : 'Select Turf'}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={theme.textMuted} style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.settingsBtn, { borderColor: theme.cardBorder }]}
+              onPress={() => Alert.alert('Slot Settings', 'Configure default slot pricing, timings, and business hours.')}
+            >
+              <Ionicons name="settings-outline" size={15} color={ACCENT} style={{ marginRight: 4 }} />
+              <Text style={styles.settingsBtnText}>Slot Settings</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Date Selector Row */}
+          <View style={styles.dateSelectorRow}>
+            <TouchableOpacity style={[styles.dateChevron, { borderColor: theme.cardBorder }]} onPress={() => changeDate(-1)}>
+              <Ionicons name="chevron-back" size={16} color={theme.text} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.datePickerCard, { backgroundColor: theme.dropdownBg, borderColor: theme.cardBorder }]}
+              onPress={() => setDateModalVisible(true)}
+            >
+              <Ionicons name="calendar-outline" size={16} color={theme.textMuted} style={{ marginRight: 8 }} />
+              <Text style={[styles.dateTextLabel, { color: theme.text }]}>{formatDateLabel(selectedDate)}</Text>
+              <Ionicons name="chevron-down" size={14} color={theme.textMuted} style={{ marginLeft: 8 }} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.dateChevron, { borderColor: theme.cardBorder }]} onPress={() => changeDate(1)}>
+              <Ionicons name="chevron-forward" size={16} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Status Legend Row */}
+          <View style={[styles.legendBar, { borderColor: theme.legendBorder }]}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
+              <Text style={[styles.legendText, { color: theme.textMuted }]}>Booked</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
+              <Text style={[styles.legendText, { color: theme.textMuted }]}>Pending</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#ef4444' }]} />
+              <Text style={[styles.legendText, { color: theme.textMuted }]}>Blocked</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#cbd5e1' }]} />
+              <Text style={[styles.legendText, { color: theme.textMuted }]}>Open</Text>
+            </View>
+          </View>
+
+          {/* Slots Grid */}
+          <View style={styles.slotsGrid}>
+            {slotsList.map((slot) => {
+              const sc = getSlotStyles(slot.status);
+              return (
+                <TouchableOpacity
+                  key={slot.index}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.slotCell,
+                    {
+                      width: SLOT_WIDTH,
+                      backgroundColor: sc.bg,
+                      borderColor: sc.border,
+                    }
+                  ]}
+                  onPress={() => handleSlotPress(slot)}
+                >
+                  <View style={styles.slotTopRow}>
+                    <Text style={[styles.slotTimeText, { color: theme.text }]} numberOfLines={1}>
+                      {slot.timeRange}
+                    </Text>
+                    <View style={[styles.slotBadge, { backgroundColor: sc.badgeBg }]}>
+                      <Text style={[styles.slotBadgeText, { color: sc.badgeText }]}>{slot.status}</Text>
+                    </View>
+                  </View>
+
+                  <Text style={[styles.slotPriceText, { color: theme.textMuted }]}>
+                    ₹{slot.price.toLocaleString('en-IN')}/h
+                  </Text>
+
+                  {slot.customerName ? (
+                    <Text style={[styles.slotCustomerText, { color: sc.text }]} numberOfLines={1}>
+                      {slot.customerName}
+                    </Text>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Bottom Info Banner */}
+          <View style={styles.tipBanner}>
+            <Ionicons name="information-circle-outline" size={16} color="#047857" style={{ marginRight: 6 }} />
+            <Text style={styles.tipText}>Tap on any slot to view booking details</Text>
+          </View>
         </ScrollView>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
-      >
-        {filtered.length === 0 ? (
-          <View style={styles.emptyWrapper}>
-            <MaterialCommunityIcons name="calendar-blank-outline" size={64} color={theme.textMuted} />
-            <Text style={[styles.emptyText, { color: theme.textMuted }]}>No {activeTab !== 'All' ? activeTab.toLowerCase() : ''} bookings</Text>
-          </View>
-        ) : (
-          filtered.map((booking) => {
-            const sc = statusColor(booking.status);
-            const canCancel = booking.status?.toUpperCase() === 'CONFIRMED';
-            return (
-              <View key={booking.id} style={[styles.bookingCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-                {/* Top Row */}
-                <View style={styles.cardTopRow}>
-                  <View style={[styles.avatar, { backgroundColor: 'rgba(99,102,241,0.12)' }]}>
-                    <Text style={styles.avatarText}>{(booking.customerName || 'U').charAt(0)}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.customerName, { color: theme.text }]}>{booking.customerName || 'Customer'}</Text>
-                    <Text style={[styles.turfName, { color: theme.textMuted }]}>{booking.turfName}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
-                    <Text style={[styles.statusText, { color: sc.text }]}>{booking.status}</Text>
-                  </View>
-                </View>
-
-                {/* Meta Row */}
-                <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
-                <View style={styles.metaRow}>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="calendar-outline" size={13} color={theme.textMuted} />
-                    <Text style={[styles.metaText, { color: theme.textMuted }]}>{formatDate(booking.date)}</Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="time-outline" size={13} color={theme.textMuted} />
-                    <Text style={[styles.metaText, { color: theme.textMuted }]}>{booking.time}</Text>
-                  </View>
-                  <Text style={[styles.amountText, { color: theme.text }]}>₹{booking.amount}</Text>
-                </View>
-
-                {/* Actions */}
-                {canCancel && (
-                  <TouchableOpacity
-                    style={styles.cancelBtn}
-                    onPress={() => handleCancel(booking.id)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="close-circle-outline" size={14} color="#ef4444" />
-                    <Text style={styles.cancelBtnText}>Cancel Booking</Text>
-                  </TouchableOpacity>
+      {/* Turf Selector Modal */}
+      <Modal visible={turfModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Turf</Text>
+            <View style={[styles.modalDivider, { backgroundColor: theme.divider }]} />
+            {turfs.map(t => (
+              <TouchableOpacity
+                key={t.id}
+                style={styles.modalOption}
+                onPress={() => {
+                  setSelectedTurf(t);
+                  setTurfModalVisible(false);
+                }}
+              >
+                <MaterialCommunityIcons name="soccer-field" size={20} color={ACCENT} style={{ marginRight: 10 }} />
+                <Text style={[styles.modalOptionText, { color: theme.text }]}>{t.name}</Text>
+                {selectedTurf?.id === t.id && (
+                  <Ionicons name="checkmark-circle" size={18} color={ACCENT} style={{ marginLeft: 'auto' }} />
                 )}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.closeModalBtn} onPress={() => setTurfModalVisible(false)}>
+              <Text style={styles.closeModalBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Date Selector List Modal */}
+      <Modal visible={dateModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Date</Text>
+            <View style={[styles.modalDivider, { backgroundColor: theme.divider }]} />
+            <ScrollView style={{ maxHeight: 280 }}>
+              {Array.from({ length: 14 }, (_, idx) => {
+                const day = new Date();
+                day.setDate(day.getDate() + idx - 3); // list past 3 days and next 10 days
+                const isSelected = getLocalDateString(day) === dateKey;
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.modalOption}
+                    onPress={() => {
+                      setSelectedDate(day);
+                      setDateModalVisible(false);
+                    }}
+                  >
+                    <Ionicons name="calendar-outline" size={16} color={theme.textMuted} style={{ marginRight: 10 }} />
+                    <Text style={[styles.modalOptionText, { color: isSelected ? ACCENT : theme.text }]}>
+                      {formatDateLabel(day)}
+                    </Text>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={18} color={ACCENT} style={{ marginLeft: 'auto' }} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity style={styles.closeModalBtn} onPress={() => setDateModalVisible(false)}>
+              <Text style={styles.closeModalBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Manual Offline Booking Input Form Modal */}
+      <Modal visible={bookingModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, width: '90%' }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Add Offline Booking</Text>
+            <Text style={[styles.modalSubtitle, { color: theme.textMuted }]}>
+              Slot: {selectedSlotIndex !== null ? slotsList[selectedSlotIndex].timeRange : ''}
+            </Text>
+            <View style={[styles.modalDivider, { backgroundColor: theme.divider }]} />
+
+            <Text style={[styles.formLabel, { color: theme.textMuted }]}>Customer Name</Text>
+            <TextInput
+              style={[styles.formInput, { color: theme.text, borderColor: theme.cardBorder }]}
+              placeholder="e.g. Sanjay Patil"
+              placeholderTextColor="#94a3b8"
+              value={formName}
+              onChangeText={setFormName}
+            />
+
+            <Text style={[styles.formLabel, { color: theme.textMuted }]}>Phone Number (Optional)</Text>
+            <TextInput
+              style={[styles.formInput, { color: theme.text, borderColor: theme.cardBorder }]}
+              placeholder="e.g. 9876543210"
+              placeholderTextColor="#94a3b8"
+              keyboardType="phone-pad"
+              value={formPhone}
+              onChangeText={setFormPhone}
+            />
+
+            <Text style={[styles.formLabel, { color: theme.textMuted }]}>Amount (₹)</Text>
+            <TextInput
+              style={[styles.formInput, { color: theme.text, borderColor: theme.cardBorder }]}
+              placeholder="Amount"
+              keyboardType="number-pad"
+              value={formAmount}
+              onChangeText={setFormAmount}
+            />
+
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity style={[styles.actionCancelBtn, { borderColor: theme.cardBorder }]} onPress={() => setBookingModalVisible(false)}>
+                <Text style={[styles.actionCancelBtnText, { color: theme.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionSubmitBtn} onPress={submitOfflineBooking}>
+                <Text style={styles.actionSubmitBtnText}>Confirm Booking</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Booking Details Sheet Modal */}
+      <Modal visible={detailsModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, width: '90%' }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Booking Details</Text>
+            <View style={[styles.modalDivider, { backgroundColor: theme.divider }]} />
+
+            {activeSlotDetails && (
+              <View style={styles.detailsBody}>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Customer:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text }]}>{activeSlotDetails.customerName}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Time Slot:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text }]}>{activeSlotDetails.timeRange}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Turf:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text }]}>{selectedTurf?.name}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Amount Paid:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text }]}>₹{activeSlotDetails.price}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Status:</Text>
+                  <View style={[styles.statusBadgeInline, { backgroundColor: activeSlotDetails.status === 'CONFIRMED' || activeSlotDetails.status === 'BOOKED' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)' }]}>
+                    <Text style={{ color: activeSlotDetails.status === 'CONFIRMED' || activeSlotDetails.status === 'BOOKED' ? '#10b981' : '#f59e0b', fontSize: 11, fontWeight: '800' }}>
+                      {activeSlotDetails.status}
+                    </Text>
+                  </View>
+                </View>
               </View>
-            );
-          })
-        )}
-      </ScrollView>
+            )}
+
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity style={[styles.actionCancelBtn, { borderColor: theme.cardBorder }]} onPress={() => setDetailsModalVisible(false)}>
+                <Text style={[styles.actionCancelBtnText, { color: theme.text }]}>Close</Text>
+              </TouchableOpacity>
+              {activeSlotDetails && (
+                <TouchableOpacity
+                  style={[styles.actionSubmitBtn, { backgroundColor: '#ef4444' }]}
+                  onPress={() => cancelActiveBooking(activeSlotDetails.bookingId, activeSlotDetails.index)}
+                >
+                  <Text style={styles.actionSubmitBtnText}>Cancel Booking</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -237,64 +765,319 @@ export default function OwnerBookingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header: {
+  headerBg: {
+    height: 180,
+    width: '100%',
+    paddingHorizontal: 20,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  headerImage: {
+    objectFit: 'cover',
+  },
+  darkOverlay: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  topBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    width: '100%',
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerTitles: {
+    marginTop: 18,
+  },
+  headerTitleText: {
+    fontSize: 24,
+    color: '#ffffff',
+    fontWeight: '800',
+  },
+  headerSubtitleText: {
+    fontSize: 13,
+    color: '#cbd5e1',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  overlapCard: {
+    flex: 1,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    marginTop: -28,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  selectorRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
+    width: '100%',
+    marginBottom: 16,
   },
-  headerTitle: { fontSize: 22, fontWeight: '800' },
-  countBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  countBadgeText: { fontSize: 13, fontWeight: '800' },
-  tabsRow: { borderBottomWidth: 1 },
-  tabsContent: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  filterTabText: { fontSize: 12, fontWeight: '700' },
-  scrollContent: { padding: 16, gap: 12 },
-  emptyWrapper: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
-  emptyText: { fontSize: 15, fontWeight: '600' },
-  bookingCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 2,
-  },
-  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: {
-    width: 44,
-    height: 44,
+  dropdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 12,
+    borderWidth: 1,
+    flex: 1,
+    marginRight: 10,
+  },
+  dropdownLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
+  settingsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  settingsBtnText: {
+    color: ACCENT,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  dateSelectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 16,
+  },
+  dateChevron: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: ACCENT, fontSize: 18, fontWeight: '800' },
-  customerName: { fontSize: 14, fontWeight: '700' },
-  turfName: { fontSize: 12, fontWeight: '500', marginTop: 2 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  statusText: { fontSize: 10, fontWeight: '800' },
-  divider: { height: 1, marginVertical: 12 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  metaText: { fontSize: 12, fontWeight: '600' },
-  amountText: { marginLeft: 'auto', fontSize: 15, fontWeight: '800' },
-  cancelBtn: {
+  datePickerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-    paddingVertical: 8,
+    justifyContent: 'center',
     paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: 'rgba(239,68,68,0.08)',
+    paddingVertical: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)',
-    alignSelf: 'flex-start',
+    flex: 1,
+    marginHorizontal: 8,
   },
-  cancelBtnText: { color: '#ef4444', fontSize: 12, fontWeight: '700' },
+  dateTextLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  legendBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 6,
+  },
+  legendText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  slotsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  slotCell: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 2,
+    height: 84,
+    justifyContent: 'space-between',
+  },
+  slotTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  slotTimeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    flex: 1,
+    marginRight: 4,
+  },
+  slotBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  slotBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+  },
+  slotPriceText: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  slotCustomerText: {
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  tipBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e6fbf4',
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 24,
+  },
+  tipText: {
+    color: '#047857',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCard: {
+    width: '80%',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  modalDivider: {
+    height: 1,
+    marginVertical: 12,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  modalOptionText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  closeModalBtn: {
+    marginTop: 12,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  closeModalBtnText: {
+    color: ACCENT,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  formLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  formInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    gap: 12,
+  },
+  actionCancelBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    flex: 1,
+    alignItems: 'center',
+  },
+  actionCancelBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  actionSubmitBtn: {
+    backgroundColor: ACCENT,
+    borderRadius: 12,
+    paddingVertical: 10,
+    flex: 1,
+    alignItems: 'center',
+  },
+  actionSubmitBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  detailsBody: {
+    gap: 10,
+    marginVertical: 10,
+  },
+  detailItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  detailItemLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  detailItemValue: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  statusBadgeInline: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
 });

@@ -89,9 +89,17 @@ export class OwnerService {
   }
 
   public async createOfflineBooking(ownerId: string, data: any) {
+    // Determine slotId/timeSlot display string
+    const startHour = new Date(data.startTime).getUTCHours();
+    const endHour = new Date(data.endTime).getUTCHours();
+    const slotId = `${startHour.toString().padStart(2, '0')}:00 - ${endHour.toString().padStart(2, '0')}:00`;
+
     // (Offline bookings bypass real payment gateways)
     const booking = await bookingRepository.create({
       ...data,
+      slotId,
+      timeSlot: slotId,
+      totalAmount: data.finalAmount,
       userId: ownerId, // Booked by owner
       status: 'CONFIRMED',
       paymentStatus: 'PAID',
