@@ -883,41 +883,25 @@ export default function App() {
               <div className="max-w-md mx-auto py-6">
                 <h3 className="font-extrabold text-3xl mb-6 text-center">Confirm & Pay</h3>
                 
-<<<<<<< HEAD
-                <div className="bg-[#030712]/50 p-6 rounded-2xl border border-slate-850 mb-6">
-=======
-                <div className={`p-6 rounded-2xl border mb-8 ${isDarkMode ? 'bg-[#030712]/50 border-slate-850' : 'bg-slate-50/80 border-slate-200'}`}>
->>>>>>> 57205da (updated)
+                <div className={`p-6 rounded-2xl border mb-6 ${isDarkMode ? 'bg-[#030712]/50 border-slate-850' : 'bg-slate-50/80 border-slate-200'}`}>
                   <div className="flex justify-between mb-4 text-sm">
                     <span className="text-slate-500 font-semibold">Arena</span>
                     <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{selectedTurf.name}</span>
                   </div>
                   <div className="flex justify-between mb-4 text-sm">
-<<<<<<< HEAD
                     <span className="text-slate-500 font-semibold">Slot(s)</span>
-                    <span className="font-bold text-white max-w-[220px] text-right truncate" title={selectedTimes.join(', ')}>
+                    <span className={`font-bold max-w-[220px] text-right truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`} title={selectedTimes.join(', ')}>
                       {selectedTimes.join(', ')}
                     </span>
-=======
-                    <span className="text-slate-500 font-semibold">Slot</span>
-                    <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{selectedDate} at {selectedTime}</span>
->>>>>>> 57205da (updated)
                   </div>
                   <div className="flex justify-between mb-4 text-sm">
                     <span className="text-slate-500 font-semibold">Sport</span>
                     <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{selectedTurf.sport}</span>
                   </div>
-<<<<<<< HEAD
-                  <hr className="border-slate-855 my-5" />
-                  <div className="flex justify-between text-lg font-black">
-                    <span className="text-white">Total Amount</span>
-                    <span className="text-emerald-400">{formatCurrency(getSelectedSlotPrice())}</span>
-=======
                   <hr className={isDarkMode ? 'border-slate-850 my-5' : 'border-slate-200 my-5'} />
                   <div className="flex justify-between text-lg font-black">
                     <span className={isDarkMode ? 'text-white' : 'text-slate-900'}>Total Amount</span>
-                    <span className="text-emerald-400">{formatCurrency(selectedTurf.price)}</span>
->>>>>>> 57205da (updated)
+                    <span className="text-emerald-400">{formatCurrency(getSelectedSlotPrice())}</span>
                   </div>
                 </div>
 

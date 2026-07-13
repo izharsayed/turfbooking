@@ -130,6 +130,16 @@ const handleMockFetch = (path: string, options: ApiOptions): any => {
         data: []
       };
     }
+    if (cleanPath === '/owner/bookings/offline') {
+      return {
+        success: true,
+        message: 'Offline booking created successfully (Mock)',
+        data: {
+          id: `mock-offline-booking-${Date.now()}`,
+          ...(options.body as any)
+        }
+      };
+    }
     if (cleanPath === '/owner/turfs') {
       return {
         success: true,
@@ -210,7 +220,11 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
     }
 
     if (!response.ok) {
-      const errorMsg = data.message || `API error: ${response.status}`;
+      let errorMsg = data.message || `API error: ${response.status}`;
+      if (data.errors && Array.isArray(data.errors)) {
+        const details = data.errors.map((e: any) => `${e.path || e.field || 'field'}: ${e.message}`).join(', ');
+        errorMsg += ` (${details})`;
+      }
       throw new ApiError(response.status, errorMsg);
     }
 
@@ -228,14 +242,14 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
       try {
         return await apiFetch(path, { ...options, _retry: true });
       } catch (retryErr) {
-        console.error(`❌ API call failed after retry [${options.method || 'GET'} ${path}]:`, retryErr);
+        console.warn(`❌ API call failed after retry [${options.method || 'GET'} ${path}]:`, retryErr);
         throw retryErr;
       }
     }
     if (error instanceof ApiError && error.statusCode === 401) {
       console.warn(`🔐 API call unauthorized [${options.method || 'GET'} ${path}]: ${error.message}`);
     } else {
-      console.error(`❌ API call failed [${options.method || 'GET'} ${path}]:`, error);
+      console.warn(`❌ API call failed [${options.method || 'GET'} ${path}]:`, error.message || error);
     }
     throw error;
   }

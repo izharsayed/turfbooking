@@ -366,6 +366,11 @@ export default function OwnerBookingsScreen() {
       Alert.alert('Error', 'Please enter customer name');
       return;
     }
+    const phone = formPhone.trim();
+    if (phone && (phone.length < 10 || phone.length > 15)) {
+      Alert.alert('Error', 'Phone number must be between 10 and 15 digits');
+      return;
+    }
     if (selectedSlotIndex === null || !selectedTurf) return;
 
     const newBooking: OfflineBooking = {
@@ -373,7 +378,7 @@ export default function OwnerBookingsScreen() {
       date: dateKey,
       slotIndex: selectedSlotIndex,
       customerName: formName.trim(),
-      customerPhone: formPhone.trim(),
+      customerPhone: phone || undefined,
       amount: Number(formAmount) || 1200,
     };
 
@@ -393,17 +398,17 @@ export default function OwnerBookingsScreen() {
           startTime: startDate.toISOString(),
           endTime: endDate.toISOString(),
           customerName: formName.trim(),
-          customerPhone: formPhone.trim() || '0000000000',
+          customerPhone: phone || '0000000000',
           finalAmount: Number(formAmount) || 1200,
         },
       });
-    } catch {
-      // Fallback: booking saved to local state even if API fails
-    }
 
-    setOfflineBookings(prev => [...prev, newBooking]);
-    setBookingModalVisible(false);
-    Alert.alert('Success', 'Offline booking added successfully.');
+      setOfflineBookings(prev => [...prev, newBooking]);
+      setBookingModalVisible(false);
+      Alert.alert('Success', 'Offline booking added successfully.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to add offline booking');
+    }
   };
 
 

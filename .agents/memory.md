@@ -1,10 +1,6 @@
-# Ã°Å¸Â§Â  AI Agent Memory Ã¢â‚¬â€ TurfBook Project
+# 🧠 AI Agent Memory — TurfBook Project
 
-<<<<<<< HEAD
-> Last updated: 2026-07-09 18:02 IST
-=======
-> Last updated: 2026-07-10 12:20 IST
->>>>>>> 57205da (updated)
+> Last updated: 2026-07-13 11:45 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1326,4 +1322,20 @@ pnpm dev:backend      # start the server
 ### 127. `mobile/app/login.tsx` — Modified
 - Replaced the flat red Material `google` icon on the Google Sign-in button with the official 4-colored Google "G" logo SVG using `react-native-svg`.
 - **Why**: Fulfills user request to show the official multi-colored Google logo icon, enhancing visual fidelity and brand aesthetics.
+
+### 128. `frontend/src/pages/customer/CustomerApp.tsx` — Fixed
+- Resolved a Git merge conflict in the booking checkout component.
+- Preserved the multi-slot selection display (`selectedTimes` array rendering) and combined it with dynamic `isDarkMode` text/background styling.
+- **Why**: Fixes a build-breaking syntax error caused by unresolved conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) from recent upstream pulls.
+
+### 129. `mobile/utils/api.ts` — Modified
+- Mapped `POST /owner/bookings/offline` to return a successful mock response in simulated developer mode (`dev-token-bypass`).
+- Extracted and appended specific invalid property errors (Zod validation detail arrays) directly into the thrown `ApiError` message text.
+- Replaced `console.error` calls in `apiFetch` with `console.warn` to suppress blocking full-screen Metro bundler LogBox red screens in development mode when handled errors are thrown.
+- **Why**: Enhances developer ergonomics and provides detailed visual diagnostic alerts when API calls fail validation on the server.
+
+### 130. `mobile/app/owner/bookings.tsx` — Modified
+- Added client-side character length validation (10 to 15 digits) to the optional phone number input field in the offline booking modal.
+- Caught errors in the offline booking creation process and displayed their messages in an `Alert.alert` window instead of silently swallowing the exception.
+- **Why**: Prevents invalid-length phone strings from causing silent failures or backend Zod validation rejections, and alerts the user of any API issues dynamically.
 
