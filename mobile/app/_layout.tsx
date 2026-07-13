@@ -13,7 +13,7 @@ function AuthBootstrap() {
   const { token, login, logout } = useAuthStore();
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || token === 'dev-token-bypass') return;
 
     // Silently validate saved token in background after app loads
     const validateToken = async () => {

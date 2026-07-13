@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -17,6 +17,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { apiFetch } from '../utils/api';
+import Constants from 'expo-constants';
+import Svg, { Path } from 'react-native-svg';
+
+const GoogleIcon = ({ size = 18 }: { size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Path
+      fill="#4285F4"
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+    />
+    <Path
+      fill="#34A853"
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+    />
+    <Path
+      fill="#FBBC05"
+      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.66-.35-1.36-.35-2.09z"
+    />
+    <Path
+      fill="#EA4335"
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+    />
+  </Svg>
+);
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -101,6 +124,155 @@ export default function LoginScreen() {
     );
     setDevDropdownOpen(false);
     safeRedirect(account.role === 'SUPER_ADMIN' ? '/admin' : (account.role === 'TURF_OWNER' ? '/owner' : '/'));
+  };
+
+  // Google Sign-In credentials check
+  const isGoogleConfigured = () => {
+    const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+    const firebaseApiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+    return (
+      webClientId &&
+      webClientId !== 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com' &&
+      firebaseApiKey &&
+      firebaseApiKey !== 'YOUR_FIREBASE_WEB_API_KEY'
+    );
+  };
+
+  useEffect(() => {
+    // Check if we are running in Expo Go
+    const isExpoGo = Constants.appOwnership === 'expo';
+    if (!isExpoGo) {
+      const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+      if (webClientId && webClientId !== 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com') {
+        import('@react-native-google-signin/google-signin')
+          .then(({ GoogleSignin }) => {
+            GoogleSignin.configure({
+              webClientId,
+              offlineAccess: false,
+            });
+          })
+          .catch((err) => {
+            console.error('Failed to configure Google Sign-In dynamically:', err);
+          });
+      } else {
+        console.warn('⚠️ Google Web Client ID is not configured in .env file.');
+      }
+    }
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    const isExpoGo = Constants.appOwnership === 'expo';
+    const configured = isGoogleConfigured();
+
+    if (isExpoGo || !configured) {
+      // Prompt user with simulation/bypass details
+      let alertMessage = 'You are currently running the app in ';
+      if (isExpoGo) {
+        alertMessage += 'Expo Go. Native Google Sign-In requires a custom Development Client build.';
+      } else {
+        alertMessage += 'a native build, but the Google Web Client ID or Firebase API Key is not configured in your .env file.';
+      }
+      alertMessage += '\n\nWould you like to simulate Google authentication with a mock developer account?';
+
+      Alert.alert(
+        'Google Sign-In Simulation',
+        alertMessage,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Proceed (Simulate)',
+            onPress: () => {
+              // Direct local bypass for simulation to avoid backend verification failures
+              login(
+                {
+                  id: 'dev-google-customer',
+                  email: 'google.mock@turfbook.com',
+                  name: 'Google Mock User',
+                  phone: '+919999988888',
+                  role: 'CUSTOMER',
+                },
+                'dev-token-bypass'
+              );
+              safeRedirect('/');
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // --- Real Google Auth Flow ---
+    try {
+      const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      
+      const googleIdToken = userInfo.data?.idToken || userInfo.idToken;
+      
+      if (!googleIdToken) {
+        throw new Error('Google authentication succeeded, but no ID Token was returned.');
+      }
+
+      // Exchange Google ID Token for Firebase ID Token
+      const firebaseApiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+      const firebaseExchangeUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${firebaseApiKey}`;
+      
+      const exchangeRes = await fetch(firebaseExchangeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postBody: `id_token=${googleIdToken}&providerId=google.com`,
+          requestUri: 'http://localhost',
+          returnIdpCredential: true,
+          returnSecureToken: true,
+        }),
+      });
+
+      const exchangeData = await exchangeRes.json();
+      if (!exchangeRes.ok) {
+        throw new Error(exchangeData.error?.message || 'Failed to exchange Google token for Firebase token.');
+      }
+
+      const firebaseIdToken = exchangeData.idToken;
+      if (!firebaseIdToken) {
+        throw new Error('Firebase token exchange succeeded, but no Firebase ID Token was returned.');
+      }
+
+      // Send Firebase ID Token to backend
+      const res = await apiFetch('/auth/google', {
+        method: 'POST',
+        body: { idToken: firebaseIdToken },
+      });
+
+      if (res.success && res.data) {
+        login(
+          {
+            id: res.data.user.id,
+            email: res.data.user.email,
+            name: `${res.data.user.profile?.firstName || ''} ${res.data.user.profile?.lastName || ''}`.trim() || res.data.user.name || 'Google User',
+            phone: res.data.user.phone,
+            role: res.data.user.role,
+          },
+          res.data.accessToken
+        );
+        safeRedirect(res.data.user.role === 'SUPER_ADMIN' ? '/admin' : (res.data.user.role === 'TURF_OWNER' ? '/owner' : '/'));
+      } else {
+        throw new Error('TurfBook server auth failed.');
+      }
+
+    } catch (error: any) {
+      const { statusCodes } = await import('@react-native-google-signin/google-signin');
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        console.log('Google Sign-in cancelled by user');
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        console.log('Google Sign-in already in progress');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Google Services Error', 'Google Play Services are not available or out of date.');
+      } else {
+        Alert.alert('Google Authentication Failed', error.message || 'An unknown error occurred during sign-in.');
+        console.error(error);
+      }
+    }
   };
 
   const handleSubmit = async () => {
@@ -287,10 +459,10 @@ export default function LoginScreen() {
           {/* Google Sign In */}
           <TouchableOpacity 
             style={[styles.googleButton, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', borderColor: isDarkMode ? '#334155' : '#cbd5e1' }]} 
-            onPress={() => applyDummyLogin(DUMMY_ACCOUNTS[0])}
+            onPress={handleGoogleSignIn}
             activeOpacity={0.8}
           >
-            <MaterialCommunityIcons name="google" size={18} color="#ea4335" />
+            <GoogleIcon size={18} />
             <Text style={[styles.googleButtonText, { color: isDarkMode ? '#ffffff' : '#0f172a' }]}>Continue with Google</Text>
           </TouchableOpacity>
         </View>
