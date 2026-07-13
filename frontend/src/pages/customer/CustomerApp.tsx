@@ -479,20 +479,19 @@ export default function App() {
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDarkMode ? 'bg-[#030712] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
       {/* Background Turf Image */}
-      <div className="fixed top-0 left-0 w-full h-[600px] pointer-events-none overflow-hidden z-0">
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none overflow-hidden z-0">
         <img
           src="/images/turf-bg.jpg"
           alt="Sports Turf Background"
           className="w-full h-full object-cover object-center"
           style={{ opacity: isDarkMode ? 0.75 : 0.70 }}
         />
-        {/* Very light fade only at the very bottom */}
         <div
           className="absolute inset-0"
           style={{
             background: isDarkMode
-              ? 'linear-gradient(to bottom, rgba(3,7,18,0.05) 0%, rgba(3,7,18,0.15) 55%, rgba(3,7,18,0.95) 100%)'
-              : 'linear-gradient(to bottom, rgba(248,250,252,0.0) 0%, rgba(248,250,252,0.1) 60%, rgba(248,250,252,1) 100%)'
+              ? 'linear-gradient(to bottom, rgba(3,7,18,0.1) 0%, rgba(3,7,18,0.2) 100%)'
+              : 'linear-gradient(to bottom, rgba(248,250,252,0.05) 0%, rgba(248,250,252,0.15) 100%)'
           }}
         />
       </div>
@@ -617,7 +616,7 @@ export default function App() {
               </p>
 
               {/* Enhanced Search & Filters */}
-              <div className={`border rounded-2xl p-4 flex flex-col md:flex-row gap-4 shadow-2xl transition-all ${isDarkMode ? 'bg-[#0f172a]/60 border-slate-800/80 backdrop-blur-xl' : 'bg-white border-slate-200'}`}>
+              <div className={`border rounded-2xl p-4 flex flex-col md:flex-row gap-4 shadow-2xl transition-all backdrop-blur-md ${isDarkMode ? 'bg-[#0f172a]/60 border-slate-800/80' : 'bg-white/80 border-slate-200/50'}`}>
                 <div className="flex-1 flex items-center gap-3 px-3">
                   <Search className="text-slate-500 h-5 w-5 shrink-0" />
                   <input
@@ -653,10 +652,10 @@ export default function App() {
                 {filteredTurfs.map((turf) => (
                   <div
                     key={turf.id}
-                    className={`group border rounded-3xl overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1.5 ${
+                    className={`group border rounded-3xl overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1.5 backdrop-blur-md ${
                       isDarkMode
                         ? 'bg-[#0f172a]/40 border-slate-850 hover:border-emerald-500/30 shadow-[0_10px_30px_-15px_rgba(0,0,0,0.3)] hover:shadow-[0_20px_40px_-15px_rgba(16,185,129,0.15)]'
-                        : 'bg-white/90 border-slate-200/70 hover:border-emerald-500/25 shadow-[0_10px_30px_-15px_rgba(148,163,184,0.15)] hover:shadow-[0_20px_40px_-15px_rgba(16,185,129,0.1)]'
+                        : 'bg-white/80 border-slate-200/50 hover:border-emerald-500/25 shadow-[0_10px_30px_-15px_rgba(148,163,184,0.15)] hover:shadow-[0_20px_40px_-15px_rgba(16,185,129,0.1)]'
                     }`}
                   >
                     <div className="h-56 overflow-hidden relative">
@@ -705,25 +704,25 @@ export default function App() {
 
             {/* Quick Pitch Benefits */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-slate-800/60 pt-16 mb-16">
-              <div className={`p-6 border rounded-2xl ${isDarkMode ? 'bg-[#0f172a]/20 border-slate-900' : 'bg-white border-slate-200'}`}>
+              <div className={`p-6 border rounded-2xl backdrop-blur-md ${isDarkMode ? 'bg-[#0f172a]/20 border-slate-900' : 'bg-white/80 border-slate-200/50'}`}>
                 <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-6">
                   <Trophy className="h-6 w-6 text-emerald-400" />
                 </div>
-                <h3 className="font-bold text-lg text-white mb-2">Instant Booking</h3>
+                <h3 className={`font-bold text-lg mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Instant Booking</h3>
                 <p className="text-slate-400 text-sm leading-relaxed">Book your slot in seconds and receive immediate booking details and push confirmations.</p>
               </div>
-              <div className={`p-6 border rounded-2xl ${isDarkMode ? 'bg-[#0f172a]/20 border-slate-900' : 'bg-white border-slate-200'}`}>
+              <div className={`p-6 border rounded-2xl backdrop-blur-md ${isDarkMode ? 'bg-[#0f172a]/20 border-slate-900' : 'bg-white/80 border-slate-200/50'}`}>
                 <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-6">
                   <Shield className="h-6 w-6 text-emerald-400" />
                 </div>
-                <h3 className="font-bold text-lg text-white mb-2">Secure Payments</h3>
+                <h3 className={`font-bold text-lg mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Secure Payments</h3>
                 <p className="text-slate-400 text-sm leading-relaxed">Encrypted transactional payments powered by Razorpay. Refund options available.</p>
               </div>
-              <div className={`p-6 border rounded-2xl ${isDarkMode ? 'bg-[#0f172a]/20 border-slate-900' : 'bg-white border-slate-200'}`}>
+              <div className={`p-6 border rounded-2xl backdrop-blur-md ${isDarkMode ? 'bg-[#0f172a]/20 border-slate-900' : 'bg-white/80 border-slate-200/50'}`}>
                 <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-6">
                   <Zap className="h-6 w-6 text-emerald-400" />
                 </div>
-                <h3 className="font-bold text-lg text-white mb-2">Live Support</h3>
+                <h3 className={`font-bold text-lg mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Live Support</h3>
                 <p className="text-slate-400 text-sm leading-relaxed">Encountered an issue with your slot or payment? Reach out to support 24/7 directly in-app.</p>
               </div>
             </div>
@@ -732,7 +731,7 @@ export default function App() {
 
         {/* Selected Turf Detail Drawer/Modal view */}
         {selectedTurf && (
-          <div className={`border rounded-2xl p-8 max-w-4xl mx-auto shadow-2xl relative ${isDarkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
+          <div className={`border rounded-2xl p-8 max-w-4xl mx-auto shadow-2xl relative backdrop-blur-xl ${isDarkMode ? 'bg-[#0f172a]/80 border-slate-800' : 'bg-white/90 border-slate-200/60'}`}>
             {bookingStep !== 'success' && (
               <button onClick={() => setSelectedTurf(null)} className="text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors mb-6 inline-flex items-center gap-1.5">
                 &larr; Back to Listings
@@ -760,7 +759,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className={`p-6 border rounded-2xl shadow-inner ${isDarkMode ? 'bg-[#030712]/40 border-slate-900' : 'bg-white border-slate-200 shadow-md'}`}>
+                <div className={`p-6 border rounded-2xl shadow-inner backdrop-blur-md ${isDarkMode ? 'bg-[#030712]/40 border-slate-900' : 'bg-white/70 border-slate-200/50 shadow-md'}`}>
                   <h3 className={`font-extrabold text-xl mb-6 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                     <Calendar className="h-5 w-5 text-emerald-500" />
                     Configure Slot
@@ -884,25 +883,41 @@ export default function App() {
               <div className="max-w-md mx-auto py-6">
                 <h3 className="font-extrabold text-3xl mb-6 text-center">Confirm & Pay</h3>
                 
+<<<<<<< HEAD
                 <div className="bg-[#030712]/50 p-6 rounded-2xl border border-slate-850 mb-6">
+=======
+                <div className={`p-6 rounded-2xl border mb-8 ${isDarkMode ? 'bg-[#030712]/50 border-slate-850' : 'bg-slate-50/80 border-slate-200'}`}>
+>>>>>>> 57205da (updated)
                   <div className="flex justify-between mb-4 text-sm">
                     <span className="text-slate-500 font-semibold">Arena</span>
-                    <span className="font-bold text-white">{selectedTurf.name}</span>
+                    <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{selectedTurf.name}</span>
                   </div>
                   <div className="flex justify-between mb-4 text-sm">
+<<<<<<< HEAD
                     <span className="text-slate-500 font-semibold">Slot(s)</span>
                     <span className="font-bold text-white max-w-[220px] text-right truncate" title={selectedTimes.join(', ')}>
                       {selectedTimes.join(', ')}
                     </span>
+=======
+                    <span className="text-slate-500 font-semibold">Slot</span>
+                    <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{selectedDate} at {selectedTime}</span>
+>>>>>>> 57205da (updated)
                   </div>
                   <div className="flex justify-between mb-4 text-sm">
                     <span className="text-slate-500 font-semibold">Sport</span>
-                    <span className="font-bold text-white">{selectedTurf.sport}</span>
+                    <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{selectedTurf.sport}</span>
                   </div>
+<<<<<<< HEAD
                   <hr className="border-slate-855 my-5" />
                   <div className="flex justify-between text-lg font-black">
                     <span className="text-white">Total Amount</span>
                     <span className="text-emerald-400">{formatCurrency(getSelectedSlotPrice())}</span>
+=======
+                  <hr className={isDarkMode ? 'border-slate-850 my-5' : 'border-slate-200 my-5'} />
+                  <div className="flex justify-between text-lg font-black">
+                    <span className={isDarkMode ? 'text-white' : 'text-slate-900'}>Total Amount</span>
+                    <span className="text-emerald-400">{formatCurrency(selectedTurf.price)}</span>
+>>>>>>> 57205da (updated)
                   </div>
                 </div>
 
@@ -1065,20 +1080,20 @@ export default function App() {
             </h2>
             <div className="space-y-4">
               {bookings.map((b) => (
-                <div key={b.id} className={`p-6 border rounded-2xl flex items-center justify-between transition-all hover:border-slate-800/80 ${isDarkMode ? 'bg-[#0f172a]/45 border-slate-900' : 'bg-white border-slate-200'}`}>
+                <div key={b.id} className={`p-6 border rounded-2xl flex items-center justify-between transition-all hover:border-slate-800/80 backdrop-blur-md ${isDarkMode ? 'bg-[#0f172a]/45 border-slate-900' : 'bg-white/80 border-slate-200/50'}`}>
                   <div>
                     <div className="flex items-center gap-2.5 mb-3">
-                      <span className="text-xs bg-slate-800 px-2.5 py-1 rounded-lg font-mono text-slate-400 border border-slate-700/30">{b.id}</span>
+                      <span className={`text-xs px-2.5 py-1 rounded-lg font-mono border ${isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700/30' : 'bg-slate-100 text-slate-600 border-slate-200/60'}`}>{b.id}</span>
                       <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider">{b.status}</span>
                     </div>
-                    <h3 className="font-bold text-lg mb-2 text-white">{b.turfName}</h3>
+                    <h3 className={`font-bold text-lg mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{b.turfName}</h3>
                     <p className="text-xs text-slate-400 flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-slate-500" /> {b.date} &nbsp;
                       <Clock className="h-4 w-4 text-slate-500" /> {b.time}
                     </p>
                   </div>
                   <div className="text-right">
-                    <span className="text-xl font-black block mb-3 text-white">{formatCurrency(b.amount)}</span>
+                    <span className={`text-xl font-black block mb-3 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{formatCurrency(b.amount)}</span>
                     <button className="text-xs font-bold text-rose-500 hover:text-rose-450 transition-colors">Cancel Booking</button>
                   </div>
                 </div>
@@ -1095,9 +1110,9 @@ export default function App() {
               Customer Support
             </h2>
 
-            <form onSubmit={handleRaiseTicket} className={`p-6 border rounded-2xl mb-8 ${isDarkMode ? 'bg-[#0f172a]/45 border-slate-900' : 'bg-white border-slate-200'}`}>
-              <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                <HelpCircle className="h-5 w-5 text-emerald-400" />
+            <form onSubmit={handleRaiseTicket} className={`p-6 border rounded-2xl mb-8 backdrop-blur-md ${isDarkMode ? 'bg-[#0f172a]/45 border-slate-900' : 'bg-white/80 border-slate-200/50'}`}>
+              <h3 className={`font-bold text-lg mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                <HelpCircle className="h-5 w-5 text-emerald-450" />
                 Raise New Ticket
               </h3>
               <div className="mb-4">
@@ -1106,7 +1121,11 @@ export default function App() {
                   placeholder="Summarize your issue (e.g., Slot mismatch, refund status)..."
                   value={newTicketSubject}
                   onChange={(e) => setNewTicketSubject(e.target.value)}
-                  className="w-full bg-slate-850 text-white rounded-xl p-3.5 border-0 outline-none text-sm placeholder-slate-500 font-semibold"
+                  className={`w-full rounded-xl p-3.5 border outline-none text-sm placeholder-slate-500 font-semibold transition-all ${
+                    isDarkMode
+                      ? 'bg-slate-850 border-0 text-white'
+                      : 'bg-white border-slate-200 text-slate-900 focus:border-emerald-500'
+                  }`}
                   required
                 />
               </div>
@@ -1119,10 +1138,10 @@ export default function App() {
             </h3>
             <div className="space-y-3">
               {tickets.map((t) => (
-                <div key={t.id} className="p-4 bg-slate-900/40 rounded-xl flex items-center justify-between border border-slate-900/60">
+                <div key={t.id} className={`p-4 rounded-xl flex items-center justify-between border backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/40 border-slate-900/60' : 'bg-white/70 border-slate-200/50'}`}>
                   <div>
                     <span className="text-xs text-slate-500 font-mono block mb-1">{t.id}</span>
-                    <p className="font-semibold text-sm text-slate-200">{t.subject}</p>
+                    <p className={`font-semibold text-sm ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{t.subject}</p>
                   </div>
                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider ${t.status === 'RESOLVED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
                     {t.status}
