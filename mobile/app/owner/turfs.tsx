@@ -11,6 +11,7 @@ import {
   TextInput,
   Modal,
   Switch,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect } from 'expo-router';
@@ -29,6 +30,7 @@ interface Turf {
   sport?: string;
   isActive?: boolean;
   description?: string;
+  images?: string[];
 }
 
 const MOCK_TURFS: Turf[] = [
@@ -57,6 +59,7 @@ export default function OwnerTurfsScreen() {
   const [formSport, setFormSport] = useState('Football');
   const [formDescription, setFormDescription] = useState('');
   const [formActive, setFormActive] = useState(true);
+  const [formImage, setFormImage] = useState('');
   const [saving, setSaving] = useState(false);
 
   const theme = {
@@ -106,6 +109,7 @@ export default function OwnerTurfsScreen() {
     setFormPrice('');
     setFormSport('Football');
     setFormDescription('');
+    setFormImage('');
     setFormActive(true);
     setModalVisible(true);
   };
@@ -117,6 +121,7 @@ export default function OwnerTurfsScreen() {
     setFormPrice(String(turf.pricePerHour || ''));
     setFormSport(turf.sport || 'Football');
     setFormDescription(turf.description || '');
+    setFormImage(turf.images?.[0] || '');
     setFormActive(turf.isActive ?? true);
     setModalVisible(true);
   };
@@ -134,6 +139,7 @@ export default function OwnerTurfsScreen() {
       sport: formSport,
       description: formDescription.trim(),
       isActive: formActive,
+      images: formImage ? [formImage.trim()] : [],
     };
     try {
       if (editingTurf) {
@@ -223,9 +229,13 @@ export default function OwnerTurfsScreen() {
 
               <View style={styles.turfContent}>
                 <View style={styles.turfTopRow}>
-                  <View style={[styles.sportIcon, { backgroundColor: turf.isActive ? 'rgba(99,102,241,0.12)' : 'rgba(100,116,139,0.12)' }]}>
-                    <MaterialCommunityIcons name={sportIcon(turf.sport)} size={22} color={turf.isActive ? ACCENT : theme.textMuted} />
-                  </View>
+                  {turf.images?.[0] ? (
+                    <Image source={{ uri: turf.images[0] }} style={styles.turfCardImage} />
+                  ) : (
+                    <View style={[styles.sportIcon, { backgroundColor: turf.isActive ? 'rgba(99,102,241,0.12)' : 'rgba(100,116,139,0.12)' }]}>
+                      <MaterialCommunityIcons name={sportIcon(turf.sport)} size={22} color={turf.isActive ? ACCENT : theme.textMuted} />
+                    </View>
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.turfName, { color: theme.text }]}>{turf.name}</Text>
                     <Text style={[styles.turfSport, { color: theme.textMuted }]}>{turf.sport}</Text>
@@ -332,7 +342,57 @@ export default function OwnerTurfsScreen() {
                 style={[styles.input, styles.inputMultiline, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
               />
 
-              {/* Active Toggle */}
+              {/* Turf Photo URL */}
+              <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>TURF PHOTO URL</Text>
+              <TextInput
+                value={formImage}
+                onChangeText={setFormImage}
+                placeholder="https://example.com/photo.jpg or select below"
+                placeholderTextColor={theme.textMuted}
+                style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
+              />
+
+              {/* Quick Presets */}
+              <Text style={[styles.fieldLabel, { color: theme.textMuted, fontSize: 8, marginTop: -8, marginBottom: 12 }]}>
+                QUICK PRESETS
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                {[
+                  { name: 'Soccer', url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60' },
+                  { name: 'Cricket', url: 'https://images.unsplash.com/photo-1531415080295-6ad6679ff877?w=600&auto=format&fit=crop&q=60' },
+                  { name: 'Arena', url: 'https://images.unsplash.com/photo-1544698310-74ea9d1c8258?w=600&auto=format&fit=crop&q=60' }
+                ].map((preset) => (
+                  <TouchableOpacity
+                    key={preset.name}
+                    style={{ 
+                      backgroundColor: formImage === preset.url ? ACCENT : theme.inputBg, 
+                      borderColor: formImage === preset.url ? ACCENT : theme.cardBorder,
+                      borderWidth: 1.5,
+                      borderRadius: 10,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                    }}
+                    onPress={() => setFormImage(preset.url)}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: formImage === preset.url ? '#fff' : theme.text }}>
+                      {preset.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Photo Preview inside modal */}
+              {formImage ? (
+                <View style={{ width: '100%', height: 120, borderRadius: 16, overflow: 'hidden', marginBottom: 16, borderWidth: 1, borderColor: theme.cardBorder }}>
+                  <Image source={{ uri: formImage }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
+                  <TouchableOpacity 
+                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 20 }}
+                    onPress={() => setFormImage('')}
+                  >
+                    <Ionicons name="trash-outline" size={14} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
               <View style={styles.toggleRow}>
                 <Text style={[styles.toggleLabel, { color: theme.text }]}>Turf is Active</Text>
                 <Switch
@@ -415,6 +475,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  turfCardImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    resizeMode: 'cover',
   },
   turfName: { fontSize: 15, fontWeight: '800' },
   turfSport: { fontSize: 12, fontWeight: '600', marginTop: 2 },

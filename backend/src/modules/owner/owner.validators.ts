@@ -11,6 +11,7 @@ export const createTurfSchema = z.object({
   areaId: z.string().min(1, 'Area ID is required'),
   sports: z.array(z.string().min(1)).min(1, 'At least one sport must be assigned'),
   amenities: z.array(z.string().min(1)).optional(),
+  images: z.array(z.string()).optional(),
 });
 
 export const updateTurfSchema = z.object({
@@ -21,6 +22,7 @@ export const updateTurfSchema = z.object({
   longitude: z.number().optional(),
   pricePerHour: z.number().positive().optional(),
   isActive: z.boolean().optional(),
+  images: z.array(z.string()).optional(),
 });
 
 export const createSlotSchema = z.object({

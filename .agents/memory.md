@@ -1,11 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-<<<<<<< HEAD
-> Last updated: 2026-07-13 16:15 IST
-> Last updated: 2026-07-13 18:40 IST
-=======
-> Last updated: 2026-07-14 12:15 IST
->>>>>>> f7d6e74 (updated)
+> Last updated: 2026-07-14 16:15 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1670,4 +1665,21 @@ pnpm dev:backend      # start the server
   - Added a search input box and "Search" action button directly above the map in the turf registration/modify form drawer, handling keydown "Enter" queries gracefully.
 - **Why**: Responds to user request to add a search option to the interactive map in the owner dashboard to easily find exact locations, without making any modifications to the mobile app.
 
->>>>>>> f7d6e74 (updated)
+### 191. Turf Photo Upload option — Created | Modified
+- **`backend/src/modules/owner/owner.validators.ts`**: Added `images: z.array(z.string()).optional()` to `createTurfSchema` and `updateTurfSchema` to allow the validation and persistence of image payloads.
+- **`frontend/src/pages/owner/OwnerApp.tsx`**:
+  - Imported `Upload` and `LinkIcon` from `lucide-react`.
+  - Implemented client-side Canvas-based image compression (`handleFileChange`) that scales uploaded photos to `800x600` and converts them to under 100KB JPEG base64 strings.
+  - Added a dedicated Turf Photo section in the registration form (supporting file uploads, quick presets, and custom URL paste).
+  - Modified save and edit click handlers to support populating and submitting this custom image parameter.
+- **`mobile/app/owner/turfs.tsx`**:
+  - Added Turf Photo URL text input, preset chips selector, and live image preview components inside the mobile add/edit turf modal sheet.
+  - Programmed modal open reset handlers and the `handleSave` payload generator to support the `images` parameter.
+  - Updated mobile owner list card design to display the custom turf image if present.
+- **Why**: Responds to user request to add an "Add Photo" option in the Owner Panel for registering and editing turfs, and synchronizing it in the mobile app.
+
+### 192. `frontend/src/pages/owner/OwnerApp.tsx` — Modified
+- Declared `imageLoadError` state variable, reset via a `useEffect` hook whenever `turfImage` changes.
+- Wrapped the preview image element with load validation (`onError` handler) that triggers the error state.
+- Created a custom fallback card rendering `ShieldAlert` with troubleshooting steps and a "Clear URL" button when an invalid URL is pasted.
+- **Why**: Fixes the broken image preview experience when users paste an invalid image URL (like a standard webpage URL), explaining exactly why it failed and giving a cleaner, premium design interface instead of the default browser broken icon.
