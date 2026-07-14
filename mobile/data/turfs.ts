@@ -21,7 +21,7 @@ export const turfs: Turf[] = [
     price: 1200,
     rating: 4.8,
     area: 'Savedi, Ahmednagar',
-    image: 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
+    image: '/images/football.jpg',
     latitude: 19.1158,
     longitude: 74.742,
     description:
@@ -36,7 +36,7 @@ export const turfs: Turf[] = [
     price: 1500,
     rating: 4.9,
     area: 'Pipeline Road, Ahmednagar',
-    image: 'https://images.unsplash.com/photo-1607734834519-d8576ae60ea6?w=600&auto=format&fit=crop&q=60',
+    image: '/images/cricket.jpg',
     latitude: 19.1035,
     longitude: 74.7562,
     description:
@@ -51,7 +51,7 @@ export const turfs: Turf[] = [
     price: 1000,
     rating: 4.7,
     area: 'Kedgaon, Ahmednagar',
-    image: 'https://images.unsplash.com/photo-1531415080290-bc98513989fe?w=600&auto=format&fit=crop&q=60',
+    image: '/images/cricket.jpg',
     latitude: 19.0745,
     longitude: 74.7335,
     description:

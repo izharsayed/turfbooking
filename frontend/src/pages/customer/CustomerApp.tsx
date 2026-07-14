@@ -79,7 +79,7 @@ const sampleTurfs: Turf[] = [
     price: 1200,
     sport: 'Football',
     rating: 4.8,
-    image: 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
+    image: '/images/football.jpg',
     amenities: ['Washroom', 'Parking', 'Flood Lights', 'Changing Room'],
     lat: 19.1158,
     lng: 74.7420
@@ -93,7 +93,7 @@ const sampleTurfs: Turf[] = [
     price: 1500,
     sport: 'Cricket',
     rating: 4.9,
-    image: 'https://images.unsplash.com/photo-1607734834519-d8576ae60ea6?w=600&auto=format&fit=crop&q=60',
+    image: '/images/cricket.jpg',
     amenities: ['Drinking Water', 'Equipment Rental', 'Locker'],
     lat: 19.1035,
     lng: 74.7562
@@ -107,7 +107,7 @@ const sampleTurfs: Turf[] = [
     price: 1000,
     sport: 'Box Cricket',
     rating: 4.7,
-    image: 'https://images.unsplash.com/photo-1531415080290-bc98513989fe?w=600&auto=format&fit=crop&q=60',
+    image: '/images/cricket.jpg',
     amenities: ['Washroom', 'WiFi', 'Parking'],
     lat: 19.0745,
     lng: 74.7335
@@ -201,20 +201,27 @@ export default function App() {
           return map[sportId] || 'Football';
         };
 
-        const mapped: Turf[] = backendTurfs.map((t: any) => ({
-          id: t.id,
-          name: t.name,
-          description: t.description || '',
-          city: t.location?.city || 'Ahmednagar',
-          area: t.location?.area || 'Savedi',
-          price: t.pricePerHour || 1200,
-          sport: getSportName(t.sports?.[0] || ''),
-          rating: t.rating || 5.0,
-          image: t.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
-          amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
-          lat: t.location?.latitude || 19.0948,
-          lng: t.location?.longitude || 74.7480
-        }));
+        const mapped: Turf[] = backendTurfs.map((t: any) => {
+          const sportName = getSportName(t.sports?.[0] || '');
+          let turfImg = t.images?.[0] || '/images/football.jpg';
+          if ((sportName === 'Cricket' || sportName === 'Box Cricket') && (turfImg === '/images/football.jpg' || turfImg.includes('photo-1575361204480-aadea25e6e68'))) {
+            turfImg = '/images/cricket.jpg';
+          }
+          return {
+            id: t.id,
+            name: t.name,
+            description: t.description || '',
+            city: t.location?.city || 'Ahmednagar',
+            area: t.location?.area || 'Savedi',
+            price: t.pricePerHour || 1200,
+            sport: sportName,
+            rating: t.rating || 5.0,
+            image: turfImg,
+            amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
+            lat: t.location?.latitude || 19.0948,
+            lng: t.location?.longitude || 74.7480
+          };
+        });
         setTurfs(mapped);
       } catch (err) {
         console.error('Error fetching turfs:', err);

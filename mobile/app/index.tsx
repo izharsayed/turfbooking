@@ -27,6 +27,28 @@ import { apiFetch } from '../utils/api';
 
 const ACCENT = '#10b981';
 
+const getTurfImageSource = (imagePath: string) => {
+  if (!imagePath) {
+    return require('../assets/football.jpg');
+  }
+  if (
+    imagePath === '/images/football.jpg' ||
+    imagePath.includes('football.jpg') ||
+    imagePath.includes('photo-1575361204480-aadea25e6e68')
+  ) {
+    return require('../assets/football.jpg');
+  }
+  if (
+    imagePath === '/images/cricket.jpg' ||
+    imagePath.includes('cricket.jpg') ||
+    imagePath.includes('photo-1607734834519-d8576ae60ea6') ||
+    imagePath.includes('photo-1531415080290-bc98513989fe')
+  ) {
+    return require('../assets/cricket.jpg');
+  }
+  return { uri: imagePath };
+};
+
 function getBookingTimestamp(dateStr: string, timeStr: string): number {
   try {
     const [year, month, day] = dateStr.split('-').map(Number);
@@ -300,20 +322,36 @@ export default function HomeScreen() {
       try {
         const res = await apiFetch('/turfs');
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-          const normalized = res.data.map((bt: any) => ({
-            id: bt.id,
-            name: bt.name,
-            sport: Array.isArray(bt.sports) ? bt.sports[0] : (bt.sport || 'Football'),
-            price: bt.pricePerHour || bt.price || 1200,
-            rating: bt.rating || 4.5,
-            area: bt.location?.address || bt.area || 'Ahmednagar',
-            image: Array.isArray(bt.images) && bt.images.length > 0 ? bt.images[0] : (bt.image || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60'),
-            latitude: bt.location?.latitude || bt.latitude || 19.1158,
-            longitude: bt.location?.longitude || bt.longitude || 74.742,
-            description: bt.description || '',
-            amenities: bt.amenities || [],
-            slots: bt.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
-          }));
+          const normalized = res.data.map((bt: any) => {
+            const getMobileSportName = (s: string): string => {
+              const map: Record<string, string> = {
+                'NHQKZB3YRCRhWBL95sUE': 'Football',
+                'nB4mpucB3cyLZA8gXxiA': 'Cricket',
+                'HV8G3I9zmsYnUWFqqqMV': 'Box Cricket'
+              };
+              return map[s] || s;
+            };
+            const rawSport = Array.isArray(bt.sports) ? bt.sports[0] : (bt.sport || 'Football');
+            const sport = getMobileSportName(rawSport);
+            let imagePath = Array.isArray(bt.images) && bt.images.length > 0 ? bt.images[0] : (bt.image || '/images/football.jpg');
+            if ((sport === 'Cricket' || sport === 'Box Cricket') && (imagePath === '/images/football.jpg' || imagePath.includes('football.jpg') || imagePath.includes('photo-1575361204480-aadea25e6e68'))) {
+              imagePath = '/images/cricket.jpg';
+            }
+            return {
+              id: bt.id,
+              name: bt.name,
+              sport: sport,
+              price: bt.pricePerHour || bt.price || 1200,
+              rating: bt.rating || 4.5,
+              area: bt.location?.address || bt.area || 'Ahmednagar',
+              image: imagePath,
+              latitude: bt.location?.latitude || bt.latitude || 19.1158,
+              longitude: bt.location?.longitude || bt.longitude || 74.742,
+              description: bt.description || '',
+              amenities: bt.amenities || [],
+              slots: bt.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
+            };
+          });
           setLoadedTurfs(normalized);
         }
       } catch (err) {
@@ -635,7 +673,7 @@ export default function HomeScreen() {
               >
                 {/* Image wrapper with relative positioning so badges can be absolute */}
                 <View style={styles.cardImageWrapper}>
-                  <Image source={{ uri: turf.image }} style={styles.cardImage} />
+                  <Image source={getTurfImageSource(turf.image)} style={styles.cardImage} />
                   
                   {/* Sport overlay badge on top-left */}
                   <View style={styles.cardSportOverlayBadge}>
