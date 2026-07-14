@@ -3,6 +3,37 @@ import { useNavigate } from 'react-router-dom';
 import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../services/api';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+const selectLocationIcon = L.divIcon({
+  html: `<div class="relative w-10 h-10 flex items-center justify-center">
+    <div class="absolute w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 animate-pulse"></div>
+    <div class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-lg">
+      <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+    </div>
+  </div>`,
+  className: '',
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+});
+
+
+function MapEventsHandler({ lat, lng, onChange }: { lat: number; lng: number; onChange: (lat: number, lng: number) => void }) {
+  const map = useMapEvents({
+    click(e) {
+      onChange(e.latlng.lat, e.latlng.lng);
+    },
+  });
+
+  useEffect(() => {
+    map.setView([lat, lng], map.getZoom());
+  }, [lat, lng, map]);
+
+  return null;
+}
+
 
 // Inlined from @turf-booking/ui
 function Button({ children, onClick, className = '', variant = 'primary', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) {
@@ -38,14 +69,13 @@ import {
   X,
   CloudRain,
   Settings,
-  Lock,
   Lightbulb,
-  PartyPopper,
-  CheckCircle2,
-  Star,
+  Lock,
   Flame,
   Zap,
-  Cog
+  Sparkles,
+  Star,
+  Wrench
 } from 'lucide-react';
 
 interface Turf {
@@ -973,8 +1003,13 @@ export default function App() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
                 { 
-                  label: 'Total Revenue', 
-                  value: userRole === 'STAFF' ? <span className="inline-flex items-center gap-1"><Lock className="h-3.5 w-3.5" /> Locked</span> : formatCurrency(totalRevenue), 
+                  label: 'Total Revenue',
+                  value: userRole === 'STAFF' ? (
+                    <span className="flex items-center gap-1.5 text-slate-500 font-bold text-lg py-1">
+                      <Lock className="h-4 w-4 shrink-0 text-slate-500" />
+                      Locked
+                    </span>
+                  ) : formatCurrency(totalRevenue), 
                   icon: DollarSign, 
                   change: userRole === 'STAFF' ? 'Restricted Access' : '+18.4% this week', 
                   color: 'text-emerald-455' 
@@ -1097,8 +1132,9 @@ export default function App() {
                       <div>
                         <span className="text-[10px] font-bold text-emerald-400 block mb-0.5">WEATHER ADVISORY (AHMEDNAGAR)</span>
                         <p className="text-xs font-semibold text-slate-350">29°C — Partly Cloudy</p>
-                        <p className="text-[10px] text-slate-400 mt-1 leading-normal">
-                          <span className="inline-flex items-start gap-1"><Lightbulb className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" /> Peak hours are clear. Recommend enabling standard floodlights from 18:00 to 22:00.</span>
+                        <p className="text-[10px] text-slate-400 mt-1 leading-normal flex items-start gap-1">
+                          <Lightbulb className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
+                          <span>Peak hours are clear. Recommend enabling standard floodlights from 18:00 to 22:00.</span>
                         </p>
                       </div>
                     </div>
@@ -1331,6 +1367,47 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* INTERACTIVE GEOLOCATION MAP */}
+                <div className="space-y-2">
+                  <label className={`text-xs font-bold uppercase block ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Select Turf Location on Map
+                  </label>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    Click anywhere on the map to set the turf coordinates automatically, or type them in the fields above.
+                  </p>
+                  <div className={`h-64 w-full rounded-2xl overflow-hidden border shadow-inner relative z-0 ${
+                    isDarkMode ? 'border-slate-850 bg-slate-900/30' : 'border-slate-300 bg-slate-50'
+                  }`}>
+                    <MapContainer
+                      center={[turfLat || 19.0948, turfLng || 74.7480]}
+                      zoom={14}
+                      scrollWheelZoom={true}
+                      style={{ width: '100%', height: '100%' }}
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        url={
+                          isDarkMode
+                            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                            : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                        }
+                      />
+                      <MapEventsHandler
+                        lat={turfLat || 19.0948}
+                        lng={turfLng || 74.7480}
+                        onChange={(lat, lng) => {
+                          setTurfLat(Number(lat.toFixed(6)));
+                          setTurfLng(Number(lng.toFixed(6)));
+                        }}
+                      />
+                      <Marker
+                        position={[turfLat || 19.0948, turfLng || 74.7480]}
+                        icon={selectLocationIcon}
+                      />
+                    </MapContainer>
+                  </div>
+                </div>
+
                 <div className="flex gap-4 pt-4 border-t border-slate-850">
                   <Button type="submit" variant="primary">Save Changes</Button>
                   <Button type="button" variant="outline" onClick={() => setIsAddingTurf(false)} className={isDarkMode ? 'border-slate-800 text-slate-400' : 'border-slate-300 text-slate-600'}>Cancel</Button>
@@ -1352,8 +1429,9 @@ export default function App() {
                     <span className="absolute top-4 left-4 text-[10px] font-black uppercase tracking-wider bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full backdrop-blur-md">
                       {turf.sport}
                     </span>
-                    <span className="absolute top-4 right-4 text-[10px] font-bold bg-slate-900/80 text-amber-400 px-3 py-1 rounded-full backdrop-blur-md">
-                      <Star className="h-3 w-3 fill-amber-400 text-amber-400 inline-block" /> {turf.rating}
+                    <span className="absolute top-4 right-4 text-[10px] font-bold bg-slate-900/80 text-amber-400 px-3 py-1 rounded-full backdrop-blur-md flex items-center gap-1">
+                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      {turf.rating}
                     </span>
                   </div>
 
@@ -1495,10 +1573,14 @@ export default function App() {
                               {formatCurrency(currentPrice)}/h
                             </span>
                             {isPeak && (
-                              <span className="text-[7.5px] bg-amber-500/15 border border-amber-500/20 text-amber-550 px-0.8 py-0.1 rounded font-black uppercase inline-flex items-center"><Flame className="h-2.5 w-2.5" /></span>
+                              <span className="text-[7.5px] bg-amber-500/15 border border-amber-500/20 text-amber-550 px-1 py-0.5 rounded font-black uppercase flex items-center justify-center" title="Peak Hour Surcharge">
+                                <Flame className="h-2.5 w-2.5 text-amber-500 fill-amber-500" />
+                              </span>
                             )}
                             {isWeekend && (
-                              <span className="text-[7.5px] bg-blue-500/15 border border-blue-500/20 text-blue-555 px-0.8 py-0.1 rounded font-black uppercase inline-flex items-center"><Zap className="h-2.5 w-2.5" /></span>
+                              <span className="text-[7.5px] bg-blue-500/15 border border-blue-500/20 text-blue-555 px-1 py-0.5 rounded font-black uppercase flex items-center justify-center" title="Weekend Surcharge">
+                                <Zap className="h-2.5 w-2.5 text-blue-500 fill-blue-500" />
+                              </span>
                             )}
                           </div>
                           {slot.blockReason ? (
@@ -1583,8 +1665,9 @@ export default function App() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-[10px] text-slate-450 font-bold">
-                    <span className="inline-flex items-center gap-1"><Lock className="h-3 w-3" /> Dynamic pricing rules are read-only.</span>
+                  <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 py-1">
+                    <Lock className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    <span>Dynamic pricing rules are read-only.</span>
                   </div>
                 )}
               </div>
@@ -1785,10 +1868,11 @@ export default function App() {
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-500">{booking.sport}</span>
                               {booking.rentedAddons && booking.rentedAddons.map(addon => (
-                                <span key={addon} className={`text-[8px] px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider ${
+                                <span key={addon} className={`text-[8px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider flex items-center gap-0.5 ${
                                   isDarkMode ? 'bg-slate-900 border border-slate-800 text-slate-400' : 'bg-slate-100 border border-slate-200 text-slate-650'
                                 }`}>
-                                  <span className="inline-flex items-center gap-0.5"><Cog className="h-2.5 w-2.5" /> {addon.split(' ')[0]}</span>
+                                  <Wrench className="h-2 w-2 text-slate-500 shrink-0" />
+                                  <span>{addon.split(' ')[0]}</span>
                                 </span>
                               ))}
                             </div>
@@ -1861,9 +1945,9 @@ export default function App() {
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <div className="flex text-amber-450 font-bold text-sm">
+                      <div className="flex items-center gap-0.5 text-amber-450 font-bold text-sm">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <span key={i} className={i < review.rating ? 'opacity-100' : 'opacity-20'}><Star className="h-3.5 w-3.5 fill-current inline-block" /></span>
+                          <Star key={i} className={`h-4 w-4 ${i < review.rating ? 'fill-amber-400 text-amber-400 opacity-100' : 'text-slate-700 opacity-20'}`} />
                         ))}
                       </div>
                       <span className="text-[10px] text-slate-500">{review.date}</span>
@@ -1906,8 +1990,9 @@ export default function App() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-                      <span className="inline-flex items-center gap-1"><Lock className="h-3 w-3" /> Replies locked for staff role</span>
+                    <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold flex items-center gap-1.5 py-1">
+                      <Lock className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                      <span>Replies locked for staff role</span>
                     </div>
                   )}
                 </div>
@@ -1984,8 +2069,9 @@ export default function App() {
                 </button>
               </form>
             ) : (
-              <div className="p-4 bg-slate-900/20 border border-slate-850 rounded-2xl text-xs text-slate-500 max-w-xl">
-                <span className="inline-flex items-start gap-1.5"><Lock className="h-3.5 w-3.5 shrink-0 mt-0.5" /> Registering new staff members is disabled for restricted STAFF accounts. Please request owner permissions to add team accounts.</span>
+              <div className="p-4 bg-slate-900/20 border border-slate-850 rounded-2xl text-xs text-slate-500 max-w-xl flex items-start gap-1.5">
+                <Lock className="h-3.5 w-3.5 text-slate-500 shrink-0 mt-0.5" />
+                <span>Registering new staff members is disabled for restricted STAFF accounts. Please request owner permissions to add team accounts.</span>
               </div>
             )}
 
@@ -2000,7 +2086,10 @@ export default function App() {
                 >
                   <div className="space-y-1">
                     <span className="font-bold block text-sm">{staff.name}</span>
-                    <span className="text-[10px] text-slate-500 inline-flex items-center gap-0.5"><Phone className="h-2.5 w-2.5" /> {staff.phone}</span>
+                    <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                      <Phone className="h-3 w-3 text-slate-500" />
+                      <span>{staff.phone}</span>
+                    </span>
                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest inline-block ${
                       staff.role === 'MANAGER'
                         ? 'bg-blue-500/10 text-blue-500'
@@ -2036,8 +2125,9 @@ export default function App() {
             </div>
 
             {settingsSuccess && (
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-450 rounded-2xl text-sm font-bold shadow-md transition-all duration-300">
-                <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> {settingsSuccess}</span>
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-450 rounded-2xl text-sm font-bold shadow-md transition-all duration-300 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-emerald-450 shrink-0" />
+                <span>{settingsSuccess}</span>
               </div>
             )}
 

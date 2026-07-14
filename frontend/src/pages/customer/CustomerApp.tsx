@@ -46,7 +46,12 @@ import {
   X,
   Smartphone,
   Landmark,
-  CreditCard
+  CreditCard,
+  ShieldAlert,
+  Wallet,
+  Star,
+  Flame,
+  Loader2
 } from 'lucide-react';
 
 interface Turf {
@@ -147,9 +152,21 @@ export default function App() {
   const [bookingStep, setBookingStep] = useState<'details' | 'checkout' | 'success'>('details');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'gpay' | 'phonepe' | 'paytm'>('gpay');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'gpay' | 'phonepe' | 'paytm'>('paytm');
   const [showQRCode, setShowQRCode] = useState(false);
   const [isOpeningApp, setIsOpeningApp] = useState(false);
+  
+  // Simulated Payment Gateway State
+  const [showPaymentGateway, setShowPaymentGateway] = useState(false);
+  const [gatewayUpiId, setGatewayUpiId] = useState('');
+  const [gatewayPhoneNumber, setGatewayPhoneNumber] = useState('');
+  const [gatewayCardNumber, setGatewayCardNumber] = useState('');
+  const [gatewayCardExpiry, setGatewayCardExpiry] = useState('');
+  const [gatewayCardCvv, setGatewayCardCvv] = useState('');
+  const [gatewayStatus, setGatewayStatus] = useState<'idle' | 'processing' | 'verify_action' | 'success' | 'failed'>('idle');
+  const [gatewaySelectedMethod, setGatewaySelectedMethod] = useState<'upi' | 'card' | 'netbanking' | 'wallet'>('upi');
+  const [gatewayErrorMessage, setGatewayErrorMessage] = useState('');
+  const [qrVerifyStatus, setQrVerifyStatus] = useState<'idle' | 'verifying' | 'success' | 'failed'>('idle');
   
   // Auth Form State
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
@@ -343,7 +360,7 @@ export default function App() {
       setOtpLoading(false);
       setOtpSent(true);
       // Simulate SMS alert or show mock OTP code (e.g. 123456)
-      alert(`💬 SMS OTP Sent to ${phone}: [ 123456 ] (Mock OTP for testing)`);
+      alert(`[OTP Sent] SMS OTP Sent to ${phone}: [ 123456 ] (Mock OTP for testing)`);
     }, 800);
   };
 
@@ -398,7 +415,7 @@ export default function App() {
     }
   };
 
-  const handleBookSlot = async () => {
+  const handleBookSlot = async (paymentStatus: 'CONFIRMED' | 'FAILED' = 'CONFIRMED') => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
@@ -425,10 +442,14 @@ export default function App() {
       await api.post('/bookings/verify', {
         bookingId: booking.id,
         razorpayOrderId,
-        razorpayPaymentId: 'pay_' + Math.random().toString(36).substring(2, 10),
-        razorpaySignature: 'sig_mock',
-        status: 'CONFIRMED'
+        razorpayPaymentId: paymentStatus === 'CONFIRMED' ? 'pay_' + Math.random().toString(36).substring(2, 10) : undefined,
+        razorpaySignature: paymentStatus === 'CONFIRMED' ? 'sig_mock' : undefined,
+        status: paymentStatus
       });
+
+      if (paymentStatus === 'FAILED') {
+        return;
+      }
 
       const newBooking = {
         id: booking.id,
@@ -453,7 +474,7 @@ export default function App() {
       setBookingStep('success');
     } catch (err) {
       console.error('Error creating booking:', err);
-      alert('Failed to complete booking on the server.');
+      throw err;
     }
   };
 
@@ -522,7 +543,7 @@ export default function App() {
               explore: 'Explore',
               bookings: 'My Bookings',
               support: 'Support Help',
-              nearby: '📍 Nearby Turfs'
+              nearby: 'Nearby Turfs'
             };
             const isActive = activeTab === tab;
             return (
@@ -546,7 +567,13 @@ export default function App() {
                       : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                {labels[tab]}
+                <span className="flex items-center justify-center gap-1.5 font-bold text-xs">
+                  {tab === 'explore' && <Search className="h-3.5 w-3.5" />}
+                  {tab === 'bookings' && <Calendar className="h-3.5 w-3.5" />}
+                  {tab === 'support' && <HelpCircle className="h-3.5 w-3.5" />}
+                  {tab === 'nearby' && <MapPin className="h-3.5 w-3.5" />}
+                  {labels[tab]}
+                </span>
               </button>
             );
           })}
@@ -675,8 +702,9 @@ export default function App() {
                       <div>
                         <div className="flex justify-between items-start mb-3">
                           <h3 className={`font-bold text-xl leading-snug ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{turf.name}</h3>
-                          <span className="text-emerald-400 font-extrabold text-sm flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
-                            ★ {turf.rating}
+                          <span className="text-emerald-450 font-extrabold text-sm flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
+                            <Star className="h-3.5 w-3.5 fill-emerald-500 text-emerald-500" />
+                            {turf.rating}
                           </span>
                         </div>
                         <p className="text-sm text-slate-400 flex items-center gap-1.5 mb-6">
@@ -843,7 +871,9 @@ export default function App() {
                               <span className="text-[9px] font-black flex items-center gap-0.5">
                                 {formatCurrency(price)}
                                 {isPeak && !booked && (
-                                  <span className="text-[8px] filter saturate-150" title="Peak Hour Surcharge">🔥</span>
+                                  <span className="text-[8px] filter saturate-150 flex items-center" title="Peak Hour Surcharge">
+                                    <Flame className="h-2.5 w-2.5 text-amber-500 fill-amber-500" />
+                                  </span>
                                 )}
                               </span>
                             </div>
@@ -883,7 +913,7 @@ export default function App() {
               <div className="max-w-md mx-auto py-6">
                 <h3 className="font-extrabold text-3xl mb-6 text-center">Confirm & Pay</h3>
                 
-                <div className={`p-6 rounded-2xl border mb-6 ${isDarkMode ? 'bg-[#030712]/50 border-slate-850' : 'bg-slate-50/80 border-slate-200'}`}>
+                <div className={`p-6 rounded-2xl border mb-8 ${isDarkMode ? 'bg-[#030712]/50 border-slate-850' : 'bg-slate-50/80 border-slate-200'}`}>
                   <div className="flex justify-between mb-4 text-sm">
                     <span className="text-slate-500 font-semibold">Arena</span>
                     <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{selectedTurf.name}</span>
@@ -911,39 +941,126 @@ export default function App() {
                     <div className="flex justify-between items-center pb-3 border-b border-slate-800/60">
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">UPI QR Code</span>
                       <button 
-                        onClick={() => setShowQRCode(false)} 
+                        onClick={() => {
+                          setShowQRCode(false);
+                          setQrVerifyStatus('idle');
+                        }} 
                         className="text-xs text-rose-400 hover:text-rose-350 font-bold transition-colors animate-pulse"
                       >
                         Cancel QR
                       </button>
                     </div>
                     
-                    <div className="inline-block p-4 bg-white rounded-2xl shadow-lg relative border-4 border-emerald-500/30">
-                      <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1 rounded-tl-md"></div>
-                      <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-500 -mt-1 -mr-1 rounded-tr-md"></div>
-                      <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-500 -mb-1 -ml-1 rounded-bl-md"></div>
-                      <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-500 -mb-1 -mr-1 rounded-br-md"></div>
-                      
-                      <img 
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                          `upi://pay?pa=turfbook@upi&pn=TurfBook&am=${getSelectedSlotPrice()}&cu=INR`
-                        )}`} 
-                        alt="UPI QR Code" 
-                        className="w-44 h-44 object-contain mx-auto"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-slate-350">
-                        Scan with Google Pay, PhonePe, Paytm, or any UPI app
-                      </p>
-                      <div className="flex justify-center items-center gap-2 text-[10px] text-emerald-450 font-extrabold tracking-wider bg-emerald-500/10 py-1.5 px-3 rounded-full w-fit mx-auto animate-pulse">
-                        <span>Waiting for payment confirmation... ⏳</span>
+                    {qrVerifyStatus === 'idle' && (
+                      <div className="space-y-4">
+                        <div className="inline-block p-4 bg-white rounded-2xl shadow-lg relative border-4 border-emerald-500/30">
+                          <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1 rounded-tl-md"></div>
+                          <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-500 -mt-1 -mr-1 rounded-tr-md"></div>
+                          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-500 -mb-1 -ml-1 rounded-bl-md"></div>
+                          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-500 -mb-1 -mr-1 rounded-br-md"></div>
+                          
+                          <img 
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                              `upi://pay?pa=turfbook@upi&pn=TurfBook&am=${getSelectedSlotPrice()}&cu=INR`
+                            )}`} 
+                            alt="UPI QR Code" 
+                            className="w-44 h-44 object-contain mx-auto"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-slate-350">
+                            Scan with Google Pay, PhonePe, Paytm, or any UPI app
+                          </p>
+                          <div className="flex justify-center items-center gap-2 text-[10px] text-emerald-450 font-extrabold tracking-wider bg-emerald-500/10 py-1.5 px-3 rounded-full w-fit mx-auto animate-pulse">
+                            <span className="flex items-center gap-1">
+                              Waiting for payment confirmation...
+                              <Loader2 className="h-3 w-3 animate-spin text-emerald-450" />
+                            </span>
+                          </div>
+                          
+                          <div className="pt-2">
+                            <Button
+                              variant="primary"
+                              className="w-full py-4 shadow-lg shadow-emerald-500/20 font-bold rounded-xl flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-all text-white"
+                              onClick={() => {
+                                setQrVerifyStatus('verifying');
+                                setTimeout(async () => {
+                                  try {
+                                    await handleBookSlot('CONFIRMED');
+                                    setQrVerifyStatus('success');
+                                  } catch (err) {
+                                    setQrVerifyStatus('failed');
+                                  }
+                                }, 2500);
+                              }}
+                            >
+                              Verify Mock Payment
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-slate-500">
-                        Do not refresh this page. Confirms automatically on payment.
-                      </p>
-                    </div>
+                    )}
+
+                    {qrVerifyStatus === 'verifying' && (
+                      <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                        <div className="h-12 w-12 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin"></div>
+                        <div className="text-center">
+                          <h4 className="font-extrabold text-white text-base">Verifying UPI Transaction</h4>
+                          <p className="text-xs text-slate-400 mt-1.5">Checking status with bank server...</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {qrVerifyStatus === 'success' && (
+                      <div className="flex flex-col items-center justify-center py-8 space-y-4 animate-scaleUp">
+                        <div className="h-16 w-16 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/30">
+                          <CheckCircle className="h-10 w-10 text-emerald-400 animate-pulse" />
+                        </div>
+                        <div className="text-center">
+                          <h4 className="font-black text-white text-lg font-bold">Payment Confirmed</h4>
+                          <p className="text-xs text-slate-400 mt-1">Generating booking ticket...</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {qrVerifyStatus === 'failed' && (
+                      <div className="flex flex-col items-center justify-center py-6 space-y-4 animate-scaleUp">
+                        <div className="h-16 w-16 bg-rose-500/10 rounded-full flex items-center justify-center border border-rose-500/30">
+                          <ShieldAlert className="h-10 w-10 text-rose-400" />
+                        </div>
+                        <div className="text-center">
+                          <h4 className="font-extrabold text-white text-lg">Verification Failed</h4>
+                          <p className="text-xs text-rose-400 mt-1">No transaction found for this QR session.</p>
+                        </div>
+                        <div className="flex gap-3 w-full max-w-[280px] mx-auto pt-2">
+                          <Button
+                            variant="primary"
+                            className="flex-1 py-3 text-xs font-bold rounded-xl"
+                            onClick={() => {
+                              setQrVerifyStatus('verifying');
+                              setTimeout(async () => {
+                                try {
+                                  await handleBookSlot('CONFIRMED');
+                                  setQrVerifyStatus('success');
+                                } catch (err) {
+                                  setQrVerifyStatus('failed');
+                                }
+                              }, 2500);
+                            }}
+                          >
+                            Retry Verify
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="flex-1 py-3 text-xs font-bold rounded-xl border-slate-800 text-slate-400"
+                            onClick={() => setQrVerifyStatus('idle')}
+                          >
+                            Back to QR
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -970,10 +1087,8 @@ export default function App() {
                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
                       Select Payment Method
                     </label>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="w-full">
                       {[
-                        { id: 'gpay', name: 'Google Pay', icon: Smartphone },
-                        { id: 'phonepe', name: 'PhonePe', icon: Landmark },
                         { id: 'paytm', name: 'Paytm / UPI', icon: CreditCard }
                       ].map((method) => {
                         const Icon = method.icon;
@@ -983,14 +1098,14 @@ export default function App() {
                             key={method.id}
                             type="button"
                             onClick={() => setSelectedPaymentMethod(method.id as any)}
-                            className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all duration-200 ${
+                            className={`w-full p-4 rounded-xl border flex items-center justify-center gap-3 transition-all duration-200 ${
                               isSelected
                                 ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400 font-extrabold ring-1 ring-emerald-500 shadow-md'
                                 : 'border-slate-800 bg-slate-900/40 text-slate-350 hover:border-slate-700 hover:bg-slate-800'
                             }`}
                           >
                             <Icon className="h-6 w-6" />
-                            <span className="text-[10px] font-bold">{method.name}</span>
+                            <span className="text-xs font-bold">{method.name}</span>
                           </button>
                         );
                       })}
@@ -1001,11 +1116,8 @@ export default function App() {
                         variant="outline"
                         className="py-4 border-slate-800 text-slate-400 hover:text-slate-200 font-bold rounded-xl hover:scale-[1.02] transition-all"
                         onClick={() => {
+                          setQrVerifyStatus('idle');
                           setShowQRCode(true);
-                          // Auto confirm after 4.5 seconds to simulate user paying the QR code
-                          setTimeout(() => {
-                            handleBookSlot();
-                          }, 4500);
                         }}
                       >
                         Generate QR Code
@@ -1014,11 +1126,15 @@ export default function App() {
                         variant="primary"
                         className="py-4 shadow-lg shadow-emerald-500/20 font-bold rounded-xl flex items-center justify-center gap-1.5 hover:scale-[1.02] transition-all"
                         onClick={() => {
-                          setIsOpeningApp(true);
-                          // Auto confirm after 3 seconds to simulate paying inside redirect app
-                          setTimeout(() => {
-                            handleBookSlot();
-                          }, 3000);
+                          setGatewayStatus('idle');
+                          setGatewaySelectedMethod('upi');
+                          setGatewayUpiId('');
+                          setGatewayPhoneNumber('');
+                          setGatewayCardNumber('');
+                          setGatewayCardExpiry('');
+                          setGatewayCardCvv('');
+                          setGatewayErrorMessage('');
+                          setShowPaymentGateway(true);
                         }}
                       >
                         Pay ₹{getSelectedSlotPrice()}
@@ -1223,9 +1339,12 @@ export default function App() {
               {/* QUICK DEMO LOGIN DROPDOWN */}
               {authMode === 'login' && (
                 <div>
-                  <label className={`text-xs block mb-2 font-bold uppercase tracking-wider ${
+                  <label className={`text-xs mb-2 font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                     isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
-                  }`}>⚡ Quick Demo Login</label>
+                  }`}>
+                    <Zap className="h-3.5 w-3.5 fill-emerald-500/10 text-emerald-500 shrink-0" />
+                    <span>Quick Demo Login</span>
+                  </label>
                   <select
                     value={role}
                     onChange={(e) => {
@@ -1248,9 +1367,9 @@ export default function App() {
                         : 'bg-white border-slate-200 text-slate-700 focus:border-emerald-500/50 shadow-sm'
                     }`}
                   >
-                    <option value="customer">👤 Customer (9876543210)</option>
-                    <option value="owner">🏟️ Turf Owner (9999988888)</option>
-                    <option value="admin">🛠️ System Admin (8888877777)</option>
+                    <option value="customer">Customer (9876543210)</option>
+                    <option value="owner">Turf Owner (9999988888)</option>
+                    <option value="admin">System Admin (8888877777)</option>
                   </select>
                 </div>
               )}
@@ -1398,6 +1517,285 @@ export default function App() {
                 {authMode === 'login' ? 'Sign Up' : 'Login'}
               </button>
             </p>
+          </div>
+        </div>
+      )}
+
+      {showPaymentGateway && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-[420px] overflow-hidden shadow-2xl animate-scaleUp">
+            {/* Header */}
+            <div className="bg-[#1e293b] p-5 border-b border-slate-800/60 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-emerald-500 flex items-center justify-center text-white font-black text-sm">TB</div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">TurfBook Payment</h4>
+                  <p className="text-[10px] text-slate-400">Simulated Secure Gateway</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Amount to Pay</p>
+                <p className="text-lg font-black text-emerald-400">{formatCurrency(getSelectedSlotPrice())}</p>
+              </div>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-6 space-y-6">
+              {gatewayStatus === 'idle' && (
+                <div className="space-y-4">
+                  {/* Tabs */}
+                  <div className="flex border-b border-slate-800/80 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setGatewaySelectedMethod('upi')}
+                      className={`flex-1 pb-2 text-center text-xs font-bold transition-all border-b-2 ${
+                        gatewaySelectedMethod === 'upi'
+                          ? 'border-emerald-500 text-emerald-400'
+                          : 'border-transparent text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      UPI / Wallet
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGatewaySelectedMethod('card')}
+                      className={`flex-1 pb-2 text-center text-xs font-bold transition-all border-b-2 ${
+                        gatewaySelectedMethod === 'card'
+                          ? 'border-emerald-500 text-emerald-400'
+                          : 'border-transparent text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Credit/Debit Card
+                    </button>
+                  </div>
+
+                  {/* Method details */}
+                  {gatewaySelectedMethod === 'upi' && (
+                    <div className="space-y-4">
+                      <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800/40 text-center">
+                        <p className="text-xs text-slate-400 mb-2 font-medium">Selected App: <span className="text-white font-bold capitalize">{selectedPaymentMethod === 'paytm' ? 'Paytm Wallet / UPI' : selectedPaymentMethod === 'gpay' ? 'Google Pay' : 'PhonePe'}</span></p>
+                      </div>
+                      
+                      {selectedPaymentMethod === 'paytm' ? (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Paytm Mobile Number</label>
+                            <input
+                              type="text"
+                              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors font-semibold"
+                              placeholder="e.g. 9876543210"
+                              value={gatewayPhoneNumber}
+                              onChange={(e) => setGatewayPhoneNumber(e.target.value.replace(/\D/g, '').substring(0, 10))}
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-500 font-semibold">Or enter standard UPI ID below</span>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">UPI ID (VPA)</label>
+                            <input
+                              type="text"
+                              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors font-semibold"
+                              placeholder="e.g. name@paytm or 9876543210@paytm"
+                              value={gatewayUpiId}
+                              onChange={(e) => setGatewayUpiId(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Enter UPI ID (VPA)</label>
+                          <input
+                            type="text"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors font-semibold"
+                            placeholder="e.g. username@upi or mobileNumber@ybl"
+                            value={gatewayUpiId}
+                            onChange={(e) => setGatewayUpiId(e.target.value)}
+                          />
+                        </div>
+                      )}
+
+                      <Button
+                        variant="primary"
+                        className="w-full py-4 font-bold shadow-lg shadow-emerald-500/10 mt-2 text-white"
+                        disabled={selectedPaymentMethod === 'paytm' ? (!gatewayPhoneNumber && !gatewayUpiId) : !gatewayUpiId}
+                        onClick={() => {
+                          setGatewayStatus('processing');
+                          setTimeout(() => {
+                            setGatewayStatus('verify_action');
+                          }, 2000);
+                        }}
+                      >
+                        Proceed to Pay
+                      </Button>
+                    </div>
+                  )}
+
+                  {gatewaySelectedMethod === 'card' && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Card Number</label>
+                        <input
+                          type="text"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors font-mono tracking-widest font-semibold"
+                          placeholder="4111 2222 3333 4444"
+                          value={gatewayCardNumber}
+                          onChange={(e) => setGatewayCardNumber(e.target.value.replace(/\D/g, '').replace(/(\d{4})/g, '$1 ').trim().substring(0, 19))}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Expiry (MM/YY)</label>
+                          <input
+                            type="text"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors font-semibold"
+                            placeholder="12/28"
+                            value={gatewayCardExpiry}
+                            onChange={(e) => setGatewayCardExpiry(e.target.value.replace(/\D/g, '').replace(/(\d{2})(\d{2})/, '$1/$2').substring(0, 5))}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">CVV</label>
+                          <input
+                            type="password"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors font-semibold"
+                            placeholder="•••"
+                            value={gatewayCardCvv}
+                            onChange={(e) => setGatewayCardCvv(e.target.value.replace(/\D/g, '').substring(0, 3))}
+                          />
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="primary"
+                        className="w-full py-4 font-bold shadow-lg shadow-emerald-500/10 mt-2 text-white"
+                        disabled={gatewayCardNumber.length < 19 || gatewayCardExpiry.length < 5 || gatewayCardCvv.length < 3}
+                        onClick={() => {
+                          setGatewayStatus('processing');
+                          setTimeout(() => {
+                            setGatewayStatus('verify_action');
+                          }, 2000);
+                        }}
+                      >
+                        Pay {formatCurrency(getSelectedSlotPrice())}
+                      </Button>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentGateway(false)}
+                    className="w-full text-center text-xs font-bold text-slate-450 hover:text-slate-200 transition-colors py-2 border border-slate-800/40 rounded-xl hover:bg-slate-900"
+                  >
+                    Cancel Payment
+                  </button>
+                </div>
+              )}
+
+              {gatewayStatus === 'processing' && (
+                <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                  <div className="h-12 w-12 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin"></div>
+                  <div className="text-center">
+                    <h4 className="font-extrabold text-white text-base">Processing Transaction</h4>
+                    <p className="text-xs text-slate-400 mt-1.5">Please wait, contacting your payment provider...</p>
+                  </div>
+                </div>
+              )}
+
+              {gatewayStatus === 'verify_action' && (
+                <div className="space-y-6 text-center py-4">
+                  <div>
+                    <h4 className="font-extrabold text-white text-lg mb-1">Simulate Payment</h4>
+                    <p className="text-xs text-slate-400">Choose the transaction outcome below to test the platform behavior.</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setGatewayStatus('processing');
+                        try {
+                          await handleBookSlot('CONFIRMED');
+                          setGatewayStatus('success');
+                          setTimeout(() => {
+                            setShowPaymentGateway(false);
+                          }, 1500);
+                        } catch (err: any) {
+                          setGatewayStatus('failed');
+                          setGatewayErrorMessage(err.response?.data?.message || 'Transaction was rejected by bank.');
+                        }
+                      }}
+                      className="p-4 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-xl font-bold transition-all hover:scale-[1.03] flex flex-col items-center justify-center gap-2"
+                    >
+                      <CheckCircle className="h-8 w-8 text-emerald-400" />
+                      <span>Simulate Success</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setGatewayStatus('processing');
+                        try {
+                          await handleBookSlot('FAILED');
+                          setGatewayStatus('failed');
+                          setGatewayErrorMessage('Payment declined by user or bank.');
+                        } catch (err) {
+                          setGatewayStatus('failed');
+                          setGatewayErrorMessage('Error communication with backend.');
+                        }
+                      }}
+                      className="p-4 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 rounded-xl font-bold transition-all hover:scale-[1.03] flex flex-col items-center justify-center gap-2"
+                    >
+                      <ShieldAlert className="h-8 w-8 text-rose-400" />
+                      <span>Simulate Failure</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {gatewayStatus === 'success' && (
+                <div className="flex flex-col items-center justify-center py-8 space-y-4 animate-scaleUp">
+                  <div className="h-16 w-16 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/30">
+                    <CheckCircle className="h-10 w-10 text-emerald-400 animate-pulse" />
+                  </div>
+                  <div className="text-center">
+                    <h4 className="font-black text-white text-lg">Payment Successful</h4>
+                    <p className="text-xs text-slate-400 mt-1">Generating your booking receipt...</p>
+                  </div>
+                </div>
+              )}
+
+              {gatewayStatus === 'failed' && (
+                <div className="space-y-6 text-center py-4">
+                  <div className="flex flex-col items-center justify-center space-y-4">
+                    <div className="h-16 w-16 bg-rose-500/10 rounded-full flex items-center justify-center border border-rose-500/30">
+                      <ShieldAlert className="h-10 w-10 text-rose-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-white text-lg">Transaction Failed</h4>
+                      <p className="text-xs text-rose-400/90 mt-1.5 font-medium">{gatewayErrorMessage || 'The payment was not processed.'}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setGatewayStatus('idle')}
+                      className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors"
+                    >
+                      Retry Payment
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentGateway(false)}
+                      className="flex-1 py-3 border border-slate-800 hover:bg-slate-900 text-slate-400 rounded-xl text-xs font-bold transition-colors"
+                    >
+                      Close Checkout
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
