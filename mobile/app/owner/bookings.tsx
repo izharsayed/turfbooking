@@ -33,6 +33,11 @@ interface Turf {
   sport?: string;
   sportId?: string;
   isActive?: boolean;
+  peakStartHour?: number;
+  peakEndHour?: number;
+  peakSurcharge?: number;
+  weekendSurcharge?: number;
+  blockedSlots?: string[];
 }
 
 interface OwnerBooking {
@@ -86,6 +91,15 @@ export default function OwnerBookingsScreen() {
   const [formPhone, setFormPhone] = useState('');
   const [formAmount, setFormAmount] = useState('1200');
 
+  // Slot Settings Form States
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [formPricePerHour, setFormPricePerHour] = useState('1200');
+  const [formPeakStart, setFormPeakStart] = useState('18');
+  const [formPeakEnd, setFormPeakEnd] = useState('22');
+  const [formPeakSurcharge, setFormPeakSurcharge] = useState('300');
+  const [formWeekendSurcharge, setFormWeekendSurcharge] = useState('200');
+  const [savingSettings, setSavingSettings] = useState(false);
+
   // Detailed Slot view state
   const [activeSlotDetails, setActiveSlotDetails] = useState<any>(null);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
@@ -115,6 +129,11 @@ export default function OwnerBookingsScreen() {
           sport: t.sport || 'Football',
           sportId: t.sports?.[0]?.sportId || t.sports?.[0]?.sport?.id || (typeof t.sports?.[0] === 'string' ? t.sports[0] : '') || 'NHQKZB3YRCRhWBL95sUE',
           isActive: t.isActive ?? true,
+          peakStartHour: t.peakStartHour,
+          peakEndHour: t.peakEndHour,
+          peakSurcharge: t.peakSurcharge,
+          weekendSurcharge: t.weekendSurcharge,
+          blockedSlots: t.blockedSlots || [],
         }));
       }
       setTurfs(loadedTurfs);
@@ -257,8 +276,11 @@ export default function OwnerBookingsScreen() {
 
     const timeRangeStr = `${displayStartHr}:00 ${startAmPm} – ${displayEndHr}:00 ${endAmPm}`;
     
-    // Check local blocked slots
-    const isBlockedLocally = blockedSlots.has(`${selectedTurf?.id}_${dateKey}_${i}`);
+    // Check database blocked slots using "YYYY-MM-DD|HH:MM - HH:MM" format
+    const startStr = `${String(i).padStart(2, '0')}:00`;
+    const endStr = `${String((i + 1) % 24 === 0 ? 24 : (i + 1) % 24).padStart(2, '0')}:00`;
+    const blockKey = `${dateKey}|${startStr} - ${endStr}`;
+    const isBlockedInDb = selectedTurf?.blockedSlots?.includes(blockKey);
     
     // Check online bookings
     const activeBookings = bookings.filter(b => b.status !== 'CANCELLED');
@@ -275,15 +297,31 @@ export default function OwnerBookingsScreen() {
         return startHour === i;
       });
     });
-
+ 
     // Check offline bookings
     const matchingOffline = offlineBookings.find(ob => ob.turfId === selectedTurf?.id && ob.date === dateKey && ob.slotIndex === i);
-
+ 
     let status = 'OPEN';
     let customerName = '';
     let bookingId = '';
-    let amount = selectedTurf?.pricePerHour ?? 1200;
+    
+    // Calculate dynamic pricing based on Turf surcharges
+    const basePrice = selectedTurf?.pricePerHour ?? 1200;
+    const peakStart = selectedTurf?.peakStartHour ?? 18;
+    const peakEnd = selectedTurf?.peakEndHour ?? 22;
+    const peakSurch = selectedTurf?.peakSurcharge ?? 300;
+    const isPeak = i >= peakStart && i < peakEnd;
+    
+    const dayOfWeek = selectedDate.getDay(); // 0 is Sunday, 6 is Saturday
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const weekendSurch = selectedTurf?.weekendSurcharge ?? 200;
 
+    let surcharge = 0;
+    if (isPeak) surcharge += peakSurch;
+    if (isWeekend) surcharge += weekendSurch;
+    
+    let amount = basePrice + surcharge;
+ 
     // Hardcode mockup matches specifically for 13 May 2024 or current date to match image
     if (matchingBooking) {
       status = matchingBooking.status === 'PENDING' ? 'PENDING' : 'BOOKED';
@@ -294,15 +332,8 @@ export default function OwnerBookingsScreen() {
       status = 'BOOKED';
       customerName = matchingOffline.customerName;
       amount = matchingOffline.amount;
-    } else if (isBlockedLocally) {
+    } else if (isBlockedInDb) {
       status = 'BLOCKED';
-    }
-
-    // Peak hour surcharges 18:00 - 22:00
-    if (i >= 18 && i <= 21 && status === 'OPEN') {
-      amount = (selectedTurf?.pricePerHour ?? 1200) + 300;
-    } else if (i >= 18 && i <= 21 && status === 'BLOCKED') {
-      amount = 1500;
     }
 
     // No hardcoded mock slots — all data comes from backend
@@ -317,6 +348,100 @@ export default function OwnerBookingsScreen() {
     };
   });
 
+  const handleBlockSlotMobile = async (slotIndex: number, block: boolean) => {
+    if (!selectedTurf) return;
+    
+    // Construct 24h slot string range matching the database block Key format
+    const startStr = `${String(slotIndex).padStart(2, '0')}:00`;
+    const endStr = `${String((slotIndex + 1) % 24 === 0 ? 24 : (slotIndex + 1) % 24).padStart(2, '0')}:00`;
+    const blockKey = `${dateKey}|${startStr} - ${endStr}`;
+    
+    let updatedBlocked = selectedTurf.blockedSlots || [];
+    if (block) {
+      if (!updatedBlocked.includes(blockKey)) {
+        updatedBlocked = [...updatedBlocked, blockKey];
+      }
+    } else {
+      updatedBlocked = updatedBlocked.filter((k: string) => k !== blockKey);
+    }
+
+    try {
+      setLoading(true);
+      const res = await apiFetch(`/owner/turfs/${selectedTurf.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          blockedSlots: updatedBlocked,
+        }),
+      });
+
+      if (res.success && res.data) {
+        const updatedTurf = {
+          ...selectedTurf,
+          blockedSlots: res.data.blockedSlots || [],
+        };
+        setSelectedTurf(updatedTurf);
+        setTurfs(prev => prev.map(t => t.id === selectedTurf.id ? updatedTurf : t));
+        Alert.alert('Success', `Slot successfully ${block ? 'blocked' : 'unblocked'}.`);
+      } else {
+        Alert.alert('Error', 'Failed to update slot settings.');
+      }
+    } catch (err) {
+      console.log('Error updating blocked slot:', err);
+      Alert.alert('Error', 'An error occurred while updating slot settings.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openSettingsModal = () => {
+    if (!selectedTurf) {
+      Alert.alert('No Turf Selected', 'Please select a turf first.');
+      return;
+    }
+    setFormPricePerHour(String(selectedTurf.pricePerHour ?? 1200));
+    setFormPeakStart(String(selectedTurf.peakStartHour ?? 18));
+    setFormPeakEnd(String(selectedTurf.peakEndHour ?? 22));
+    setFormPeakSurcharge(String(selectedTurf.peakSurcharge ?? 300));
+    setFormWeekendSurcharge(String(selectedTurf.weekendSurcharge ?? 200));
+    setSettingsModalVisible(true);
+  };
+
+  const handleSaveSettings = async () => {
+    if (!selectedTurf) return;
+    setSavingSettings(true);
+    const payload = {
+      pricePerHour: parseFloat(formPricePerHour),
+      peakStartHour: parseInt(formPeakStart, 10),
+      peakEndHour: parseInt(formPeakEnd, 10),
+      peakSurcharge: parseFloat(formPeakSurcharge),
+      weekendSurcharge: parseFloat(formWeekendSurcharge),
+    };
+    try {
+      const res = await apiFetch(`/owner/turfs/${selectedTurf.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      if (res.success && res.data) {
+        const updatedTurf = {
+          ...selectedTurf,
+          ...payload,
+          blockedSlots: res.data.blockedSlots || [],
+        };
+        setSelectedTurf(updatedTurf);
+        setTurfs((prev) => prev.map((t) => t.id === selectedTurf.id ? updatedTurf : t));
+        Alert.alert('Success', 'Slot and pricing settings saved successfully!');
+        setSettingsModalVisible(false);
+      } else {
+        Alert.alert('Error', 'Failed to save settings.');
+      }
+    } catch (err) {
+      console.log('Error saving slot settings:', err);
+      Alert.alert('Error', 'An error occurred while saving settings.');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   const handleSlotPress = (slot: any) => {
     if (slot.status === 'OPEN') {
       Alert.alert(
@@ -327,9 +452,7 @@ export default function OwnerBookingsScreen() {
           {
             text: 'Block Slot',
             onPress: () => {
-              const newBlocked = new Set(blockedSlots);
-              newBlocked.add(`${selectedTurf?.id}_${dateKey}_${slot.index}`);
-              setBlockedSlots(newBlocked);
+              handleBlockSlotMobile(slot.index, true);
             },
           },
           {
@@ -353,9 +476,7 @@ export default function OwnerBookingsScreen() {
           {
             text: 'Yes, Unblock',
             onPress: () => {
-              const newBlocked = new Set(blockedSlots);
-              newBlocked.delete(`${selectedTurf?.id}_${dateKey}_${slot.index}`);
-              setBlockedSlots(newBlocked);
+              handleBlockSlotMobile(slot.index, false);
             },
           },
         ]
@@ -498,9 +619,9 @@ export default function OwnerBookingsScreen() {
               <Ionicons name="chevron-down" size={14} color={theme.textMuted} style={{ marginLeft: 6 }} />
             </TouchableOpacity>
 
-            <TouchableOpacity 
+             <TouchableOpacity 
               style={[styles.settingsBtn, { borderColor: theme.cardBorder }]}
-              onPress={() => Alert.alert('Slot Settings', 'Configure default slot pricing, timings, and business hours.')}
+              onPress={openSettingsModal}
             >
               <Ionicons name="settings-outline" size={15} color={ACCENT} style={{ marginRight: 4 }} />
               <Text style={styles.settingsBtnText}>Slot Settings</Text>
@@ -595,6 +716,92 @@ export default function OwnerBookingsScreen() {
           </View>
         </ScrollView>
       </View>
+
+      {/* Slot & Pricing Settings Modal */}
+      <Modal visible={settingsModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+            <View style={[styles.modalCard, { backgroundColor: theme.card, width: '90%' }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Slot & Pricing Settings</Text>
+              <Text style={[styles.modalSubtitle, { color: theme.textMuted }]}>
+                Configure defaults for {selectedTurf ? selectedTurf.name : ''}
+              </Text>
+              <View style={[styles.modalDivider, { backgroundColor: theme.divider }]} />
+
+              <Text style={[styles.formLabel, { color: theme.textMuted }]}>Base Price Per Hour (₹) *</Text>
+              <TextInput
+                style={[styles.formInput, { color: theme.text, borderColor: theme.cardBorder }]}
+                keyboardType="numeric"
+                value={formPricePerHour}
+                onChangeText={setFormPricePerHour}
+              />
+
+              <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.formLabel, { color: theme.textMuted }]}>Peak Start Hour (24h)</Text>
+                  <TextInput
+                    style={[styles.formInput, { color: theme.text, borderColor: theme.cardBorder }]}
+                    keyboardType="numeric"
+                    placeholder="e.g. 18"
+                    value={formPeakStart}
+                    onChangeText={setFormPeakStart}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.formLabel, { color: theme.textMuted }]}>Peak End Hour (24h)</Text>
+                  <TextInput
+                    style={[styles.formInput, { color: theme.text, borderColor: theme.cardBorder }]}
+                    keyboardType="numeric"
+                    placeholder="e.g. 22"
+                    value={formPeakEnd}
+                    onChangeText={setFormPeakEnd}
+                  />
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 12, width: '100%', marginTop: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.formLabel, { color: theme.textMuted }]}>Peak Surcharge (₹)</Text>
+                  <TextInput
+                    style={[styles.formInput, { color: theme.text, borderColor: theme.cardBorder }]}
+                    keyboardType="numeric"
+                    placeholder="e.g. 300"
+                    value={formPeakSurcharge}
+                    onChangeText={setFormPeakSurcharge}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.formLabel, { color: theme.textMuted }]}>Weekend Surcharge (₹)</Text>
+                  <TextInput
+                    style={[styles.formInput, { color: theme.text, borderColor: theme.cardBorder }]}
+                    keyboardType="numeric"
+                    placeholder="e.g. 200"
+                    value={formWeekendSurcharge}
+                    onChangeText={setFormWeekendSurcharge}
+                  />
+                </View>
+              </View>
+
+              <View style={[styles.modalActionsRow, { marginTop: 20 }]}>
+                <TouchableOpacity style={[styles.actionCancelBtn, { borderColor: theme.cardBorder }]} onPress={() => setSettingsModalVisible(false)}>
+                  <Text style={[styles.actionCancelBtnText, { color: theme.text }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.actionSubmitBtn, { backgroundColor: ACCENT }]} 
+                  disabled={savingSettings}
+                  onPress={handleSaveSettings}
+                >
+                  {savingSettings ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.actionSubmitBtnText}>Save Settings</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* Turf Selector Modal */}
       <Modal visible={turfModalVisible} transparent animationType="fade">

@@ -61,6 +61,11 @@ interface Turf {
   amenities: string[];
   lat: number;
   lng: number;
+  peakStartHour?: number;
+  peakEndHour?: number;
+  peakSurcharge?: number;
+  weekendSurcharge?: number;
+  blockedSlots?: string[];
 }
 
 interface Booking {
@@ -191,9 +196,9 @@ export default function App() {
         setRazorpayKeyId(op.razorpayKeyId || '');
         setRazorpayKeySecret(op.razorpayKeySecret || '');
         setBusinessUpiId(op.businessUpiId || '');
-        setAdvancePaymentPercent(op.advancePaymentPercent || 30);
-        setConvenienceFee(op.convenienceFee || 45);
-        setTaxRate(op.taxRate || 18);
+        setAdvancePaymentPercent(op.advancePaymentPercent ?? 30);
+        setConvenienceFee(op.convenienceFee ?? 45);
+        setTaxRate(op.taxRate ?? 18);
         setOnlinePaymentsEnabled(op.onlinePaymentsEnabled !== false);
 
         setAutoCancellationLimit(op.autoCancellationLimit || 5);
@@ -215,7 +220,12 @@ export default function App() {
           image: t.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
           amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
           lat: t.location?.latitude || 19.0948,
-          lng: t.location?.longitude || 74.7480
+          lng: t.location?.longitude || 74.7480,
+          peakStartHour: t.peakStartHour,
+          peakEndHour: t.peakEndHour,
+          peakSurcharge: t.peakSurcharge,
+          weekendSurcharge: t.weekendSurcharge,
+          blockedSlots: t.blockedSlots || [],
         }));
 
         // Map bookings
@@ -257,6 +267,26 @@ export default function App() {
     fetchData();
   }, []);
 
+  const [selectedTurfId, setSelectedTurfId] = useState<string | null>(null);
+
+  // Auto-select first turf
+  useEffect(() => {
+    if (ownerTurfs.length > 0 && !selectedTurfId) {
+      setSelectedTurfId(ownerTurfs[0].id);
+    }
+  }, [ownerTurfs, selectedTurfId]);
+
+  // Sync pricing states with selected turf details
+  useEffect(() => {
+    const activeT = ownerTurfs.find(t => t.id === selectedTurfId);
+    if (activeT) {
+      setPeakStartHour(activeT.peakStartHour ?? 18);
+      setPeakEndHour(activeT.peakEndHour ?? 22);
+      setPeakSurcharge(activeT.peakSurcharge ?? 300);
+      setWeekendSurcharge(activeT.weekendSurcharge ?? 200);
+    }
+  }, [selectedTurfId, ownerTurfs]);
+
   // Slots State derived dynamically from Bookings & Turfs
   const slots = useMemo(() => {
     const normalizeSlot = (timeSlotStr: string): string => {
@@ -285,6 +315,8 @@ export default function App() {
     };
 
     const list: Slot[] = [];
+    const selectedTurf = ownerTurfs.find(t => t.id === selectedTurfId);
+
     daysOfWeek.forEach(day => {
       hourlySlots.forEach((time, index) => {
         const bookingDate = dayToDateMap[day];
@@ -292,6 +324,9 @@ export default function App() {
           b => {
             const bDateStr = b.date;
             if (bDateStr !== bookingDate || b.status === 'CANCELLED') return false;
+            
+            // Only show booked if it matches the selected turf
+            if (selectedTurf && b.turfName !== selectedTurf.name) return false;
 
             const bSlot = b.timeSlot || '';
             const slots = bSlot.split(',').map((s: string) => s.trim());
@@ -300,18 +335,21 @@ export default function App() {
           }
         );
 
+        const blockKey = `${bookingDate}|${time}`;
+        const isBlocked = selectedTurf?.blockedSlots?.includes(blockKey);
+
         list.push({
           id: `${day}-${index}`,
           time,
           day,
-          price: ownerTurfs[0]?.price || 1200,
-          status: isBooked ? 'BOOKED' : 'OPEN',
-          blockReason: undefined
+          price: selectedTurf?.price || 1200,
+          status: isBooked ? 'BOOKED' : isBlocked ? 'BLOCKED' : 'OPEN',
+          blockReason: isBlocked ? 'Blocked by Owner' : undefined
         });
       });
     });
     return list;
-  }, [bookings, ownerTurfs]);
+  }, [bookings, ownerTurfs, selectedTurfId]);
 
   const [selectedDayFilter, setSelectedDayFilter] = useState<string>('Monday');
 
@@ -589,28 +627,92 @@ export default function App() {
     }
   };
 
-  // Toggle Slot Status Handler (available for future direct toggle UI)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _toggleSlotStatus = (id: string) => {
-    // Left as stub
+  const handleBlockSlot = async (slot: Slot, block: boolean) => {
+    if (!selectedTurfId) {
+      alert('Please select a turf first');
+      return;
+    }
+    const selectedTurf = ownerTurfs.find(t => t.id === selectedTurfId);
+    if (!selectedTurf) return;
+
+    const blockKey = `${dayToDateMap[slot.day] || '2026-07-06'}|${slot.time}`;
+    let updatedBlockedSlots = selectedTurf.blockedSlots || [];
+    
+    if (block) {
+      if (!updatedBlockedSlots.includes(blockKey)) {
+        updatedBlockedSlots = [...updatedBlockedSlots, blockKey];
+      }
+    } else {
+      updatedBlockedSlots = updatedBlockedSlots.filter((k: string) => k !== blockKey);
+    }
+
+    try {
+      const res = await api.put(`/owner/turfs/${selectedTurfId}`, {
+        blockedSlots: updatedBlockedSlots,
+      });
+      
+      const updated = res.data.data;
+      setOwnerTurfs(ownerTurfs.map(t => t.id === selectedTurfId ? {
+        ...t,
+        blockedSlots: updated.blockedSlots || [],
+      } : t));
+    } catch (err) {
+      console.error('Failed to update blocked slots', err);
+      alert('Failed to update slot block settings.');
+    }
   };
 
-  // Handle slot card click to open offline booking form
+  const handleSaveSurcharges = async () => {
+    if (!selectedTurfId) {
+      alert('Please select a turf first');
+      return;
+    }
+    try {
+      const res = await api.put(`/owner/turfs/${selectedTurfId}`, {
+        peakStartHour: Number(peakStartHour),
+        peakEndHour: Number(peakEndHour),
+        peakSurcharge: Number(peakSurcharge),
+        weekendSurcharge: Number(weekendSurcharge)
+      });
+      alert('Surcharge settings updated successfully!');
+      
+      const updated = res.data.data;
+      setOwnerTurfs(ownerTurfs.map(t => t.id === selectedTurfId ? {
+        ...t,
+        peakStartHour: updated.peakStartHour,
+        peakEndHour: updated.peakEndHour,
+        peakSurcharge: updated.peakSurcharge,
+        weekendSurcharge: updated.weekendSurcharge,
+      } : t));
+    } catch (err) {
+      console.error('Failed to save surcharges', err);
+      alert('Failed to save surcharge settings.');
+    }
+  };
+
+  // Handle slot card click to open offline booking form or block slot
   const handleSlotClick = (slot: Slot) => {
-    const dayToDateMap: Record<string, string> = {
-      Monday: '2026-07-06',
-      Tuesday: '2026-07-07',
-      Wednesday: '2026-07-08',
-      Thursday: '2026-07-09',
-      Friday: '2026-07-10',
-      Saturday: '2026-07-11',
-      Sunday: '2026-07-12'
-    };
+    if (slot.status === 'BOOKED') {
+      alert('This slot is already booked.');
+      return;
+    }
     
-    setManualSlot(slot.time);
-    setManualDate(dayToDateMap[slot.day] || '2026-07-06');
-    setIsAddingBooking(true);
-    setActiveTab('bookings');
+    if (slot.status === 'BLOCKED') {
+      if (window.confirm(`Unblock slot ${slot.time} for ${slot.day}?`)) {
+        handleBlockSlot(slot, false);
+      }
+      return;
+    }
+
+    const choice = window.prompt(`For slot ${slot.time} on ${slot.day}:\nType "block" to Block this slot\nType "book" to Create Offline Booking`);
+    if (choice === 'block') {
+      handleBlockSlot(slot, true);
+    } else if (choice === 'book') {
+      setManualSlot(slot.time);
+      setManualDate(dayToDateMap[slot.day] || '2026-07-06');
+      setIsAddingBooking(true);
+      setActiveTab('bookings');
+    }
   };
 
   // Create Manual Booking Handler
@@ -1415,6 +1517,23 @@ export default function App() {
                 <h1 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Time Slot Planner</h1>
                 <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Configure booking availabilities, dynamic peak hour surcharges, and block slots.</p>
               </div>
+
+              {ownerTurfs.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Select Turf:</span>
+                  <select
+                    value={selectedTurfId || ''}
+                    onChange={(e) => setSelectedTurfId(e.target.value)}
+                    className={`rounded-xl px-4 py-2 border outline-none text-xs font-extrabold transition-all shadow-sm ${
+                      isDarkMode ? 'bg-[#0f172a] text-slate-100 border-slate-800' : 'bg-white text-slate-900 border-slate-200'
+                    }`}
+                  >
+                    {ownerTurfs.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Filter by Day */}
@@ -1581,6 +1700,13 @@ export default function App() {
                         />
                       </div>
                     </div>
+
+                    <button
+                      onClick={handleSaveSurcharges}
+                      className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-md shadow-emerald-500/10 shrink-0"
+                    >
+                      Save Surcharge Rules
+                    </button>
                   </div>
                 ) : (
                   <div className="text-[10px] text-slate-450 font-bold">

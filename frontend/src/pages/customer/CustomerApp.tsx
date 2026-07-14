@@ -62,6 +62,11 @@ interface Turf {
   amenities: string[];
   lat: number;
   lng: number;
+  peakStartHour?: number;
+  peakEndHour?: number;
+  peakSurcharge?: number;
+  weekendSurcharge?: number;
+  blockedSlots?: string[];
 }
 
 const sampleTurfs: Turf[] = [
@@ -196,7 +201,12 @@ export default function App() {
           image: t.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
           amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
           lat: t.location?.latitude || 19.0948,
-          lng: t.location?.longitude || 74.7480
+          lng: t.location?.longitude || 74.7480,
+          peakStartHour: t.peakStartHour,
+          peakEndHour: t.peakEndHour,
+          peakSurcharge: t.peakSurcharge,
+          weekendSurcharge: t.weekendSurcharge,
+          blockedSlots: t.blockedSlots || [],
         }));
         setTurfs(mapped);
       } catch (err) {
@@ -277,13 +287,27 @@ export default function App() {
     if (!selectedTurf) return 0;
     if (selectedTimes.length === 0) return 0;
     
+    const peakStart = selectedTurf.peakStartHour ?? 18;
+    const peakEnd = selectedTurf.peakEndHour ?? 22;
+    const peakSurch = selectedTurf.peakSurcharge ?? 300;
+    
+    const parsedDate = new Date(selectedDate);
+    const dayOfWeek = parsedDate.getDay(); // 0 is Sunday, 6 is Saturday
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const weekendSurch = selectedTurf.weekendSurcharge ?? 200;
+
     return selectedTimes.reduce((total, time) => {
       const startHour = parseInt(time.split(':')[0], 10);
       const isPM = time.includes('PM');
       const actualHour = isPM && startHour !== 12 ? startHour + 12 : (!isPM && startHour === 12 ? 0 : startHour);
-      const isPeak = actualHour >= 16 && actualHour < 22; // Peak hours: 4 PM to 10 PM
-      const price = isPeak ? selectedTurf.price + 300 : selectedTurf.price;
-      return total + price;
+      
+      const isPeak = actualHour >= peakStart && actualHour < peakEnd;
+      
+      let surcharge = 0;
+      if (isPeak) surcharge += peakSurch;
+      if (isWeekend) surcharge += weekendSurch;
+      
+      return total + selectedTurf.price + surcharge;
     }, 0);
   };
 
@@ -398,6 +422,20 @@ export default function App() {
     }
   };
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   const handleBookSlot = async () => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -421,39 +459,81 @@ export default function App() {
       const res = await api.post('/bookings', bookingPayload);
       const { booking, razorpayOrderId } = res.data?.data || {};
 
-      // 2. Automatically verify payment (dev mode simulation)
-      await api.post('/bookings/verify', {
-        bookingId: booking.id,
-        razorpayOrderId,
-        razorpayPaymentId: 'pay_' + Math.random().toString(36).substring(2, 10),
-        razorpaySignature: 'sig_mock',
-        status: 'CONFIRMED'
-      });
-
-      const newBooking = {
-        id: booking.id,
-        turfName: selectedTurf.name,
-        date: selectedDate,
-        time: joinedSlotsStr,
-        sport: selectedTurf.sport,
-        amount: totalPrice,
-        status: 'UPCOMING'
-      };
-
-      setBookings([newBooking, ...bookings]);
-
-      // 3. Immediately refresh turf bookings in UI to block this slot
-      try {
-        const bookingsRes = await api.get(`/turfs/${selectedTurf.id}/bookings`);
-        setTurfBookings(bookingsRes.data?.data || []);
-      } catch (e) {
-        console.error('Error refreshing bookings:', e);
+      if (!razorpayOrderId) {
+        throw new Error('Failed to retrieve Razorpay Order ID from backend');
       }
 
-      setBookingStep('success');
-    } catch (err) {
+      // Load Razorpay SDK
+      const sdkLoaded = await loadRazorpayScript();
+      if (!sdkLoaded) {
+        alert('Razorpay SDK failed to load. Are you connected to the internet?');
+        return;
+      }
+
+      const options = {
+        key: "rzp_test_TCyMJrrvTVxEh2", // The test key ID
+        amount: totalPrice * 100, // Amount in paise
+        currency: "INR",
+        name: "TurfBook",
+        description: `Booking for ${selectedTurf.name}`,
+        order_id: razorpayOrderId,
+        handler: async function (response: any) {
+          try {
+            // 2. Verify payment (using real details from Razorpay)
+            const verifyRes = await api.post('/bookings/verify', {
+              bookingId: booking.id,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+              status: 'CONFIRMED'
+            });
+
+            if (verifyRes.data?.success) {
+              const newBooking = {
+                id: booking.id,
+                turfName: selectedTurf.name,
+                date: selectedDate,
+                time: joinedSlotsStr,
+                sport: selectedTurf.sport,
+                amount: totalPrice,
+                status: 'UPCOMING'
+              };
+
+              setBookings([newBooking, ...bookings]);
+
+              // 3. Immediately refresh turf bookings in UI to block this slot
+              try {
+                const bookingsRes = await api.get(`/turfs/${selectedTurf.id}/bookings`);
+                setTurfBookings(bookingsRes.data?.data || []);
+              } catch (e) {
+                console.error('Error refreshing bookings:', e);
+              }
+
+              setBookingStep('success');
+            } else {
+              alert('Payment verification failed.');
+            }
+          } catch (verifyErr: any) {
+            console.error('Verification error:', verifyErr);
+            alert(verifyErr.response?.data?.message || 'Payment verification failed.');
+          }
+        },
+        prefill: {
+          name: user?.name || '',
+          email: user?.email || '',
+          contact: user?.phone || '',
+        },
+        theme: {
+          color: "#10B981"
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+
+    } catch (err: any) {
       console.error('Error creating booking:', err);
-      alert('Failed to complete booking on the server.');
+      alert(err.response?.data?.message || 'Failed to complete booking on the server.');
     }
   };
 
@@ -793,18 +873,35 @@ export default function App() {
                       {timeSlots24.map((time) => {
                         const booked = isSlotBooked(time);
                         const isSelected = selectedTimes.includes(time);
+                        const blockKey = `${selectedDate}|${time}`;
+                        const isBlocked = selectedTurf.blockedSlots?.includes(blockKey);
+                        const disabled = booked || isBlocked;
                         
                         // Surcharge formatting
                         const startHour = parseInt(time.split(':')[0], 10);
                         const isPM = time.includes('PM');
                         const actualHour = isPM && startHour !== 12 ? startHour + 12 : (!isPM && startHour === 12 ? 0 : startHour);
-                        const isPeak = actualHour >= 16 && actualHour < 22; // 4 PM to 10 PM peak
-                        const price = isPeak ? selectedTurf.price + 300 : selectedTurf.price;
+                        
+                        const peakStart = selectedTurf.peakStartHour ?? 18;
+                        const peakEnd = selectedTurf.peakEndHour ?? 22;
+                        const peakSurch = selectedTurf.peakSurcharge ?? 300;
+                        const isPeak = actualHour >= peakStart && actualHour < peakEnd;
+                        
+                        const parsedDate = new Date(selectedDate);
+                        const dayOfWeek = parsedDate.getDay(); // 0 is Sunday, 6 is Saturday
+                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                        const weekendSurch = selectedTurf.weekendSurcharge ?? 200;
+
+                        let surcharge = 0;
+                        if (isPeak) surcharge += peakSurch;
+                        if (isWeekend) surcharge += weekendSurch;
+
+                        const price = selectedTurf.price + surcharge;
 
                         return (
                           <button
                             key={time}
-                            disabled={booked}
+                            disabled={disabled}
                             onClick={() => {
                               if (isSelected) {
                                 setSelectedTimes(selectedTimes.filter(t => t !== time));
@@ -813,21 +910,21 @@ export default function App() {
                               }
                             }}
                             className={`px-3.5 py-2.5 rounded-xl text-left border flex flex-col justify-between min-h-[72px] transition-all hover:scale-[1.01] relative ${
-                              booked
+                              disabled
                                 ? 'bg-rose-500/5 border-rose-500/20 text-rose-500/80 cursor-not-allowed opacity-75'
                                 : isSelected
                                 ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 font-extrabold ring-1 ring-emerald-500 shadow-md shadow-emerald-500/10'
                                 : isDarkMode
-                                ? 'bg-slate-900/30 border-slate-850 text-slate-350 hover:border-slate-700 hover:bg-slate-800'
+                                ? 'bg-slate-900/30 border-slate-850 text-slate-355 hover:border-slate-700 hover:bg-slate-800'
                                 : 'bg-slate-550 border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/80 shadow-sm'
                             }`}
                           >
                             <div className="flex items-center justify-between w-full">
-                              <span className={`text-[10px] font-extrabold ${booked ? 'line-through opacity-60' : ''}`}>
+                              <span className={`text-[10px] font-extrabold ${disabled ? 'line-through opacity-60' : ''}`}>
                                 {time}
                               </span>
                               <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded ${
-                                booked
+                                disabled
                                   ? 'bg-rose-500/10 text-rose-400'
                                   : isSelected
                                   ? 'bg-emerald-500/20 text-emerald-400'
@@ -835,14 +932,14 @@ export default function App() {
                                   ? 'bg-slate-800 text-slate-400'
                                   : 'bg-slate-200 text-slate-600'
                               }`}>
-                                {booked ? 'Booked' : isSelected ? 'Selected' : 'Open'}
+                                {booked ? 'Booked' : isBlocked ? 'Blocked' : isSelected ? 'Selected' : 'Open'}
                               </span>
                             </div>
                             <div className="flex items-center justify-between w-full mt-1.5 pt-1.5 border-t border-dashed border-slate-800/40">
                               <span className="text-[8px] text-slate-500 font-medium">Hourly Rate</span>
                               <span className="text-[9px] font-black flex items-center gap-0.5">
                                 {formatCurrency(price)}
-                                {isPeak && !booked && (
+                                {isPeak && !disabled && (
                                   <span className="text-[8px] filter saturate-150" title="Peak Hour Surcharge">🔥</span>
                                 )}
                               </span>

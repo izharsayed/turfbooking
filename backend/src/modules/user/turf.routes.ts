@@ -54,9 +54,9 @@ router.get('/:id', async (req, res, next) => {
       ownerProfile: ownerProfile ? {
         companyName: ownerProfile.companyName,
         businessUpiId: ownerProfile.businessUpiId || 'merchant@upi',
-        advancePaymentPercent: ownerProfile.advancePaymentPercent || 30,
-        convenienceFee: ownerProfile.convenienceFee || 45,
-        taxRate: ownerProfile.taxRate || 18,
+        advancePaymentPercent: ownerProfile.advancePaymentPercent ?? 30,
+        convenienceFee: ownerProfile.convenienceFee ?? 45,
+        taxRate: ownerProfile.taxRate ?? 18,
         onlinePaymentsEnabled: ownerProfile.onlinePaymentsEnabled !== false,
       } : null
     };

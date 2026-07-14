@@ -18,7 +18,9 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useBookingStore } from '../../store/bookingStore';
 import { useAuthStore } from '../../store/authStore';
-import { apiFetch } from '../../utils/api';
+import { apiFetch, API_BASE_URL } from '../../utils/api';
+import * as ExpoLinking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { useThemeStore } from '../../store/themeStore';
 import { getTurfById } from '../../data/turfs';
 import { formatCurrency } from '../../utils';
@@ -81,6 +83,11 @@ export default function PaymentCheckoutScreen() {
             amenities: bt.amenities || [],
             slots: bt.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
             ownerProfile: bt.ownerProfile || null,
+            peakStartHour: bt.peakStartHour,
+            peakEndHour: bt.peakEndHour,
+            peakSurcharge: bt.peakSurcharge,
+            weekendSurcharge: bt.weekendSurcharge,
+            blockedSlots: bt.blockedSlots || [],
           });
           setLoading(false);
           return;
@@ -120,6 +127,55 @@ export default function PaymentCheckoutScreen() {
     };
   }, [paymentStatus, selectedMethod, activeBookingId, activeRazorpayOrderId]);
 
+  useEffect(() => {
+    const handleDeepLink = (event: { url: string }) => {
+      console.log('🔗 Mobile app received deep link URL:', event.url);
+      
+      try {
+        const parsed = ExpoLinking.parse(event.url);
+        const path = parsed.path || '';
+        
+        if (path.includes('payment/success') || event.url.includes('payment/success')) {
+          const bId = parsed.queryParams?.bookingId as string || activeBookingId;
+          if (bId) {
+            // Sync local store
+            addBooking({
+              id: bId,
+              turfId: turf?.id,
+              turfName: turf?.name,
+              area: turf?.area,
+              date: params.date,
+              time: params.time,
+              amount: finalTotal,
+            });
+            setPaymentStatus('success');
+          }
+        } else if (path.includes('payment/failed') || event.url.includes('payment/failed')) {
+          const errorMsg = parsed.queryParams?.error as string || 'Payment failed';
+          setErrorMessage(errorMsg);
+          setPaymentStatus('failed');
+        } else if (path.includes('payment/cancelled') || event.url.includes('payment/cancelled')) {
+          setErrorMessage('Payment cancelled by user');
+          setPaymentStatus('failed');
+        }
+      } catch (err) {
+        console.error('Error handling deep link:', err);
+      }
+    };
+
+    // Listen for incoming deep links
+    const subscription = ExpoLinking.addEventListener('url', handleDeepLink);
+    
+    // Check if the app was opened from a deep link initially
+    ExpoLinking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url });
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [activeBookingId, turf, params]);
+
   const theme = {
     bg: isDarkMode ? '#030712' : '#f8fafc',
     card: isDarkMode ? 'rgba(15, 23, 42, 0.75)' : '#ffffff',
@@ -153,26 +209,44 @@ export default function PaymentCheckoutScreen() {
     );
   }
 
-  // Calculate pricing breakdown — multiply by number of slots selected
-  const basePrice = turf.price * slotCount;
-  const convenienceFee = 45;
+  // Calculate pricing breakdown — multiply by number of slots selected, applying surcharges per slot
+  const basePrice = slotList.reduce((sum: number, timeRange: string) => {
+    const startHour = parseInt(timeRange.split(':')[0], 10);
+    const isPM = timeRange.toLowerCase().includes('pm');
+    const actualHour = isPM && startHour !== 12 ? startHour + 12 : (!isPM && startHour === 12 ? 0 : startHour);
+
+    const peakStart = turf.peakStartHour ?? 18;
+    const peakEnd = turf.peakEndHour ?? 22;
+    const peakSurch = turf.peakSurcharge ?? 300;
+    const isPeak = actualHour >= peakStart && actualHour < peakEnd;
+
+    let isWeekend = false;
+    if (params.date) {
+      const dayOfWeek = new Date(params.date).getDay();
+      isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    }
+    const weekendSurch = turf.weekendSurcharge ?? 200;
+
+    let surcharge = 0;
+    if (isPeak) surcharge += peakSurch;
+    if (isWeekend) surcharge += weekendSurch;
+
+    return sum + (turf.price || 1200) + surcharge;
+  }, 0) || (turf.price * slotCount);
+  const convenienceFee = turf.ownerProfile?.convenienceFee ?? 45;
   const finalTotal = basePrice + convenienceFee;
 
-  // Advance Payment: 30% of base price + convenienceFee
-  const advanceAmount = Math.round(basePrice * 0.3);
+  // Advance Payment: dynamic % of base price + convenienceFee
+  const advancePercent = (turf.ownerProfile?.advancePaymentPercent ?? 30) / 100;
+  const advanceAmount = Math.round(basePrice * advancePercent);
   const advanceTotal = advanceAmount + convenienceFee;
 
   const amountToPay = payOption === 'full' ? finalTotal : advanceTotal;
 
-  // Step 1: Initiate booking on backend (sets PENDING status)
+  // Step 1: Initiate booking on backend then open Razorpay checkout in-app
   const handlePayment = async () => {
     if (!isAuthenticated) {
       router.push('/login');
-      return;
-    }
-
-    if (selectedMethod === 'upi' && !selectedUpiApp && (!upiId || !upiId.includes('@'))) {
-      Alert.alert('UPI Verification Required', 'Please select a preferred UPI app or enter a valid UPI ID (e.g. user@okaxis) to proceed.');
       return;
     }
 
@@ -180,6 +254,7 @@ export default function PaymentCheckoutScreen() {
     setErrorMessage(null);
 
     try {
+      // 1. Create booking + Razorpay order on backend
       const res = await apiFetch('/bookings', {
         method: 'POST',
         body: {
@@ -193,41 +268,50 @@ export default function PaymentCheckoutScreen() {
       });
 
       if (res.success && res.data) {
-        setActiveBookingId(res.data.booking.id);
-        setActiveRazorpayOrderId(res.data.razorpayOrderId);
-        
-        // Launch deep-link UPI app if UPI is selected
-        if (selectedMethod === 'upi') {
-          const upiAddress = turf.ownerProfile?.businessUpiId || 'turfbook@hdfcbank';
-          const merchantName = turf.ownerProfile?.companyName || turf.name || 'TurfBook';
-          const query = `pa=${encodeURIComponent(upiAddress)}&pn=${encodeURIComponent(merchantName)}&tr=${res.data.razorpayOrderId}&am=${amountToPay}&cu=INR&tn=Booking%20for%20${encodeURIComponent(turf.name)}`;
-          let targetUrl = `upi://pay?${query}`;
-          
-          if (selectedUpiApp === 'Google Pay') {
-            targetUrl = Platform.OS === 'ios' ? `gpay://upi/pay?${query}` : `upi://pay?${query}`;
-          } else if (selectedUpiApp === 'PhonePe') {
-            targetUrl = `phonepe://upi/pay?${query}`;
-          } else if (selectedUpiApp === 'Paytm') {
-            targetUrl = `paytmmp://upi/pay?${query}`;
-          } else if (selectedUpiApp === 'BHIM') {
-            targetUrl = `bhim://upi/pay?${query}`;
-          }
+        const bookingId = res.data.booking.id;
+        const razorpayOrderId = res.data.razorpayOrderId;
+        setActiveBookingId(bookingId);
+        setActiveRazorpayOrderId(razorpayOrderId);
 
+        // 2. Open Razorpay checkout page in an in-app browser
+        const checkoutUrl = `${API_BASE_URL}/bookings/${bookingId}/checkout-page`;
+        console.log('🚀 Opening Razorpay checkout in-app:', checkoutUrl);
+        
+        const result = await WebBrowser.openBrowserAsync(checkoutUrl, {
+          dismissButtonStyle: 'cancel',
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+          toolbarColor: '#030712',
+          controlsColor: '#10b981',
+        });
+
+        console.log('📱 In-app browser result:', result.type);
+
+        // 3. When user returns from in-app browser, check booking status
+        if (result.type === 'cancel' || result.type === 'dismiss') {
+          // User might have completed payment or cancelled — check backend
           try {
-            await Linking.openURL(targetUrl);
-          } catch (err) {
-            console.log('Failed direct launch, trying generic upi:// link', err);
-            try {
-              await Linking.openURL(`upi://pay?${query}`);
-            } catch (genericErr) {
-              console.log('Generic UPI launcher failed', genericErr);
-              // Emulator / no UPI apps fallback is handled elegantly since we still load the simulation gateway
+            const statusRes = await apiFetch(`/bookings/${bookingId}/status`);
+            if (statusRes.success && statusRes.data?.status === 'CONFIRMED') {
+              // Payment was completed successfully via Razorpay
+              addBooking({
+                id: bookingId,
+                turfId: turf.id,
+                turfName: turf.name,
+                area: turf.area,
+                date: params.date,
+                time: params.time,
+                amount: finalTotal,
+              });
+              setPaymentStatus('success');
+            } else {
+              // Payment wasn't completed — show gateway simulation as fallback
+              setPaymentStatus('gateway_simulation');
             }
+          } catch (statusErr) {
+            console.log('Could not check booking status, showing gateway fallback', statusErr);
+            setPaymentStatus('gateway_simulation');
           }
         }
-
-        // Show simulated secure payment gateway
-        setPaymentStatus('gateway_simulation');
       } else {
         throw new Error(res.message || 'Failed to initiate booking');
       }
@@ -244,7 +328,7 @@ export default function PaymentCheckoutScreen() {
     
     setPaymentStatus('processing');
     const paymentId = 'pay_' + Math.random().toString(36).substring(2, 10);
-    const signature = 'sig_' + Math.random().toString(36).substring(2, 15);
+    const signature = 'sig_mock_' + Math.random().toString(36).substring(2, 15);
 
     try {
       const res = await apiFetch('/bookings/verify', {
@@ -394,8 +478,44 @@ export default function PaymentCheckoutScreen() {
 
             {/* Authorize/Decline Action Buttons */}
             <View style={{ gap: 12, marginTop: 10 }}>
+              <TouchableOpacity 
+                style={[styles.simPayBtn, { backgroundColor: '#10b981' }]} 
+                onPress={async () => {
+                  const checkoutUrl = `${API_BASE_URL}/bookings/${activeBookingId}/checkout-page`;
+                  console.log('Opening real Razorpay checkout URL:', checkoutUrl);
+                  const result = await WebBrowser.openBrowserAsync(checkoutUrl, {
+                    dismissButtonStyle: 'cancel',
+                    presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                    toolbarColor: '#030712',
+                    controlsColor: '#10b981',
+                  });
+                  // Re-check payment status when user returns from in-app browser
+                  if (result.type === 'cancel' || result.type === 'dismiss') {
+                    try {
+                      const statusRes = await apiFetch(`/bookings/${activeBookingId}/status`);
+                      if (statusRes.success && statusRes.data?.status === 'CONFIRMED') {
+                        addBooking({
+                          id: activeBookingId!,
+                          turfId: turf.id,
+                          turfName: turf.name,
+                          area: turf.area,
+                          date: params.date,
+                          time: params.time,
+                          amount: finalTotal,
+                        });
+                        setPaymentStatus('success');
+                      }
+                    } catch (err) {
+                      console.log('Status check after re-open failed', err);
+                    }
+                  }
+                }}
+              >
+                <Text style={[styles.simPayBtnText, { color: '#020617' }]}>💳 Pay via Razorpay Gateway</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity style={styles.simPayBtn} onPress={confirmPayment}>
-                <Text style={styles.simPayBtnText}>Authorize & Confirm Payment</Text>
+                <Text style={styles.simPayBtnText}>Simulate Sandbox Confirmation</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.simDeclineBtn} onPress={cancelPayment}>
@@ -548,143 +668,8 @@ export default function PaymentCheckoutScreen() {
               <Text style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>{formatCurrency(advanceTotal)}</Text>
             </TouchableOpacity>
           </View>
-
-
-          {/* Payment Methods */}
-          <Text style={[styles.sectionHeader, { color: theme.text }]}>Select Payment Method</Text>
-
-          <View style={styles.methodsWrapper}>
-            {/* UPI Option */}
-            <TouchableOpacity
-              style={[
-                styles.methodCard,
-                { backgroundColor: theme.card, borderColor: selectedMethod === 'upi' ? '#10b981' : theme.border },
-              ]}
-              onPress={() => setSelectedMethod('upi')}
-            >
-              <View style={styles.methodLeft}>
-                <MaterialCommunityIcons name="flash-outline" size={24} color="#10b981" />
-                <View>
-                  <Text style={[styles.methodTitle, { color: theme.text }]}>UPI Apps</Text>
-                  <Text style={[styles.methodDesc, { color: theme.textMuted }]}>Google Pay, PhonePe, Paytm</Text>
-                </View>
-              </View>
-              <View style={[styles.radioOuter, { borderColor: selectedMethod === 'upi' ? '#10b981' : '#64748b' }]}>
-                {selectedMethod === 'upi' && <View style={styles.radioInner} />}
-              </View>
-            </TouchableOpacity>
-
-            {/* Expanded UPI Apps Panel */}
-            {selectedMethod === 'upi' && (
-              <View style={[styles.expandedUpiContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <Text style={[styles.subSectionHeader, { color: theme.text }]}>Select Preferred App</Text>
-                <View style={styles.upiAppsRow}>
-                  {['Google Pay', 'PhonePe', 'Paytm', 'BHIM'].map((app) => {
-                    const isAppSel = selectedUpiApp === app;
-                    let appIconName = 'google';
-                    let appIconColor = '#4285F4';
-                    if (app === 'PhonePe') {
-                      appIconName = 'wallet';
-                      appIconColor = '#673ab7';
-                    } else if (app === 'Paytm') {
-                      appIconName = 'credit-card-outline';
-                      appIconColor = '#00baf2';
-                    } else if (app === 'BHIM') {
-                      appIconName = 'bank';
-                      appIconColor = '#e11d48';
-                    }
-
-                    return (
-                      <TouchableOpacity
-                        key={app}
-                        style={[
-                          styles.upiAppChip,
-                          {
-                            borderColor: isAppSel ? '#10b981' : theme.border,
-                            backgroundColor: isAppSel ? 'rgba(16, 185, 129, 0.08)' : (isDarkMode ? 'rgba(15, 23, 42, 0.3)' : '#f1f5f9'),
-                          },
-                        ]}
-                        onPress={() => {
-                          setSelectedUpiApp(app);
-                          setUpiId(''); // Clear custom ID when app selected
-                        }}
-                      >
-                        <MaterialCommunityIcons name={appIconName as any} size={20} color={appIconColor} style={{ marginRight: 6 }} />
-                        <Text style={[styles.upiAppText, { color: theme.text }]}>{app}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                <View style={styles.orRow}>
-                  <View style={[styles.orLine, { backgroundColor: theme.border }]} />
-                  <Text style={[styles.orText, { color: theme.textMuted }]}>OR ENTER UPI ID</Text>
-                  <View style={[styles.orLine, { backgroundColor: theme.border }]} />
-                </View>
-
-                <View style={[styles.upiInputBox, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-                  <TextInput
-                    value={upiId}
-                    onChangeText={(val: string) => {
-                      setUpiId(val);
-                      setSelectedUpiApp(null); // Clear selected app chip
-                    }}
-                    placeholder="Enter UPI ID (e.g. user@okaxis)"
-                    placeholderTextColor={theme.textMuted}
-                    style={[styles.upiTextEntry, { color: theme.text }]}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  {upiId.includes('@') && (
-                    <Text style={styles.upiValidTag}>Valid ID</Text>
-                  )}
-                </View>
-              </View>
-            )}
-
-            {/* Cards Option */}
-            <TouchableOpacity
-              style={[
-                styles.methodCard,
-                { backgroundColor: theme.card, borderColor: selectedMethod === 'card' ? '#10b981' : theme.border },
-              ]}
-              onPress={() => setSelectedMethod('card')}
-            >
-              <View style={styles.methodLeft}>
-                <Ionicons name="card-outline" size={24} color="#10b981" />
-                <View>
-                  <Text style={[styles.methodTitle, { color: theme.text }]}>Credit / Debit Card</Text>
-                  <Text style={[styles.methodDesc, { color: theme.textMuted }]}>Visa, MasterCard, RuPay</Text>
-                </View>
-              </View>
-              <View style={[styles.radioOuter, { borderColor: selectedMethod === 'card' ? '#10b981' : '#64748b' }]}>
-                {selectedMethod === 'card' && <View style={styles.radioInner} />}
-              </View>
-            </TouchableOpacity>
-
-            {/* Netbanking Option */}
-            <TouchableOpacity
-              style={[
-                styles.methodCard,
-                { backgroundColor: theme.card, borderColor: selectedMethod === 'net' ? '#10b981' : theme.border },
-              ]}
-              onPress={() => setSelectedMethod('net')}
-            >
-              <View style={styles.methodLeft}>
-                <Ionicons name="business-outline" size={24} color="#10b981" />
-                <View>
-                  <Text style={[styles.methodTitle, { color: theme.text }]}>Net Banking</Text>
-                  <Text style={[styles.methodDesc, { color: theme.textMuted }]}>All major Indian banks</Text>
-                </View>
-              </View>
-              <View style={[styles.radioOuter, { borderColor: selectedMethod === 'net' ? '#10b981' : '#64748b' }]}>
-                {selectedMethod === 'net' && <View style={styles.radioInner} />}
-              </View>
-            </TouchableOpacity>
-          </View>
-
           {/* Pricing Breakdown Sheet */}
-          <View style={[styles.breakdownCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={[styles.breakdownCard, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 12 }]}>
             <View style={styles.breakdownRow}>
               <Text style={[styles.breakdownLabel, { color: theme.textMuted }]}>Slot Charge</Text>
               <Text style={[styles.breakdownVal, { color: theme.text }]}>{formatCurrency(basePrice)}</Text>

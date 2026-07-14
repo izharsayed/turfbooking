@@ -78,6 +78,11 @@ export class PrismaTurfRepository implements ITurfRepository {
       isActive: t.isActive,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
+      peakStartHour: t.peakStartHour || undefined,
+      peakEndHour: t.peakEndHour || undefined,
+      peakSurcharge: t.peakSurcharge || undefined,
+      weekendSurcharge: t.weekendSurcharge || undefined,
+      blockedSlots: t.blockedSlots || undefined,
     };
   }
 }

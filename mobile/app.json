@@ -33,7 +33,8 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.YOUR_IOS_CLIENT_ID"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "scheme": "turfbook"
   }

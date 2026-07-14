@@ -47,9 +47,10 @@ export default function LoginScreen() {
   const { login } = useAuthStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
 
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [devDropdownOpen, setDevDropdownOpen] = useState(false);
 
   const safeRedirect = (path: string) => {
@@ -67,7 +68,7 @@ export default function LoginScreen() {
   const DUMMY_ACCOUNTS = [
     { label: '👤 Customer', phone: '9876543210', email: 'customer@turfbook.com', password: 'password', role: 'CUSTOMER',    name: 'Demo Customer' },
     { label: '🏟️ Owner',    phone: '9999988888', email: 'owner@turfbook.com',    password: 'password',    role: 'TURF_OWNER', name: 'Ahmednagar Sports Arena' },
-    { label: '🔑 Admin',    phone: '8888877777', email: 'admin@turfbook.com',    password: 'password',    role: 'SUPER_ADMIN', name: 'System Administrator' },
+    { label: '🔑 Admin',    phone: '8888877777', email: 'admin@turfbook.com',    password: 'Admin@12345', role: 'SUPER_ADMIN', name: 'System Administrator' },
   ];
 
   const applyDummyLogin = async (account: typeof DUMMY_ACCOUNTS[0]) => {
@@ -90,7 +91,7 @@ export default function LoginScreen() {
     try {
       const res = await fetchWithTimeout('/auth/login', {
         method: 'POST',
-        body: { email: account.email, password: 'password' },
+        body: { email: account.email, password: account.password },
       }, 1500);
 
       if (res.success && res.data) {
@@ -275,33 +276,27 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!phone || phone.length < 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+  const handlePasswordLogin = async () => {
+    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+    if (!password) {
+      Alert.alert('Error', 'Please enter your password');
       return;
     }
 
-    if (!otpSent) {
-      try {
-        await apiFetch('/auth/send-otp', {
-          method: 'POST',
-          body: { phone },
-        });
-        Alert.alert('OTP Dispatched', `💬 SMS OTP Sent to +91 ${phone}. Check the backend server console log to see the code.`);
-        setOtpSent(true);
-      } catch (e: any) {
-        Alert.alert('Error', e.message || 'Failed to dispatch OTP. Make sure phone number is registered.');
-      }
-    } else {
-      if (!otp || otp.length !== 6) {
-        Alert.alert('Error', 'Please enter your 6-digit verification code');
-        return;
-      }
-      try {
-        const res = await apiFetch('/auth/verify-otp', {
-          method: 'POST',
-          body: { phone, code: otp },
-        });
+    setIsLoading(true);
+    try {
+      const res = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: {
+          email: email.trim().toLowerCase(),
+          password,
+        },
+      });
+
+      if (res.success && res.data) {
         login(
           {
             id: res.data.user.id,
@@ -312,13 +307,18 @@ export default function LoginScreen() {
           },
           res.data.accessToken
         );
-        setDevDropdownOpen(false);
         safeRedirect(res.data.user.role === 'SUPER_ADMIN' ? '/admin' : (res.data.user.role === 'TURF_OWNER' ? '/owner' : '/'));
-      } catch (e: any) {
-        Alert.alert('OTP Verification Failed', e.message || 'Invalid or expired OTP');
+      } else {
+        Alert.alert('Login Failed', res.message || 'Invalid email or password');
       }
+    } catch (e: any) {
+      Alert.alert('Login Error', e.message || 'An error occurred during login');
+    } finally {
+      setIsLoading(false);
     }
   };
+
+
 
   const handleSignUpClick = () => {
     router.push('/signup');
@@ -401,51 +401,51 @@ export default function LoginScreen() {
             Login to continue to your account
           </Text>
 
-          {/* Phone input row */}
-          <View style={[styles.phoneInputContainer, { backgroundColor: isDarkMode ? '#030712' : '#ffffff', borderColor: isDarkMode ? '#1e293b' : '#e2e8f0' }]}>
-            <TouchableOpacity style={styles.countryPicker} activeOpacity={0.8}>
-              <Text style={styles.flagEmoji}>🇮🇳</Text>
-              <Text style={[styles.countryCode, { color: isDarkMode ? '#ffffff' : '#0f172a' }]}>+91</Text>
-              <Ionicons name="chevron-down" size={12} color="#64748b" />
-            </TouchableOpacity>
-            <View style={[styles.fieldDivider, { backgroundColor: isDarkMode ? '#1e293b' : '#cbd5e1' }]} />
-            <View style={styles.phoneInputWrapper}>
-              <Ionicons name="call-outline" size={18} color="#64748b" style={styles.phoneIcon} />
-              <TextInput
-                value={phone}
-                onChangeText={(val) => setPhone(val.replace(/[^0-9]/g, ''))}
-                placeholder="Enter your mobile number"
-                placeholderTextColor="#64748b"
-                keyboardType="phone-pad"
-                maxLength={10}
-                style={[styles.formInput, { color: isDarkMode ? '#ffffff' : '#0f172a' }]}
-              />
-            </View>
+           {/* Email input */}
+          <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? '#030712' : '#ffffff', borderColor: isDarkMode ? '#1e293b' : '#e2e8f0', marginTop: 14 }]}>
+            <Ionicons name="mail-outline" size={18} color="#64748b" style={styles.inputIcon} />
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email Address"
+              placeholderTextColor="#94a3b8"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={[styles.formInput, { color: isDarkMode ? '#ffffff' : '#0f172a' }]}
+            />
           </View>
 
-          {/* OTP Code */}
-          {otpSent && (
-            <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? '#030712' : '#ffffff', borderColor: isDarkMode ? '#1e293b' : '#e2e8f0', marginTop: 14 }]}>
-              <Ionicons name="shield-checkmark-outline" size={18} color="#64748b" style={styles.inputIcon} />
-              <TextInput
-                value={otp}
-                onChangeText={(val) => setOtp(val.replace(/[^0-9]/g, ''))}
-                placeholder="Enter 6-digit OTP"
-                placeholderTextColor="#94a3b8"
-                keyboardType="number-pad"
-                maxLength={6}
-                style={[styles.formInput, { color: isDarkMode ? '#ffffff' : '#0f172a', letterSpacing: otp ? 6 : 0 }]}
-              />
-            </View>
-          )}
+          {/* Password input */}
+          <View style={[styles.inputWrapper, { backgroundColor: isDarkMode ? '#030712' : '#ffffff', borderColor: isDarkMode ? '#1e293b' : '#e2e8f0', marginTop: 14 }]}>
+            <Ionicons name="lock-closed-outline" size={18} color="#64748b" style={styles.inputIcon} />
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Password"
+              placeholderTextColor="#94a3b8"
+              secureTextEntry={!passwordVisible}
+              autoCapitalize="none"
+              style={[styles.formInput, { color: isDarkMode ? '#ffffff' : '#0f172a', flex: 1 }]}
+            />
+            <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={{ paddingHorizontal: 10 }}>
+              <Ionicons name={passwordVisible ? "eye-off-outline" : "eye-outline"} size={18} color="#64748b" />
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity style={styles.greenButton} onPress={handleSubmit} activeOpacity={0.9}>
+          {/* Submit Button */}
+          <TouchableOpacity 
+            style={[styles.greenButton, { marginTop: 20 }]} 
+            onPress={handlePasswordLogin} 
+            activeOpacity={0.9}
+            disabled={isLoading}
+          >
             <Text style={styles.greenButtonText}>
-              {otpSent ? 'Verify & Login' : 'Continue with Mobile'}
+              {isLoading ? 'Logging In...' : 'Sign In'}
             </Text>
             <Ionicons name="arrow-forward-outline" size={16} color="#ffffff" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
 
+          {/* OR Divider */}
           <View style={styles.orContainer}>
             <View style={[styles.orLine, { backgroundColor: isDarkMode ? '#1e293b' : '#e2e8f0' }]} />
             <Text style={styles.orText}>or</Text>
@@ -469,7 +469,7 @@ export default function LoginScreen() {
             <Ionicons name="shield-checkmark-outline" size={14} color="#10b981" />
             <Text style={styles.termsText}>
               By continuing, you agree to our{"\n"}
-              <Text style={styles.linkText}>Terms of Service</Text> and <Text style={styles.linkText}>Privacy Policy</Text>
+              <Text style={styles.linkText} onPress={() => router.push('/terms')}>Terms of Service</Text> and <Text style={styles.linkText} onPress={() => router.push('/privacy')}>Privacy Policy</Text>
             </Text>
           </View>
           <TouchableOpacity onPress={handleSignUpClick} activeOpacity={0.7} style={styles.signUpLink}>

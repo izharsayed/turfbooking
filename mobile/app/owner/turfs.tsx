@@ -29,6 +29,10 @@ interface Turf {
   sport?: string;
   isActive?: boolean;
   description?: string;
+  peakStartHour?: number;
+  peakEndHour?: number;
+  peakSurcharge?: number;
+  weekendSurcharge?: number;
 }
 
 const MOCK_TURFS: Turf[] = [
@@ -57,6 +61,10 @@ export default function OwnerTurfsScreen() {
   const [formSport, setFormSport] = useState('Football');
   const [formDescription, setFormDescription] = useState('');
   const [formActive, setFormActive] = useState(true);
+  const [formPeakStart, setFormPeakStart] = useState('18');
+  const [formPeakEnd, setFormPeakEnd] = useState('22');
+  const [formPeakSurcharge, setFormPeakSurcharge] = useState('300');
+  const [formWeekendSurcharge, setFormWeekendSurcharge] = useState('200');
   const [saving, setSaving] = useState(false);
 
   const theme = {
@@ -107,6 +115,10 @@ export default function OwnerTurfsScreen() {
     setFormSport('Football');
     setFormDescription('');
     setFormActive(true);
+    setFormPeakStart('18');
+    setFormPeakEnd('22');
+    setFormPeakSurcharge('300');
+    setFormWeekendSurcharge('200');
     setModalVisible(true);
   };
 
@@ -118,6 +130,10 @@ export default function OwnerTurfsScreen() {
     setFormSport(turf.sport || 'Football');
     setFormDescription(turf.description || '');
     setFormActive(turf.isActive ?? true);
+    setFormPeakStart(String(turf.peakStartHour ?? 18));
+    setFormPeakEnd(String(turf.peakEndHour ?? 22));
+    setFormPeakSurcharge(String(turf.peakSurcharge ?? 300));
+    setFormWeekendSurcharge(String(turf.weekendSurcharge ?? 200));
     setModalVisible(true);
   };
 
@@ -134,6 +150,10 @@ export default function OwnerTurfsScreen() {
       sport: formSport,
       description: formDescription.trim(),
       isActive: formActive,
+      peakStartHour: parseInt(formPeakStart, 10),
+      peakEndHour: parseInt(formPeakEnd, 10),
+      peakSurcharge: parseFloat(formPeakSurcharge),
+      weekendSurcharge: parseFloat(formWeekendSurcharge),
     };
     try {
       if (editingTurf) {
@@ -244,6 +264,17 @@ export default function OwnerTurfsScreen() {
                   </View>
                 )}
 
+                {turf.peakSurcharge !== undefined && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 6 }}>
+                    <Text style={{ fontSize: 10, color: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, fontWeight: 'bold' }}>
+                      🔥 Peak (+₹{turf.peakSurcharge}) {turf.peakStartHour}:00-{turf.peakEndHour}:00
+                    </Text>
+                    <Text style={{ fontSize: 10, color: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, fontWeight: 'bold' }}>
+                      ⚡ Weekend (+₹{turf.weekendSurcharge ?? 200})
+                    </Text>
+                  </View>
+                )}
+
                 <View style={styles.priceRow}>
                   <Text style={[styles.priceText, { color: theme.text }]}>
                     ₹{turf.pricePerHour} <Text style={[styles.priceUnit, { color: theme.textMuted }]}>/ hour</Text>
@@ -331,6 +362,59 @@ export default function OwnerTurfsScreen() {
                 numberOfLines={3}
                 style={[styles.input, styles.inputMultiline, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
               />
+
+              {/* Dynamic Pricing Surcharges Section */}
+              <Text style={{ fontSize: 11, fontWeight: 'bold', color: theme.text, marginTop: 12, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Dynamic Pricing Surcharges</Text>
+              
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 4 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Peak Start Hour (24h)</Text>
+                  <TextInput
+                    value={formPeakStart}
+                    onChangeText={setFormPeakStart}
+                    placeholder="e.g. 18"
+                    placeholderTextColor={theme.textMuted}
+                    keyboardType="numeric"
+                    style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Peak End Hour (24h)</Text>
+                  <TextInput
+                    value={formPeakEnd}
+                    onChangeText={setFormPeakEnd}
+                    placeholder="e.g. 22"
+                    placeholderTextColor={theme.textMuted}
+                    keyboardType="numeric"
+                    style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
+                  />
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Peak Surcharge (₹)</Text>
+                  <TextInput
+                    value={formPeakSurcharge}
+                    onChangeText={setFormPeakSurcharge}
+                    placeholder="e.g. 300"
+                    placeholderTextColor={theme.textMuted}
+                    keyboardType="numeric"
+                    style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Weekend Surcharge (₹)</Text>
+                  <TextInput
+                    value={formWeekendSurcharge}
+                    onChangeText={setFormWeekendSurcharge}
+                    placeholder="e.g. 200"
+                    placeholderTextColor={theme.textMuted}
+                    keyboardType="numeric"
+                    style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
+                  />
+                </View>
+              </View>
 
               {/* Active Toggle */}
               <View style={styles.toggleRow}>

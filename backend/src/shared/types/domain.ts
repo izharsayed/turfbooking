@@ -36,6 +36,11 @@ export interface Turf {
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
+  peakStartHour?: number;
+  peakEndHour?: number;
+  peakSurcharge?: number;
+  weekendSurcharge?: number;
+  blockedSlots?: string[];
 }
 
 export type BookingStatus =
