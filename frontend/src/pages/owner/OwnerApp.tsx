@@ -77,7 +77,9 @@ import {
   Star,
   Wrench,
   Search,
-  Loader2
+  Loader2,
+  Upload,
+  Link as LinkIcon
 } from 'lucide-react';
 
 interface Turf {
@@ -376,6 +378,11 @@ export default function App() {
   const [turfImage, setTurfImage] = useState('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60');
   const [mapSearchQuery, setMapSearchQuery] = useState('');
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
+
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [turfImage]);
 
   // Manual Booking States
   const [isAddingBooking, setIsAddingBooking] = useState(false);
@@ -440,17 +447,62 @@ export default function App() {
   const weeklyFillRates = hasRealBookings ? realFillRates : [45, 55, 30, 80, 95, 65, 85];
 
   // Add/Edit Turf Handlers
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image is too large. Please select an image under 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 600;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          setTurfImage(compressedBase64);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveTurf = async (e: React.FormEvent) => {
     e.preventDefault();
     let sportId = "NHQKZB3YRCRhWBL95sUE"; // Football by default
-    let imageUrl = "/images/football.jpg";
+    let imageUrl = turfImage || "/images/football.jpg";
 
     if (turfSport === "Cricket") {
       sportId = "nB4mpucB3cyLZA8gXxiA";
-      imageUrl = "/images/cricket.jpg";
+      if (!turfImage) imageUrl = "/images/cricket.jpg";
     } else if (turfSport === "Box Cricket") {
       sportId = "HV8G3I9zmsYnUWFqqqMV";
-      imageUrl = "/images/cricket.jpg";
+      if (!turfImage) imageUrl = "/images/cricket.jpg";
     }
 
     const turfData = {
@@ -472,14 +524,16 @@ export default function App() {
         const res = await api.put(`/owner/turfs/${editingTurfId}`, {
           name: turfName,
           description: turfDesc,
-          pricePerHour: Number(turfPrice)
+          pricePerHour: Number(turfPrice),
+          images: [imageUrl]
         });
         const updated = res.data.data;
         setOwnerTurfs(ownerTurfs.map(t => t.id === editingTurfId ? {
           ...t,
           name: updated.name,
           description: updated.description || '',
-          price: updated.pricePerHour || 1200
+          price: updated.pricePerHour || 1200,
+          image: updated.images?.[0] || imageUrl
         } : t));
         setEditingTurfId(null);
       } else {
@@ -508,6 +562,7 @@ export default function App() {
       setTurfName('');
       setTurfDesc('');
       setMapSearchQuery('');
+      setTurfImage('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60');
       setIsAddingTurf(false);
     } catch (err) {
       console.error('Error saving turf:', err);
@@ -1315,6 +1370,7 @@ export default function App() {
                     setTurfName('');
                     setTurfDesc('');
                     setMapSearchQuery('');
+                    setTurfImage('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60');
                     setIsAddingTurf(true);
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/25"
@@ -1379,6 +1435,111 @@ export default function App() {
                         : 'bg-white text-slate-900 placeholder-slate-400 border-slate-350 focus:border-emerald-500/50'
                     }`}
                   />
+                </div>
+
+                {/* Turf Photo Selection/Upload */}
+                <div className="space-y-3">
+                  <label className={`text-xs font-bold uppercase block ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Turf Photo</label>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Upload Area */}
+                    <div className={`md:col-span-2 border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all ${
+                      isDarkMode 
+                        ? 'border-slate-800 bg-[#030712]/40 hover:border-emerald-500/40' 
+                        : 'border-slate-300 bg-slate-50/50 hover:border-emerald-500/40 shadow-inner'
+                    }`}>
+                      {turfImage && !imageLoadError ? (
+                        <div className="relative w-full h-32 rounded-xl overflow-hidden group">
+                          <img 
+                            src={turfImage} 
+                            alt="Preview" 
+                            className="w-full h-full object-cover" 
+                            onError={() => setImageLoadError(true)}
+                          />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity gap-2">
+                            <label className="cursor-pointer bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1">
+                              <Upload className="h-3 w-3" /> Change
+                              <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                            </label>
+                            <button 
+                              type="button" 
+                              onClick={() => setTurfImage('')} 
+                              className="bg-rose-500 hover:bg-rose-400 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1"
+                            >
+                              <Trash2 className="h-3 w-3" /> Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : turfImage && imageLoadError ? (
+                        <div className="w-full h-32 rounded-xl border border-red-500/20 bg-red-500/5 flex flex-col items-center justify-center p-3 text-center">
+                          <ShieldAlert className="h-5 w-5 text-rose-500 mb-1" />
+                          <span className="text-[11px] font-bold text-rose-400">Failed to load image</span>
+                          <span className="text-[9px] text-slate-400 mt-0.5 max-w-[200px] leading-tight">Ensure it is a direct image URL (ends with .jpg, .png, etc.) and allows hotlinking.</span>
+                          <button 
+                            type="button" 
+                            onClick={() => setTurfImage('')} 
+                            className="mt-1.5 text-[9px] font-bold text-slate-400 hover:text-white underline cursor-pointer"
+                          >
+                            Clear URL
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="cursor-pointer flex flex-col items-center justify-center py-6 w-full">
+                          <Upload className="h-8 w-8 text-emerald-500 mb-2 animate-bounce" />
+                          <span className={`text-xs font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Upload custom photo</span>
+                          <span className="text-[10px] text-slate-500 mt-1">PNG, JPG, WEBP up to 5MB (auto-compressed)</span>
+                          <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                        </label>
+                      )}
+                    </div>
+
+                    {/* URL Input & Presets */}
+                    <div className="space-y-3 flex flex-col justify-between">
+                      <div className="space-y-1.5">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider block ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Or paste image URL</span>
+                        <div className="relative">
+                          <LinkIcon className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                          <input
+                            type="text"
+                            placeholder="https://example.com/photo.jpg"
+                            value={turfImage.startsWith('data:') ? '' : turfImage}
+                            onChange={(e) => setTurfImage(e.target.value)}
+                            className={`w-full rounded-xl pl-9 pr-3 py-2 border outline-none text-xs font-semibold transition-all ${
+                              isDarkMode
+                                ? 'bg-[#030712] text-slate-100 placeholder-slate-650 border-slate-800 focus:border-emerald-500/50'
+                                : 'bg-white text-slate-900 placeholder-slate-400 border-slate-350 focus:border-emerald-500/50'
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider block ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Quick Presets</span>
+                        <div className="flex gap-2">
+                          {[
+                            { name: 'Soccer', url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60' },
+                            { name: 'Cricket', url: 'https://images.unsplash.com/photo-1531415080295-6ad6679ff877?w=600&auto=format&fit=crop&q=60' },
+                            { name: 'Arena', url: 'https://images.unsplash.com/photo-1544698310-74ea9d1c8258?w=600&auto=format&fit=crop&q=60' }
+                          ].map((preset) => (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => setTurfImage(preset.url)}
+                              className={`text-[10px] font-bold py-1 px-2.5 rounded-lg border transition-all ${
+                                turfImage === preset.url
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-450'
+                                  : isDarkMode
+                                    ? 'border-slate-800 text-slate-450 hover:text-slate-200'
+                                    : 'border-slate-200 text-slate-600 hover:text-slate-900 shadow-sm'
+                              }`}
+                            >
+                              {preset.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
