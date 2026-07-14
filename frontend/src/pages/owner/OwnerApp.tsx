@@ -75,7 +75,9 @@ import {
   Zap,
   Sparkles,
   Star,
-  Wrench
+  Wrench,
+  Search,
+  Loader2
 } from 'lucide-react';
 
 interface Turf {
@@ -233,20 +235,36 @@ export default function App() {
         setEmailReceiptsEnabled(op.emailReceiptsEnabled !== false);
 
         // Map turfs
-        const mappedTurfs: Turf[] = backendTurfs.map((t: any) => ({
-          id: t.id,
-          name: t.name,
-          description: t.description || '',
-          city: t.location?.city || 'Ahmednagar',
-          area: t.location?.area || 'Savedi',
-          price: t.pricePerHour || 1200,
-          sport: t.sports?.[0] || 'Football',
-          rating: t.rating || 5.0,
-          image: t.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
-          amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
-          lat: t.location?.latitude || 19.0948,
-          lng: t.location?.longitude || 74.7480
-        }));
+        const getSportName = (sportId: string): string => {
+          const map: Record<string, string> = {
+            'NHQKZB3YRCRhWBL95sUE': 'Football',
+            'nB4mpucB3cyLZA8gXxiA': 'Cricket',
+            'HV8G3I9zmsYnUWFqqqMV': 'Box Cricket'
+          };
+          return map[sportId] || 'Football';
+        };
+
+        const mappedTurfs: Turf[] = backendTurfs.map((t: any) => {
+          const sportName = getSportName(t.sports?.[0] || '');
+          let turfImg = t.images?.[0] || (sportName === 'Football' ? '/images/football.jpg' : '/images/cricket.jpg');
+          if ((sportName === 'Cricket' || sportName === 'Box Cricket') && (turfImg === '/images/football.jpg' || turfImg.includes('photo-1575361204480-aadea25e6e68'))) {
+            turfImg = '/images/cricket.jpg';
+          }
+          return {
+            id: t.id,
+            name: t.name,
+            description: t.description || '',
+            city: t.location?.city || 'Ahmednagar',
+            area: t.location?.area || 'Savedi',
+            price: t.pricePerHour || 1200,
+            sport: sportName,
+            rating: t.rating || 5.0,
+            image: turfImg,
+            amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
+            lat: t.location?.latitude || 19.0948,
+            lng: t.location?.longitude || 74.7480
+          };
+        });
 
         // Map bookings
         const mappedBookings: Booking[] = backendBookings.map((b: any) => ({
@@ -356,6 +374,8 @@ export default function App() {
   const [turfLat, setTurfLat] = useState(19.0948);
   const [turfLng, setTurfLng] = useState(74.7480);
   const [turfImage, setTurfImage] = useState('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60');
+  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
 
   // Manual Booking States
   const [isAddingBooking, setIsAddingBooking] = useState(false);
@@ -422,6 +442,17 @@ export default function App() {
   // Add/Edit Turf Handlers
   const handleSaveTurf = async (e: React.FormEvent) => {
     e.preventDefault();
+    let sportId = "NHQKZB3YRCRhWBL95sUE"; // Football by default
+    let imageUrl = "/images/football.jpg";
+
+    if (turfSport === "Cricket") {
+      sportId = "nB4mpucB3cyLZA8gXxiA";
+      imageUrl = "/images/cricket.jpg";
+    } else if (turfSport === "Box Cricket") {
+      sportId = "HV8G3I9zmsYnUWFqqqMV";
+      imageUrl = "/images/cricket.jpg";
+    }
+
     const turfData = {
       name: turfName,
       description: turfDesc,
@@ -431,7 +462,8 @@ export default function App() {
       pricePerHour: Number(turfPrice),
       cityId: "FVS82Xy9TSPMaR2445eX", // Ahmednagar City
       areaId: "9nVaAGTPMuCe1hjlkCoK", // Savedi Area
-      sports: ["NHQKZB3YRCRhWBL95sUE"], // Football Sport
+      sports: [sportId],
+      images: [imageUrl],
       amenities: ["Washroom", "Parking", "Flood Lights"]
     };
 
@@ -453,6 +485,10 @@ export default function App() {
       } else {
         const res = await api.post('/owner/turfs', turfData);
         const created = res.data.data;
+        let turfImg = created.images?.[0] || imageUrl;
+        if ((turfSport === 'Cricket' || turfSport === 'Box Cricket') && (turfImg === '/images/football.jpg' || turfImg.includes('photo-1575361204480-aadea25e6e68'))) {
+          turfImg = '/images/cricket.jpg';
+        }
         const newTurf: Turf = {
           id: created.id,
           name: created.name,
@@ -460,9 +496,9 @@ export default function App() {
           city: 'Ahmednagar',
           area: 'Savedi',
           price: created.pricePerHour || 1200,
-          sport: 'Football',
+          sport: turfSport,
           rating: 5.0,
-          image: created.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
+          image: turfImg,
           amenities: created.amenities || ['Washroom', 'Parking', 'Flood Lights'],
           lat: created.location?.latitude || 19.0948,
           lng: created.location?.longitude || 74.7480
@@ -471,10 +507,34 @@ export default function App() {
       }
       setTurfName('');
       setTurfDesc('');
+      setMapSearchQuery('');
       setIsAddingTurf(false);
     } catch (err) {
       console.error('Error saving turf:', err);
       alert('Failed to save turf.');
+    }
+  };
+
+  const handleMapSearch = async () => {
+    if (!mapSearchQuery.trim()) return;
+    setIsSearchingLocation(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearchQuery)}&limit=1`
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        setTurfLat(Number(parseFloat(lat).toFixed(6)));
+        setTurfLng(Number(parseFloat(lon).toFixed(6)));
+      } else {
+        alert("Location not found. Try a more specific search query.");
+      }
+    } catch (error) {
+      console.error("Geocoding error:", error);
+      alert("Error searching location. Please check your internet connection.");
+    } finally {
+      setIsSearchingLocation(false);
     }
   };
 
@@ -1252,7 +1312,10 @@ export default function App() {
                 <button
                   onClick={() => {
                     setEditingTurfId(null);
-                    setIsAddingTurf(!isAddingTurf);
+                    setTurfName('');
+                    setTurfDesc('');
+                    setMapSearchQuery('');
+                    setIsAddingTurf(true);
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/25"
                 >
@@ -1375,6 +1438,44 @@ export default function App() {
                   <p className="text-[10px] text-slate-500 font-medium">
                     Click anywhere on the map to set the turf coordinates automatically, or type them in the fields above.
                   </p>
+
+                  {/* Map Location Search Box */}
+                  <div className="flex gap-2 items-center max-w-md pb-1">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                      <input
+                        type="text"
+                        placeholder="Search location (e.g. Savedi, Ahmednagar)"
+                        value={mapSearchQuery}
+                        onChange={(e) => setMapSearchQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleMapSearch();
+                          }
+                        }}
+                        className={`w-full rounded-xl pl-10 pr-4 py-2 border outline-none text-xs font-semibold transition-all ${
+                          isDarkMode
+                            ? 'bg-[#030712] text-slate-100 placeholder-slate-655 border-slate-800 focus:border-emerald-500/50'
+                            : 'bg-white text-slate-900 placeholder-slate-400 border-slate-350 focus:border-emerald-500/50'
+                        }`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleMapSearch}
+                      disabled={isSearchingLocation}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-md h-[34px]"
+                    >
+                      {isSearchingLocation ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-950" />
+                      ) : (
+                        <Search className="h-3.5 w-3.5 text-slate-950" />
+                      )}
+                      Search
+                    </button>
+                  </div>
+
                   <div className={`h-64 w-full rounded-2xl overflow-hidden border shadow-inner relative z-0 ${
                     isDarkMode ? 'border-slate-850 bg-slate-900/30' : 'border-slate-300 bg-slate-50'
                   }`}>

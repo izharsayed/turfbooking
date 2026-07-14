@@ -1,7 +1,11 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
+<<<<<<< HEAD
 > Last updated: 2026-07-13 16:15 IST
 > Last updated: 2026-07-13 18:40 IST
+=======
+> Last updated: 2026-07-14 12:15 IST
+>>>>>>> f7d6e74 (updated)
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1403,27 +1407,27 @@ pnpm dev:backend      # start the server
 - Embedded the interactive `MapContainer` directly below the latitude and longitude inputs in the "Register New Turf Arena" and "Modify Turf Details" forms.
 - **Why**: Responds to user request to show the selected turf coordinates on an interactive map and allow updating them by clicking directly on the map.
 
-### 131. Mobile Owner App Screens (`bookings.tsx`, `index.tsx`, `turfs.tsx`, `profile.tsx`) — Modified
+### 140. Mobile Owner App Screens (`bookings.tsx`, `index.tsx`, `turfs.tsx`, `profile.tsx`) — Modified
 - Relocated the auth and role guard checks below all React Hook declarations (`useState`, `useEffect`, `useCallback`) to strictly follow the React rules of hooks.
 - Added validation checks inside asynchronous data fetching functions (`fetchData`, `fetchDashboard`, `fetchTurfs`, `fetchProfileData`) and `onRefresh` callbacks to prevent API/network calls if unauthenticated.
 - **Why**: Resolves Metro/Expo crash "Rendered fewer hooks than expected. This may be caused by an accidental early return statement" when hot reloading or when session token changes, and prevents unnecessary network requests.
 
-### 132. `backend/src/repositories/firebase/FirebaseOwnerRepository.ts` — Modified
+### 141. `backend/src/repositories/firebase/FirebaseOwnerRepository.ts` — Modified
 - Included `turfId` and `sportId` database reference keys in the list mapping result returned from `listBookings`.
 - **Why**: Allows owner-side frontend clients to associate and match reservation records cleanly by database keys instead of raw text substrings.
 
-### 133. `mobile/app/owner/bookings.tsx` — Modified
+### 142. `mobile/app/owner/bookings.tsx` — Modified
 - Declared and mapped `sportId` in turf items, and updated client bookings interfaces to track `turfId` and `sportId`.
 - Formatted `date` properties to strict UTC ISO format in the manual offline booking POST payload to resolve backend Zod validation schema rejections.
 - Programmed manual bookings to trigger reloading list data (`await fetchData()`) directly from the database upon creation, instantly updating the calendar planner.
 - Refactored active online booking slot matches to evaluate `b.turfId === selectedTurf.id` for precise booking matching.
 - **Why**: Fully connects the owner bookings reservation log and slot planner to the backend API and database, resolving validation errors on offline booking submissions.
 
-### 134. `mobile/app/owner/bookings.tsx` — Modified
+### 143. `mobile/app/owner/bookings.tsx` — Modified
 - Extracted the date portion from database ISO datetime string timestamps (splitting by `'T'`) before matching against the calendar grid's date key.
 - **Why**: Fixes a date comparison mismatch where offline or online bookings created with full UTC ISO timestamps failed to render in the selected day's schedule grid.
 
-### 135. `frontend/src/pages/owner/OwnerApp.tsx` — Modified
+### 144. `frontend/src/pages/owner/OwnerApp.tsx` — Modified
 - Replaced all emoji characters with Lucide React icon components:
   - `🔒` → `<Lock />` (4 occurrences: revenue card, pricing, replies, staff registration)
   - `💡` → `<Lightbulb />` (weather advisory)
@@ -1436,174 +1440,174 @@ pnpm dev:backend      # start the server
 - Added `Lock`, `Lightbulb`, `CheckCircle2`, `Star`, `Flame`, `Zap`, `Cog` to lucide-react imports.
 - **Why**: Replaces inconsistent emoji rendering across browsers/OS with crisp, scalable SVG icon components from the existing Lucide library.
 
-### 136. `mobile/app/owner/index.tsx` — Modified
+### 145. `mobile/app/owner/index.tsx` — Modified
 - Replaced `👋` wave emoji with `<Ionicons name="hand-left-outline" />` in the greeting text.
 - Replaced `★` star character in notification message with the word "star".
 - **Why**: Ensures consistent icon rendering across all mobile devices using the existing @expo/vector-icons library.
 
-### 137. `mobile/app/index.tsx` — Modified
+### 146. `mobile/app/index.tsx` — Modified
 - Replaced emoji characters with inline Expo Vector Icons:
   - `🏏` → `<MaterialCommunityIcons name="cricket" />` on map markers and category chips
   - `📍` → `<Ionicons name="location-outline" />` on map cards and featured list items
   - `★` → `<Ionicons name="star" />` on ratings
   - `🏟️`, `⚽`, `🏏`, `🥅` → `<MaterialCommunityIcons name="stadium-variant" />`, `<Ionicons name="football" />`, `<MaterialCommunityIcons name="cricket" />`, and `<MaterialCommunityIcons name="soccer-field" />` respectively inside horizontal categories list.
-- **Why**: Replaces raw emojis with consistent React Native components from `@expo/vector-icons` for unified platform styles.
+- **Why**: Replaces raw emojis with consistent React Native components from `@expo/vector-icons for unified platform styles.
 
-### 138. `mobile/app/booking/[id].tsx` — Modified
+### 147. `mobile/app/booking/[id].tsx` — Modified
 - Replaced `📍` location emoji inside the ticket summary layout with `<Ionicons name="location-outline" />`.
 - **Why**: Keeps design style uniform with the rest of the customer booking and status tickets.
 
-### 139. `mobile/app/turf/[id].tsx` — Modified
+### 148. `mobile/app/turf/[id].tsx` — Modified
 - Replaced `👋` waving hand emoji with `<Ionicons name="hand-left-outline" />`.
 - Replaced location `📍` and rating star `★` emojis with `<Ionicons name="location-outline" />` and `<Ionicons name="star" />` components.
 - Converted inline string emojis `{selectedSport === 'Cricket' ? '🏏 7A Cricket' : '⚽ Full Ground Futsal'}` into dynamic nested JSX elements displaying the corresponding vector icons inline.
 - **Why**: Standardizes icon designs on the turf detail screen.
 
-### 140. `mobile/app/payment/index.tsx` — Modified
+### 149. `mobile/app/payment/index.tsx` — Modified
 - Replaced location emoji `📍` in booking detail blocks with `<Ionicons name="location-outline" />`.
 - **Why**: Replaces raw emojis on the checkout screen with scalable Vector Icons.
 
-### 141. `mobile/app/payment/index.tsx` — Modified
+### 150. `mobile/app/payment/index.tsx` — Modified
 - Configured "Go to Bookings" button in success view to navigate using `router.replace({ pathname: '/', params: { tab: 'bookings' } })`.
 - **Why**: Immediately redirects the customer to their reservations log after a successful booking instead of leaving them on the main explore page.
 
-### 142. `mobile/app/index.tsx` — Modified
+### 151. `mobile/app/index.tsx` — Modified
 - Imported `RefreshControl` from `'react-native'`.
 - Implemented a native pull-to-refresh (`RefreshControl`) layout component on the dashboard's main ScrollView container, allowing manual pull queries for active turfs (in Explore) and customer reservations (in Bookings).
 - Rearranged React hooks so that all `useState`/`useRef` declarations reside at the top of the component body, resolving a block-scoped variable compilation error.
 - **Why**: Allows users to dynamically refresh their reservation tickets to check confirmation status, and ensures React Hook rules compliance.
 
-### 143. `mobile/utils/api.ts` — Modified
+### 152. `mobile/utils/api.ts` — Modified
 - Realigned mock booking item payload keys (`totalPrice` -> `amount`, `timeSlot` -> `time`, `turf.location` -> `area`, `turf.name` -> `turfName`) returned on `GET /bookings`.
 - **Why**: Avoids key layout mismatches in development bypass mode, preventing newly updated local store reservations from appearing as empty/broken list items.
 
-### 144. `mobile/app/payment/index.tsx` — Modified
+### 153. `mobile/app/payment/index.tsx` — Modified
 - Added the selected `date` key (`date: params.date`) in the body payload sent to `POST /bookings`.
 - **Why**: Prevents the backend database from defaulting booking reservations to today's date when a future date has been chosen.
 
-### 145. `mobile/utils/index.ts` — Modified
+### 154. `mobile/utils/index.ts` — Modified
 - Configured the date string parser inside `getBookingStatus` to split full ISO string values by `'T'` before performing date split and evaluation operations.
 - **Why**: Resolves date parsing failures (yielding `NaN`) that prematurely marked all newly verified bookings as `COMPLETED` instead of `UPCOMING`.
 
-### 146. `mobile/app/turf/[id].tsx` — Modified
+### 155. `mobile/app/turf/[id].tsx` — Modified
 - Implemented past time slots validation inside the 24-hour slots rendering grid to disable interactive touch presses and visual selection of past slots on the current day.
 - **Why**: Protects customers from booking and paying for slots that have already passed in the current day, showing them with a muted style and a "Passed" label.
 
-### 147. `mobile/app/turf/[id].tsx` — Modified
+### 156. `mobile/app/turf/[id].tsx` — Modified
 - Removed `playcoinsBalance` variables and the header coin balance chip display container.
 - **Why**: Cleans up customer booking views to remove playcoins indicators per user request.
 
-### 148. `mobile/app/payment/index.tsx` — Modified
+### 157. `mobile/app/payment/index.tsx` — Modified
 - Removed `playcoinsBalance` and `usePlaycoins` states and discount calculations from checkout workflows.
 - Removed the rewards toggle strip and discount breakdown row from the pricing layout sheet.
 - **Why**: Completely deactivates playcoins discounts and displays on the mobile customer booking summary.
 
-### 149. `mobile/app/turf/[id].tsx` — Modified
+### 158. `mobile/app/turf/[id].tsx` — Modified
 - Shifted the startHour slot index mapping expression to `(i + 12) % 24`.
 - **Why**: Re-orders the slot rendering grid to position PM slots (12:00 PM to 11:00 PM) at the top of the grid (upward) and AM slots (12:00 AM to 11:00 AM) below them, making high-demand evening hours immediately visible to the customer.
 
-### 150. `mobile/app/index.tsx` — Modified
+### 159. `mobile/app/index.tsx` — Modified
 - Replaced style-based hiding of `ScrollView` (`display: 'none'`) with React conditional rendering based on `activeTab !== 'map'`.
 - **Why**: Fixes a layout bug on the Nearby (Map) tab where the map container only occupied the top half of the screen. Completely unmounting the ScrollView releases the flex layout space, letting the map correctly expand to occupy 100% of the screen.
 
-### 151. `mobile/store/bookingStore.ts` — Modified
+### 160. `mobile/store/bookingStore.ts` — Modified
 - Added `rescheduleBooking` method signature and implementation to update ticket time/date in Zustand store.
 - **Why**: Allows immediate customer ticket updates locally after rescheduling.
 
-### 152. `backend/src/repositories/interfaces/IBookingRepository.ts` — Modified
+### 161. `backend/src/repositories/interfaces/IBookingRepository.ts` — Modified
 - Added `reschedule(id: string, date: Date | string, slotId: string): Promise<Booking>` interface method signature.
 - **Why**: Declares persistence interface for updating booking slots.
 
-### 153. `backend/src/repositories/prisma/PrismaBookingRepository.ts` — Modified
+### 162. `backend/src/repositories/prisma/PrismaBookingRepository.ts` — Modified
 - Implemented `reschedule` using Prisma client update operations.
 - **Why**: Handles SQL database persistent rescheduling updates.
 
-### 154. `backend/src/repositories/firebase/FirebaseBookingRepository.ts` — Modified
+### 163. `backend/src/repositories/firebase/FirebaseBookingRepository.ts` — Modified
 - Implemented `reschedule` using Firestore client update operations.
 - **Why**: Handles Firebase database persistent rescheduling updates.
 
-### 155. `backend/src/modules/user/booking.routes.ts` — Modified
+### 164. `backend/src/modules/user/booking.routes.ts` — Modified
 - Added `PUT /bookings/:id/reschedule` endpoint with overlap detection checks.
 - **Why**: Validates availability and updates database reservation slots.
 
-### 156. `mobile/app/profile.tsx` — Modified
+### 165. `mobile/app/profile.tsx` — Modified
 - Redirected the "Cancellation / Reschedule" row action to the homepage bookings tab.
 - **Why**: Directs customer straight to active reservations list.
 
-### 157. `mobile/app/booking/[id].tsx` — Modified
+### 166. `mobile/app/booking/[id].tsx` — Modified
 - Integrated "Reschedule Booking" buttons and an interactive `RescheduleModal` sheet containing date-strips and slot-grids.
 - **Why**: Allows customers to view available slots, avoid conflicts/past hours, and reschedule reservations.
 
-### 158. `backend/src/repositories/interfaces/IBookingRepository.ts` — Modified
+### 167. `backend/src/repositories/interfaces/IBookingRepository.ts` — Modified
 - Expanded `updateStatus` method signature to include an optional `reason` parameter.
 - **Why**: Declares capability to record cancellation feedback reasons.
 
-### 159. `backend/src/repositories/prisma/PrismaBookingRepository.ts` — Modified
+### 168. `backend/src/repositories/prisma/PrismaBookingRepository.ts` — Modified
 - Updated `updateStatus` to write the optional `reason` parameter into `cancellationReason` in the PostgreSQL database.
 - **Why**: Persists cancellation reasons inside relational DB.
 
-### 160. `backend/src/repositories/firebase/FirebaseBookingRepository.ts` — Modified
+### 169. `backend/src/repositories/firebase/FirebaseBookingRepository.ts` — Modified
 - Updated `updateStatus` to write the optional `reason` parameter into `cancellationReason` in Firestore.
 - **Why**: Persists cancellation reasons inside Firestore.
 
-### 161. `backend/src/modules/user/booking.routes.ts` — Modified
+### 170. `backend/src/modules/user/booking.routes.ts` — Modified
 - Updated DELETE `/:id` route to parse `reason` from `req.body` and pass it to `bookingRepository.updateStatus`.
 - **Why**: Transfers cancel reasons from API body payloads to database writes. Also resolved typescript checks for rescheduled slot status checking.
 
-### 162. `mobile/app/booking/[id].tsx` — Modified
+### 171. `mobile/app/booking/[id].tsx` — Modified
 - Replaced the simple native alert prompt with a premium custom `CancellationModal` containing refund details, radio selection buttons, and a text comment input.
 - **Why**: Provides a professional, polished cancellation experience that prompts for user feedback and explains refund targets.
 
-### 163. `backend/src/modules/user/booking.routes.ts` — Modified
+### 172. `backend/src/modules/user/booking.routes.ts` — Modified
 - Added a 3-hour cancellation limit validation inside the DELETE route.
 - **Why**: Secures the cancellation API from being called for slots starting in less than 3 hours.
 
-### 164. `mobile/app/booking/[id].tsx` — Modified
+### 173. `mobile/app/booking/[id].tsx` — Modified
 - Defined `getCanCancel` to disable the **Reschedule Booking** button and replace the **Cancel Booking** button with a warning notice card if the slot starts in less than 3 hours.
 - **Why**: Limits cancellation/reschedule options to a 3-hour window and educates the user about the cancellation policy.
 
-### 165. `backend/src/modules/user/support.routes.ts` — Created
+### 174. `backend/src/modules/user/support.routes.ts` — Created
 - Built Express endpoints `POST /tickets` and `GET /tickets` supporting unified Prisma (relational SQL) and Firebase Firestore storage writes.
 - **Why**: Handles query registration and history retrieval on database level.
 
-### 166. `backend/src/app.ts` — Modified
+### 175. `backend/src/app.ts` — Modified
 - Registered support ticket router under `/api/v1/tickets`.
 - **Why**: Connects endpoints to backend server router map.
 
-### 167. `mobile/app/index.tsx` — Modified
+### 176. `mobile/app/index.tsx` — Modified
 - Replaced the basic Support tab layout with sub-tabs (FAQs / My Tickets switcher), category-grouped FAQ expandable accordion lists, a support ticket history log, and a Modal overlay form to raise support requests.
 - **Why**: Provides a premium, high-fidelity customer support experience.
 
-### 168. `backend/src/repositories/prisma/PrismaOwnerRepository.ts` — Modified
+### 177. `backend/src/repositories/prisma/PrismaOwnerRepository.ts` — Modified
 - Mapped raw Prisma booking outputs in `listBookings` to the unified owner bookings schema structure expected by the client UI.
 - **Why**: Prevents empty calendar pages (disconnection) in the owner panel when using real SQL / Prisma backends.
 
-### 169. `mobile/utils/api.ts` — Modified
+### 178. `mobile/utils/api.ts` — Modified
 - Integrated `useBookingStore` into the mock `/owner/bookings` and `/owner/turfs` API handlers in bypass mode.
 - **Why**: Syncs local customer-made bookings dynamically into the owner's dashboard in offline / bypass mode, solving synchronization issues.
 
-### 170. `mobile/utils/api.ts` — Modified
+### 179. `mobile/utils/api.ts` — Modified
 - Added mock handlers for `POST /bookings`, `POST /bookings/verify`, `GET /turfs/:id` and `GET /turfs/:id/bookings` in bypass mode.
 - **Why**: Allows the entire customer checkout flow (creating, paying, and verifying bookings) to execute offline and automatically register in the Zustand booking store, synchronizing with the owner tab's calendar slots.
 
-### 171. `backend/.env` — Modified
+### 180. `backend/.env` — Modified
 - Changed `DATABASE_PROVIDER=firebase` to `DATABASE_PROVIDER=prisma`.
 - **Why**: Firebase Firestore requires internet connectivity (DNS resolution to `firestore.googleapis.com:443`). Switching to Prisma allows local/offline development against a local PostgreSQL instance.
 
-### 172. `backend/src/server.ts` — Modified
+### 181. `backend/src/server.ts` — Modified
 - Wrapped `prisma.$connect()` in a try-catch so the server starts even if the database connection fails.
 - **Why**: In bypass/offline development mode, the mobile app handles all data locally via Zustand stores. The server only needs to be reachable; actual DB queries are not required.
 
-### 173. `backend/.env` — Modified
+### 182. `backend/.env` — Modified
 - Reverted `DATABASE_PROVIDER` back to `firebase` (user preference).
 - **Why**: User explicitly wants Firebase as the database provider. The DNS resolution error for `firestore.googleapis.com` was a transient network issue.
 
-### 174. `mobile/utils/api.ts` — Modified
+### 183. `mobile/utils/api.ts` — Modified
 - Mock `/turfs` endpoint now returns all 4 turfs from `data/turfs.ts` instead of a single hardcoded turf.
 - Mock `/turfs/:id` endpoint now dynamically looks up the correct turf by ID from local data.
 - **Why**: Previous hardcoded single-turf mock was replacing the full local turf list, causing all slot data to appear empty on the explore and booking screens.
 
-### 175. `mobile/app/signup.tsx` — Created
+### 184. `mobile/app/signup.tsx` — Created
 - Full multi-step signup screen with premium design matching the login page.
 - Step 1: First Name, Last Name, Phone (+91), Email.
 - Step 2: Password with strength indicator & requirements checklist, Confirm Password, Terms checkbox.
@@ -1611,14 +1615,59 @@ pnpm dev:backend      # start the server
 - Calls `POST /auth/register` on submit.
 - **Why**: The mobile app had no signup screen — the "Sign Up" link on login just showed an Alert dialog.
 
-### 176. `mobile/app/_layout.tsx` — Modified
+### 185. `mobile/app/_layout.tsx` — Modified
 - Added `<Stack.Screen name="signup" />` route.
 - **Why**: Required for Expo Router to recognize the new signup screen.
 
-### 177. `mobile/app/login.tsx` — Modified
+### 186. `mobile/app/login.tsx` — Modified
 - Changed `handleSignUpClick` from showing an Alert to navigating to `/signup`.
 - **Why**: Connect the "Sign Up" link to the new signup screen.
 
-### 178. `mobile/utils/api.ts` — Modified
+### 187. `mobile/utils/api.ts` — Modified
 - Added mock handler for `POST /auth/register` in bypass mode.
 - **Why**: Allows the signup flow to complete without hitting the real backend during development.
+
+### 188. Football Image Replacement — Created | Modified
+- **`frontend/public/images/football.jpg`**: Added a new high-quality image of a soccer boot and a football on turf grass under stadium lights at sunset (replacing the previous plain football-on-grass image).
+- **`mobile/assets/football.jpg`**: Added the same high-quality image of a soccer boot and football.
+- **`backend/src/database/seedFirebase.ts`**: Changed the seeded image URL for `Old Trafford Arena` to `/images/football.jpg`.
+- **`backend/src/repositories/firebase/FirebaseTurfRepository.ts`**: Changed the default fallback image in the turf creator to `/images/football.jpg`.
+- **`frontend/src/pages/customer/CustomerApp.tsx`**: Updated the hardcoded turf list and dynamic image loading logic to fetch and display the local `/images/football.jpg` image.
+- **`frontend/src/pages/owner/OwnerApp.tsx`**: Updated fallback image reference to `/images/football.jpg`.
+- **`mobile/data/turfs.ts`**: Updated the sample dataset image property to `/images/football.jpg`.
+- **`mobile/app/index.tsx`**:
+  - Implemented `getTurfImageSource` helper function that resolves `/images/football.jpg` (or anything matching it) to a local React Native asset `require('../assets/football.jpg')`, fallback to uri string source objects.
+  - Swapped the card's `Image` component source to invoke the new `getTurfImageSource` helper.
+  - Replaced the API loading fallback image URL with `/images/football.jpg`.
+- **`mobile/app/payment/index.tsx`**: Replaced the API loading fallback image URL with `/images/football.jpg`.
+- **`mobile/app/turf/[id].tsx`**: Replaced the API loading fallback image URL with `/images/football.jpg`.
+- **Why**: Responds to user request to remove the current football image on the customer login/dashboard page and replace it with the new high-quality soccer boot and football image they sent.
+
+### 189. Cricket Image Setup & Dynamic Categories in Owner Dashboard — Created | Modified
+- **`frontend/public/images/cricket.jpg`**: Added a new high-quality image of a cricket bat and a tennis ball on green grass (replacing previous Unsplash cricket/box cricket fallbacks).
+- **`mobile/assets/cricket.jpg`**: Added the same high-quality cricket bat and ball image.
+- **`frontend/src/pages/owner/OwnerApp.tsx`**:
+  - Defined a `getSportName` helper function to resolve backend database sport IDs (`NHQKZB3YRCRhWBL95sUE` -> Football, `nB4mpucB3cyLZA8gXxiA` -> Cricket, `HV8G3I9zmsYnUWFqqqMV` -> Box Cricket).
+  - Updated mapping logic for loaded owner turfs to check if the sport resolves to Cricket/Box Cricket, and override any default/existing football images to `/images/cricket.jpg`.
+  - Refactored `handleSaveTurf` to dynamically determine the `sports` ID array and `images` payload list using the selected `turfSport` state, rather than hardcoding Football, overriding database defaults to `/images/cricket.jpg` if the saved response returns default football image paths.
+- **`frontend/src/pages/customer/CustomerApp.tsx`**:
+  - Updated Cricket and Box Cricket sample turfs to use the local `/images/cricket.jpg` path.
+  - Added default image override logic to ensure any resolved Cricket/Box Cricket turf always renders `/images/cricket.jpg`, even if the database has it stored or defaulted as `/images/football.jpg`.
+- **`mobile/data/turfs.ts`**: Updated Cricket and Box Cricket sample turfs to use the local `/images/cricket.jpg` path.
+- **`mobile/app/index.tsx`**:
+  - Normalized loaded turfs to translate sport IDs dynamically using `getMobileSportName` and check if the resolved sport is Cricket or Box Cricket. If so, overrides default/cached football image paths to `/images/cricket.jpg`.
+  - Updated `getTurfImageSource` loader utility to resolve `/images/cricket.jpg` (or any old Unsplash cricket/box-cricket URL strings) to local React Native assets using `require('../assets/cricket.jpg')`.
+- **`mobile/app/payment/index.tsx`**: Normalized fetched turf data in the payment flow to translate sport IDs and override defaulted football images to `/images/cricket.jpg` if the sport is Cricket/Box Cricket.
+- **`mobile/app/turf/[id].tsx`**: Normalized fetched turf details in the details screen to translate sport IDs and override defaulted football images to `/images/cricket.jpg` if the sport is Cricket/Box Cricket.
+- **Why**: Responds to user request to show the new cricket bat and ball image when an owner selects/registers a turf for Cricket and Box Cricket.
+
+### 190. Geolocation Search on Owner Map — Created | Modified
+- **`frontend/src/pages/owner/OwnerApp.tsx`**:
+  - Imported `Search` and `Loader2` from `lucide-react`.
+  - Declared `mapSearchQuery` and `isSearchingLocation` state variables.
+  - Implemented `handleMapSearch` function fetching location coordinates from Nominatim OpenStreetMap API, setting `turfLat` and `turfLng` and auto-centering the Leaflet map.
+  - Reset form states (including `mapSearchQuery`, `turfName`, and `turfDesc`) when clicking "Add New Turf" or saving a turf.
+  - Added a search input box and "Search" action button directly above the map in the turf registration/modify form drawer, handling keydown "Enter" queries gracefully.
+- **Why**: Responds to user request to add a search option to the interactive map in the owner dashboard to easily find exact locations, without making any modifications to the mobile app.
+
+>>>>>>> f7d6e74 (updated)
