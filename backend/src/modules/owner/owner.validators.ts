@@ -15,6 +15,7 @@ export const createTurfSchema = z.object({
   peakEndHour: z.number().int().min(0).max(23).optional(),
   peakSurcharge: z.number().nonnegative().optional(),
   weekendSurcharge: z.number().nonnegative().optional(),
+  images: z.array(z.string()).optional(),
 });
 
 export const updateTurfSchema = z.object({
@@ -30,6 +31,7 @@ export const updateTurfSchema = z.object({
   peakSurcharge: z.number().nonnegative().optional(),
   weekendSurcharge: z.number().nonnegative().optional(),
   blockedSlots: z.array(z.string()).optional(),
+  images: z.array(z.string()).optional(),
 });
 
 export const createSlotSchema = z.object({

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Navigation, Compass, Sliders } from 'lucide-react';
+import { MapPin, Navigation, Compass, Sliders, Star } from 'lucide-react';
 
 // Haversine formula to compute distance in km
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -34,7 +34,7 @@ const turfIcon = L.divIcon({
   html: `<div class="relative w-10 h-10 flex items-center justify-center">
     <div class="absolute w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/30 animate-pulse"></div>
     <div class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-lg animate-bounce">
-      <span class="text-xs">⚽</span>
+      <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
     </div>
   </div>`,
   className: '',
@@ -143,12 +143,17 @@ export default function NearbyMap({ turfs, isDarkMode, onSelectTurf }: NearbyMap
             <Compass className="h-5 w-5 text-emerald-450 animate-spin-slow" />
             <h2 className="text-xl font-bold">Smart Geofencing Finder</h2>
           </div>
-          <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-            {isTooFar
-              ? '📍 You are too far from our active locations (Mumbai/Delhi). Showing Mumbai venues in Demo Mode.'
-              : permissionState === 'granted'
-              ? 'Detecting turfs near your current location within your set perimeter.'
-              : 'Permission denied. Showing nearby turfs using city center defaults.'}
+          <p className={`text-sm flex items-start gap-1.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+            {isTooFar ? (
+              <>
+                <MapPin className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                <span>You are too far from our active locations (Mumbai/Delhi). Showing Mumbai venues in Demo Mode.</span>
+              </>
+            ) : permissionState === 'granted' ? (
+              <span>Detecting turfs near your current location within your set perimeter.</span>
+            ) : (
+              <span>Permission denied. Showing nearby turfs using city center defaults.</span>
+            )}
           </p>
         </div>
 
@@ -208,8 +213,9 @@ export default function NearbyMap({ turfs, isDarkMode, onSelectTurf }: NearbyMap
                 >
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-bold text-base">{turf.name}</h4>
-                    <span className="text-[10px] uppercase font-black tracking-wider text-emerald-400">
-                      ★ {turf.rating}
+                    <span className="text-[10px] uppercase font-black tracking-wider text-emerald-450 flex items-center gap-0.5">
+                      <Star className="h-3 w-3 fill-emerald-500 text-emerald-500" />
+                      {turf.rating}
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 mb-3">{turf.area}, {turf.city}</p>
@@ -283,8 +289,9 @@ export default function NearbyMap({ turfs, isDarkMode, onSelectTurf }: NearbyMap
               {effectiveUserCoords && (
                 <Marker position={effectiveUserCoords} icon={userIcon}>
                   <Popup>
-                    <div className="text-slate-900 text-xs font-bold text-center">
-                      📍 You are here
+                    <div className="text-slate-900 text-xs font-bold flex items-center justify-center gap-1">
+                      <MapPin className="h-3.5 w-3.5 text-blue-600 fill-blue-100" />
+                      <span>You are here</span>
                     </div>
                   </Popup>
                 </Marker>
@@ -303,8 +310,9 @@ export default function NearbyMap({ turfs, isDarkMode, onSelectTurf }: NearbyMap
                         <span className="text-[10px] uppercase font-black bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-md">
                           {turf.sport}
                         </span>
-                        <span className="text-[10px] font-bold flex items-center gap-0.5 text-amber-500">
-                          ★ {turf.rating}
+                        <span className="text-[10px] font-bold flex items-center gap-0.5 text-amber-600">
+                          <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                          {turf.rating}
                         </span>
                       </div>
                       <h4 className="font-bold text-sm mb-1">{turf.name}</h4>

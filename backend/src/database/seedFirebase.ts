@@ -182,7 +182,7 @@ async function seed() {
         latitude: 19.1158,
         longitude: 74.7420
       },
-      images: ['https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60'],
+      images: ['/images/football.jpg'],
       amenities: ['Washroom', 'Parking', 'Flood Lights', 'Changing Room'],
       sports: [footballSportId],
       pricePerHour: 1200,

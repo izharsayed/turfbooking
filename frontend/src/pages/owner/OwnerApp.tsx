@@ -3,6 +3,37 @@ import { useNavigate } from 'react-router-dom';
 import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../services/api';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+const selectLocationIcon = L.divIcon({
+  html: `<div class="relative w-10 h-10 flex items-center justify-center">
+    <div class="absolute w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 animate-pulse"></div>
+    <div class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-lg">
+      <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+    </div>
+  </div>`,
+  className: '',
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+});
+
+
+function MapEventsHandler({ lat, lng, onChange }: { lat: number; lng: number; onChange: (lat: number, lng: number) => void }) {
+  const map = useMapEvents({
+    click(e) {
+      onChange(e.latlng.lat, e.latlng.lng);
+    },
+  });
+
+  useEffect(() => {
+    map.setView([lat, lng], map.getZoom());
+  }, [lat, lng, map]);
+
+  return null;
+}
+
 
 // Inlined from @turf-booking/ui
 function Button({ children, onClick, className = '', variant = 'primary', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) {
@@ -38,14 +69,17 @@ import {
   X,
   CloudRain,
   Settings,
-  Lock,
   Lightbulb,
-  PartyPopper,
-  CheckCircle2,
-  Star,
+  Lock,
   Flame,
   Zap,
-  Cog
+  Sparkles,
+  Star,
+  Wrench,
+  Search,
+  Loader2,
+  Upload,
+  Link as LinkIcon
 } from 'lucide-react';
 
 interface Turf {
@@ -208,25 +242,41 @@ export default function App() {
         setEmailReceiptsEnabled(op.emailReceiptsEnabled !== false);
 
         // Map turfs
-        const mappedTurfs: Turf[] = backendTurfs.map((t: any) => ({
-          id: t.id,
-          name: t.name,
-          description: t.description || '',
-          city: t.location?.city || 'Ahmednagar',
-          area: t.location?.area || 'Savedi',
-          price: t.pricePerHour || 1200,
-          sport: t.sports?.[0] || 'Football',
-          rating: t.rating || 5.0,
-          image: t.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
-          amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
-          lat: t.location?.latitude || 19.0948,
-          lng: t.location?.longitude || 74.7480,
-          peakStartHour: t.peakStartHour,
-          peakEndHour: t.peakEndHour,
-          peakSurcharge: t.peakSurcharge,
-          weekendSurcharge: t.weekendSurcharge,
-          blockedSlots: t.blockedSlots || [],
-        }));
+        const getSportName = (sportId: string): string => {
+          const map: Record<string, string> = {
+            'NHQKZB3YRCRhWBL95sUE': 'Football',
+            'nB4mpucB3cyLZA8gXxiA': 'Cricket',
+            'HV8G3I9zmsYnUWFqqqMV': 'Box Cricket'
+          };
+          return map[sportId] || 'Football';
+        };
+
+        const mappedTurfs: Turf[] = backendTurfs.map((t: any) => {
+          const sportName = getSportName(t.sports?.[0] || '');
+          let turfImg = t.images?.[0] || (sportName === 'Football' ? '/images/football.jpg' : '/images/cricket.jpg');
+          if ((sportName === 'Cricket' || sportName === 'Box Cricket') && (turfImg === '/images/football.jpg' || turfImg.includes('photo-1575361204480-aadea25e6e68'))) {
+            turfImg = '/images/cricket.jpg';
+          }
+          return {
+            id: t.id,
+            name: t.name,
+            description: t.description || '',
+            city: t.location?.city || 'Ahmednagar',
+            area: t.location?.area || 'Savedi',
+            price: t.pricePerHour || 1200,
+            sport: sportName,
+            rating: t.rating || 5.0,
+            image: turfImg,
+            amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
+            lat: t.location?.latitude || 19.0948,
+            lng: t.location?.longitude || 74.7480,
+            peakStartHour: t.peakStartHour,
+            peakEndHour: t.peakEndHour,
+            peakSurcharge: t.peakSurcharge,
+            weekendSurcharge: t.weekendSurcharge,
+            blockedSlots: t.blockedSlots || [],
+          };
+        });
 
         // Map bookings
         const mappedBookings: Booking[] = backendBookings.map((b: any) => ({
@@ -364,6 +414,13 @@ export default function App() {
   const [turfLat, setTurfLat] = useState(19.0948);
   const [turfLng, setTurfLng] = useState(74.7480);
   const [turfImage, setTurfImage] = useState('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60');
+  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
+
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [turfImage]);
 
   // Manual Booking States
   const [isAddingBooking, setIsAddingBooking] = useState(false);
@@ -428,8 +485,64 @@ export default function App() {
   const weeklyFillRates = hasRealBookings ? realFillRates : [45, 55, 30, 80, 95, 65, 85];
 
   // Add/Edit Turf Handlers
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image is too large. Please select an image under 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 600;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          setTurfImage(compressedBase64);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveTurf = async (e: React.FormEvent) => {
     e.preventDefault();
+    let sportId = "NHQKZB3YRCRhWBL95sUE"; // Football by default
+    let imageUrl = turfImage || "/images/football.jpg";
+
+    if (turfSport === "Cricket") {
+      sportId = "nB4mpucB3cyLZA8gXxiA";
+      if (!turfImage) imageUrl = "/images/cricket.jpg";
+    } else if (turfSport === "Box Cricket") {
+      sportId = "HV8G3I9zmsYnUWFqqqMV";
+      if (!turfImage) imageUrl = "/images/cricket.jpg";
+    }
+
     const turfData = {
       name: turfName,
       description: turfDesc,
@@ -439,7 +552,8 @@ export default function App() {
       pricePerHour: Number(turfPrice),
       cityId: "FVS82Xy9TSPMaR2445eX", // Ahmednagar City
       areaId: "9nVaAGTPMuCe1hjlkCoK", // Savedi Area
-      sports: ["NHQKZB3YRCRhWBL95sUE"], // Football Sport
+      sports: [sportId],
+      images: [imageUrl],
       amenities: ["Washroom", "Parking", "Flood Lights"]
     };
 
@@ -448,19 +562,25 @@ export default function App() {
         const res = await api.put(`/owner/turfs/${editingTurfId}`, {
           name: turfName,
           description: turfDesc,
-          pricePerHour: Number(turfPrice)
+          pricePerHour: Number(turfPrice),
+          images: [imageUrl]
         });
         const updated = res.data.data;
         setOwnerTurfs(ownerTurfs.map(t => t.id === editingTurfId ? {
           ...t,
           name: updated.name,
           description: updated.description || '',
-          price: updated.pricePerHour || 1200
+          price: updated.pricePerHour || 1200,
+          image: updated.images?.[0] || imageUrl
         } : t));
         setEditingTurfId(null);
       } else {
         const res = await api.post('/owner/turfs', turfData);
         const created = res.data.data;
+        let turfImg = created.images?.[0] || imageUrl;
+        if ((turfSport === 'Cricket' || turfSport === 'Box Cricket') && (turfImg === '/images/football.jpg' || turfImg.includes('photo-1575361204480-aadea25e6e68'))) {
+          turfImg = '/images/cricket.jpg';
+        }
         const newTurf: Turf = {
           id: created.id,
           name: created.name,
@@ -468,9 +588,9 @@ export default function App() {
           city: 'Ahmednagar',
           area: 'Savedi',
           price: created.pricePerHour || 1200,
-          sport: 'Football',
+          sport: turfSport,
           rating: 5.0,
-          image: created.images?.[0] || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60',
+          image: turfImg,
           amenities: created.amenities || ['Washroom', 'Parking', 'Flood Lights'],
           lat: created.location?.latitude || 19.0948,
           lng: created.location?.longitude || 74.7480
@@ -479,10 +599,35 @@ export default function App() {
       }
       setTurfName('');
       setTurfDesc('');
+      setMapSearchQuery('');
+      setTurfImage('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60');
       setIsAddingTurf(false);
     } catch (err) {
       console.error('Error saving turf:', err);
       alert('Failed to save turf.');
+    }
+  };
+
+  const handleMapSearch = async () => {
+    if (!mapSearchQuery.trim()) return;
+    setIsSearchingLocation(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearchQuery)}&limit=1`
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        setTurfLat(Number(parseFloat(lat).toFixed(6)));
+        setTurfLng(Number(parseFloat(lon).toFixed(6)));
+      } else {
+        alert("Location not found. Try a more specific search query.");
+      }
+    } catch (error) {
+      console.error("Geocoding error:", error);
+      alert("Error searching location. Please check your internet connection.");
+    } finally {
+      setIsSearchingLocation(false);
     }
   };
 
@@ -1075,8 +1220,13 @@ export default function App() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
                 { 
-                  label: 'Total Revenue', 
-                  value: userRole === 'STAFF' ? <span className="inline-flex items-center gap-1"><Lock className="h-3.5 w-3.5" /> Locked</span> : formatCurrency(totalRevenue), 
+                  label: 'Total Revenue',
+                  value: userRole === 'STAFF' ? (
+                    <span className="flex items-center gap-1.5 text-slate-500 font-bold text-lg py-1">
+                      <Lock className="h-4 w-4 shrink-0 text-slate-500" />
+                      Locked
+                    </span>
+                  ) : formatCurrency(totalRevenue), 
                   icon: DollarSign, 
                   change: userRole === 'STAFF' ? 'Restricted Access' : '+18.4% this week', 
                   color: 'text-emerald-455' 
@@ -1199,8 +1349,9 @@ export default function App() {
                       <div>
                         <span className="text-[10px] font-bold text-emerald-400 block mb-0.5">WEATHER ADVISORY (AHMEDNAGAR)</span>
                         <p className="text-xs font-semibold text-slate-350">29°C — Partly Cloudy</p>
-                        <p className="text-[10px] text-slate-400 mt-1 leading-normal">
-                          <span className="inline-flex items-start gap-1"><Lightbulb className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" /> Peak hours are clear. Recommend enabling standard floodlights from 18:00 to 22:00.</span>
+                        <p className="text-[10px] text-slate-400 mt-1 leading-normal flex items-start gap-1">
+                          <Lightbulb className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
+                          <span>Peak hours are clear. Recommend enabling standard floodlights from 18:00 to 22:00.</span>
                         </p>
                       </div>
                     </div>
@@ -1318,7 +1469,11 @@ export default function App() {
                 <button
                   onClick={() => {
                     setEditingTurfId(null);
-                    setIsAddingTurf(!isAddingTurf);
+                    setTurfName('');
+                    setTurfDesc('');
+                    setMapSearchQuery('');
+                    setTurfImage('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60');
+                    setIsAddingTurf(true);
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/25"
                 >
@@ -1384,6 +1539,111 @@ export default function App() {
                   />
                 </div>
 
+                {/* Turf Photo Selection/Upload */}
+                <div className="space-y-3">
+                  <label className={`text-xs font-bold uppercase block ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Turf Photo</label>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Upload Area */}
+                    <div className={`md:col-span-2 border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all ${
+                      isDarkMode 
+                        ? 'border-slate-800 bg-[#030712]/40 hover:border-emerald-500/40' 
+                        : 'border-slate-300 bg-slate-50/50 hover:border-emerald-500/40 shadow-inner'
+                    }`}>
+                      {turfImage && !imageLoadError ? (
+                        <div className="relative w-full h-32 rounded-xl overflow-hidden group">
+                          <img 
+                            src={turfImage} 
+                            alt="Preview" 
+                            className="w-full h-full object-cover" 
+                            onError={() => setImageLoadError(true)}
+                          />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity gap-2">
+                            <label className="cursor-pointer bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1">
+                              <Upload className="h-3 w-3" /> Change
+                              <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                            </label>
+                            <button 
+                              type="button" 
+                              onClick={() => setTurfImage('')} 
+                              className="bg-rose-500 hover:bg-rose-400 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1"
+                            >
+                              <Trash2 className="h-3 w-3" /> Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : turfImage && imageLoadError ? (
+                        <div className="w-full h-32 rounded-xl border border-red-500/20 bg-red-500/5 flex flex-col items-center justify-center p-3 text-center">
+                          <ShieldAlert className="h-5 w-5 text-rose-500 mb-1" />
+                          <span className="text-[11px] font-bold text-rose-400">Failed to load image</span>
+                          <span className="text-[9px] text-slate-400 mt-0.5 max-w-[200px] leading-tight">Ensure it is a direct image URL (ends with .jpg, .png, etc.) and allows hotlinking.</span>
+                          <button 
+                            type="button" 
+                            onClick={() => setTurfImage('')} 
+                            className="mt-1.5 text-[9px] font-bold text-slate-400 hover:text-white underline cursor-pointer"
+                          >
+                            Clear URL
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="cursor-pointer flex flex-col items-center justify-center py-6 w-full">
+                          <Upload className="h-8 w-8 text-emerald-500 mb-2 animate-bounce" />
+                          <span className={`text-xs font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Upload custom photo</span>
+                          <span className="text-[10px] text-slate-500 mt-1">PNG, JPG, WEBP up to 5MB (auto-compressed)</span>
+                          <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                        </label>
+                      )}
+                    </div>
+
+                    {/* URL Input & Presets */}
+                    <div className="space-y-3 flex flex-col justify-between">
+                      <div className="space-y-1.5">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider block ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Or paste image URL</span>
+                        <div className="relative">
+                          <LinkIcon className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                          <input
+                            type="text"
+                            placeholder="https://example.com/photo.jpg"
+                            value={turfImage.startsWith('data:') ? '' : turfImage}
+                            onChange={(e) => setTurfImage(e.target.value)}
+                            className={`w-full rounded-xl pl-9 pr-3 py-2 border outline-none text-xs font-semibold transition-all ${
+                              isDarkMode
+                                ? 'bg-[#030712] text-slate-100 placeholder-slate-650 border-slate-800 focus:border-emerald-500/50'
+                                : 'bg-white text-slate-900 placeholder-slate-400 border-slate-350 focus:border-emerald-500/50'
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider block ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Quick Presets</span>
+                        <div className="flex gap-2">
+                          {[
+                            { name: 'Soccer', url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60' },
+                            { name: 'Cricket', url: 'https://images.unsplash.com/photo-1531415080295-6ad6679ff877?w=600&auto=format&fit=crop&q=60' },
+                            { name: 'Arena', url: 'https://images.unsplash.com/photo-1544698310-74ea9d1c8258?w=600&auto=format&fit=crop&q=60' }
+                          ].map((preset) => (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => setTurfImage(preset.url)}
+                              className={`text-[10px] font-bold py-1 px-2.5 rounded-lg border transition-all ${
+                                turfImage === preset.url
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-450'
+                                  : isDarkMode
+                                    ? 'border-slate-800 text-slate-450 hover:text-slate-200'
+                                    : 'border-slate-200 text-slate-600 hover:text-slate-900 shadow-sm'
+                              }`}
+                            >
+                              {preset.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className={`text-xs font-bold uppercase block ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Sport Category</label>
@@ -1433,6 +1693,85 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* INTERACTIVE GEOLOCATION MAP */}
+                <div className="space-y-2">
+                  <label className={`text-xs font-bold uppercase block ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Select Turf Location on Map
+                  </label>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    Click anywhere on the map to set the turf coordinates automatically, or type them in the fields above.
+                  </p>
+
+                  {/* Map Location Search Box */}
+                  <div className="flex gap-2 items-center max-w-md pb-1">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                      <input
+                        type="text"
+                        placeholder="Search location (e.g. Savedi, Ahmednagar)"
+                        value={mapSearchQuery}
+                        onChange={(e) => setMapSearchQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleMapSearch();
+                          }
+                        }}
+                        className={`w-full rounded-xl pl-10 pr-4 py-2 border outline-none text-xs font-semibold transition-all ${
+                          isDarkMode
+                            ? 'bg-[#030712] text-slate-100 placeholder-slate-655 border-slate-800 focus:border-emerald-500/50'
+                            : 'bg-white text-slate-900 placeholder-slate-400 border-slate-350 focus:border-emerald-500/50'
+                        }`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleMapSearch}
+                      disabled={isSearchingLocation}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-md h-[34px]"
+                    >
+                      {isSearchingLocation ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-950" />
+                      ) : (
+                        <Search className="h-3.5 w-3.5 text-slate-950" />
+                      )}
+                      Search
+                    </button>
+                  </div>
+
+                  <div className={`h-64 w-full rounded-2xl overflow-hidden border shadow-inner relative z-0 ${
+                    isDarkMode ? 'border-slate-850 bg-slate-900/30' : 'border-slate-300 bg-slate-50'
+                  }`}>
+                    <MapContainer
+                      center={[turfLat || 19.0948, turfLng || 74.7480]}
+                      zoom={14}
+                      scrollWheelZoom={true}
+                      style={{ width: '100%', height: '100%' }}
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        url={
+                          isDarkMode
+                            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                            : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                        }
+                      />
+                      <MapEventsHandler
+                        lat={turfLat || 19.0948}
+                        lng={turfLng || 74.7480}
+                        onChange={(lat, lng) => {
+                          setTurfLat(Number(lat.toFixed(6)));
+                          setTurfLng(Number(lng.toFixed(6)));
+                        }}
+                      />
+                      <Marker
+                        position={[turfLat || 19.0948, turfLng || 74.7480]}
+                        icon={selectLocationIcon}
+                      />
+                    </MapContainer>
+                  </div>
+                </div>
+
                 <div className="flex gap-4 pt-4 border-t border-slate-850">
                   <Button type="submit" variant="primary">Save Changes</Button>
                   <Button type="button" variant="outline" onClick={() => setIsAddingTurf(false)} className={isDarkMode ? 'border-slate-800 text-slate-400' : 'border-slate-300 text-slate-600'}>Cancel</Button>
@@ -1454,8 +1793,9 @@ export default function App() {
                     <span className="absolute top-4 left-4 text-[10px] font-black uppercase tracking-wider bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full backdrop-blur-md">
                       {turf.sport}
                     </span>
-                    <span className="absolute top-4 right-4 text-[10px] font-bold bg-slate-900/80 text-amber-400 px-3 py-1 rounded-full backdrop-blur-md">
-                      <Star className="h-3 w-3 fill-amber-400 text-amber-400 inline-block" /> {turf.rating}
+                    <span className="absolute top-4 right-4 text-[10px] font-bold bg-slate-900/80 text-amber-400 px-3 py-1 rounded-full backdrop-blur-md flex items-center gap-1">
+                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      {turf.rating}
                     </span>
                   </div>
 
@@ -1614,10 +1954,14 @@ export default function App() {
                               {formatCurrency(currentPrice)}/h
                             </span>
                             {isPeak && (
-                              <span className="text-[7.5px] bg-amber-500/15 border border-amber-500/20 text-amber-550 px-0.8 py-0.1 rounded font-black uppercase inline-flex items-center"><Flame className="h-2.5 w-2.5" /></span>
+                              <span className="text-[7.5px] bg-amber-500/15 border border-amber-500/20 text-amber-550 px-1 py-0.5 rounded font-black uppercase flex items-center justify-center" title="Peak Hour Surcharge">
+                                <Flame className="h-2.5 w-2.5 text-amber-500 fill-amber-500" />
+                              </span>
                             )}
                             {isWeekend && (
-                              <span className="text-[7.5px] bg-blue-500/15 border border-blue-500/20 text-blue-555 px-0.8 py-0.1 rounded font-black uppercase inline-flex items-center"><Zap className="h-2.5 w-2.5" /></span>
+                              <span className="text-[7.5px] bg-blue-500/15 border border-blue-500/20 text-blue-555 px-1 py-0.5 rounded font-black uppercase flex items-center justify-center" title="Weekend Surcharge">
+                                <Zap className="h-2.5 w-2.5 text-blue-500 fill-blue-500" />
+                              </span>
                             )}
                           </div>
                           {slot.blockReason ? (
@@ -1709,8 +2053,9 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  <div className="text-[10px] text-slate-450 font-bold">
-                    <span className="inline-flex items-center gap-1"><Lock className="h-3 w-3" /> Dynamic pricing rules are read-only.</span>
+                  <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 py-1">
+                    <Lock className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    <span>Dynamic pricing rules are read-only.</span>
                   </div>
                 )}
               </div>
@@ -1911,10 +2256,11 @@ export default function App() {
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-500">{booking.sport}</span>
                               {booking.rentedAddons && booking.rentedAddons.map(addon => (
-                                <span key={addon} className={`text-[8px] px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider ${
+                                <span key={addon} className={`text-[8px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider flex items-center gap-0.5 ${
                                   isDarkMode ? 'bg-slate-900 border border-slate-800 text-slate-400' : 'bg-slate-100 border border-slate-200 text-slate-650'
                                 }`}>
-                                  <span className="inline-flex items-center gap-0.5"><Cog className="h-2.5 w-2.5" /> {addon.split(' ')[0]}</span>
+                                  <Wrench className="h-2 w-2 text-slate-500 shrink-0" />
+                                  <span>{addon.split(' ')[0]}</span>
                                 </span>
                               ))}
                             </div>
@@ -1987,9 +2333,9 @@ export default function App() {
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <div className="flex text-amber-450 font-bold text-sm">
+                      <div className="flex items-center gap-0.5 text-amber-450 font-bold text-sm">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <span key={i} className={i < review.rating ? 'opacity-100' : 'opacity-20'}><Star className="h-3.5 w-3.5 fill-current inline-block" /></span>
+                          <Star key={i} className={`h-4 w-4 ${i < review.rating ? 'fill-amber-400 text-amber-400 opacity-100' : 'text-slate-700 opacity-20'}`} />
                         ))}
                       </div>
                       <span className="text-[10px] text-slate-500">{review.date}</span>
@@ -2032,8 +2378,9 @@ export default function App() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-                      <span className="inline-flex items-center gap-1"><Lock className="h-3 w-3" /> Replies locked for staff role</span>
+                    <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold flex items-center gap-1.5 py-1">
+                      <Lock className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                      <span>Replies locked for staff role</span>
                     </div>
                   )}
                 </div>
@@ -2110,8 +2457,9 @@ export default function App() {
                 </button>
               </form>
             ) : (
-              <div className="p-4 bg-slate-900/20 border border-slate-850 rounded-2xl text-xs text-slate-500 max-w-xl">
-                <span className="inline-flex items-start gap-1.5"><Lock className="h-3.5 w-3.5 shrink-0 mt-0.5" /> Registering new staff members is disabled for restricted STAFF accounts. Please request owner permissions to add team accounts.</span>
+              <div className="p-4 bg-slate-900/20 border border-slate-850 rounded-2xl text-xs text-slate-500 max-w-xl flex items-start gap-1.5">
+                <Lock className="h-3.5 w-3.5 text-slate-500 shrink-0 mt-0.5" />
+                <span>Registering new staff members is disabled for restricted STAFF accounts. Please request owner permissions to add team accounts.</span>
               </div>
             )}
 
@@ -2126,7 +2474,10 @@ export default function App() {
                 >
                   <div className="space-y-1">
                     <span className="font-bold block text-sm">{staff.name}</span>
-                    <span className="text-[10px] text-slate-500 inline-flex items-center gap-0.5"><Phone className="h-2.5 w-2.5" /> {staff.phone}</span>
+                    <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                      <Phone className="h-3 w-3 text-slate-500" />
+                      <span>{staff.phone}</span>
+                    </span>
                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest inline-block ${
                       staff.role === 'MANAGER'
                         ? 'bg-blue-500/10 text-blue-500'
@@ -2162,8 +2513,9 @@ export default function App() {
             </div>
 
             {settingsSuccess && (
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-450 rounded-2xl text-sm font-bold shadow-md transition-all duration-300">
-                <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> {settingsSuccess}</span>
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-450 rounded-2xl text-sm font-bold shadow-md transition-all duration-300 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-emerald-450 shrink-0" />
+                <span>{settingsSuccess}</span>
               </div>
             )}
 

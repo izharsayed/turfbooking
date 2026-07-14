@@ -52,7 +52,7 @@ export class FirebaseTurfRepository implements ITurfRepository {
       name: turfData.name,
       description: turfData.description,
       location: turfData.location,
-      images: turfData.images || ['https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60'],
+      images: turfData.images || ['/images/football.jpg'],
       amenities: turfData.amenities || ['Washroom', 'Parking', 'Flood Lights'],
       sports: turfData.sports || [],
       pricePerHour: turfData.pricePerHour,

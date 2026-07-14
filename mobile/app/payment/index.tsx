@@ -69,14 +69,29 @@ export default function PaymentCheckoutScreen() {
         const res = await apiFetch(`/turfs/${params.turfId}`);
         if (res.success && res.data) {
           const bt = res.data;
+          const getMobileSportName = (s: string): string => {
+            const map: Record<string, string> = {
+              'NHQKZB3YRCRhWBL95sUE': 'Football',
+              'nB4mpucB3cyLZA8gXxiA': 'Cricket',
+              'HV8G3I9zmsYnUWFqqqMV': 'Box Cricket'
+            };
+            return map[s] || s;
+          };
+          const rawSport = Array.isArray(bt.sports) ? bt.sports[0] : (bt.sport || 'Football');
+          const sport = getMobileSportName(rawSport);
+          let imagePath = Array.isArray(bt.images) && bt.images.length > 0 ? bt.images[0] : (bt.image || '/images/football.jpg');
+          if ((sport === 'Cricket' || sport === 'Box Cricket') && (imagePath === '/images/football.jpg' || imagePath.includes('football.jpg') || imagePath.includes('photo-1575361204480-aadea25e6e68'))) {
+            imagePath = '/images/cricket.jpg';
+          }
+
           setTurf({
             id: bt.id,
             name: bt.name,
-            sport: Array.isArray(bt.sports) ? bt.sports[0] : (bt.sport || 'Football'),
+            sport: sport,
             price: bt.pricePerHour || bt.price || 1200,
             rating: bt.rating || 4.5,
             area: bt.location?.address || bt.area || 'Ahmednagar',
-            image: Array.isArray(bt.images) && bt.images.length > 0 ? bt.images[0] : (bt.image || 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=600&auto=format&fit=crop&q=60'),
+            image: imagePath,
             latitude: bt.location?.latitude || bt.latitude || 19.1158,
             longitude: bt.location?.longitude || bt.longitude || 74.742,
             description: bt.description || '',
