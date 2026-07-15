@@ -363,7 +363,7 @@ export default function App() {
           time: b.time,
           sport: b.sport || 'Football',
           amount: b.amount,
-          status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : 'CANCELLED'
+          status: (b.status === 'active' || b.status === 'UPCOMING' || b.status === 'CONFIRMED') ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : 'CANCELLED'
         }));
         setBookings(mapped);
       } catch (err) {
