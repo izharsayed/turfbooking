@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-15 11:20 IST
+> Last updated: 2026-07-15 11:25 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1779,4 +1779,10 @@ pnpm dev:backend      # start the server
 ### 200. `tsconfig.json` — Modified
 - Removed `"extends": "expo/tsconfig.base"` from the root `tsconfig.json` and added `"mobile"`, `"frontend"`, and `"backend"` subprojects to its `exclude` configuration array.
 - **Why**: Fixes a typescript compiler configuration warning in the IDE because the root workspace does not contain the `expo` dependency, and prevents the root compiler from trying to parse the independent sub-projects.
+
+### 201. Compiled JavaScript Files — Deleted
+- Removed all compiled `.js` files from `mobile/app`, `mobile/components`, `mobile/utils`, and `mobile/store` directories.
+- **`mobile/package.json`**: Configured `"ts:check"` script to use `"tsc --noEmit"`.
+- **`mobile/tsconfig.json`**: Added `"noEmit": true` configuration option under compilerOptions.
+- **Why**: Cleans up duplicate compiled JavaScript files that polluted source folders when raw `tsc` compilation ran without the `--noEmit` flag, and prevents future build/compilation tasks from generating outputs.
 
