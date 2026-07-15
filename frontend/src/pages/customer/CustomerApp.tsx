@@ -171,7 +171,10 @@ export default function App() {
   const [gatewayStatus, setGatewayStatus] = useState<'idle' | 'processing' | 'verify_action' | 'success' | 'failed'>('idle');
   const [gatewaySelectedMethod, setGatewaySelectedMethod] = useState<'upi' | 'card' | 'netbanking' | 'wallet'>('upi');
   const [gatewayErrorMessage, setGatewayErrorMessage] = useState('');
-  const [qrVerifyStatus, setQrVerifyStatus] = useState<'idle' | 'verifying' | 'success' | 'failed'>('idle');
+  const [qrVerifyStatus, setQrVerifyStatus] = useState<'idle' | 'verifying' | 'success' | 'failed' | 'submitted'>('idle');
+  const [showMockPaymentModal, setShowMockPaymentModal] = useState(false);
+  const [mockTxnId, setMockTxnId] = useState('');
+  const [mockProof, setMockProof] = useState('');
   
   // Auth Form State
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
@@ -363,7 +366,7 @@ export default function App() {
           time: b.time,
           sport: b.sport || 'Football',
           amount: b.amount,
-          status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : 'CANCELLED'
+          status: b.status === 'PENDING_CONFIRMATION' ? 'PENDING_CONFIRMATION' : b.status === 'active' || b.status === 'CONFIRMED' ? 'UPCOMING' : b.status === 'completed' || b.status === 'COMPLETED' ? 'COMPLETED' : 'CANCELLED'
         }));
         setBookings(mapped);
       } catch (err) {
@@ -460,7 +463,11 @@ export default function App() {
     });
   };
 
-  const handleBookSlot = async (paymentStatus?: 'CONFIRMED' | 'FAILED') => {
+  const handleBookSlot = async (
+    paymentStatus?: 'CONFIRMED' | 'FAILED' | 'PENDING_CONFIRMATION',
+    txnId?: string,
+    proof?: string
+  ) => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
@@ -485,13 +492,21 @@ export default function App() {
 
       // If simulated payment status is provided, automatically verify mock payment
       if (paymentStatus) {
-        await api.post('/bookings/verify', {
+        const verifyPayload: any = {
           bookingId: booking.id,
           razorpayOrderId,
-          razorpayPaymentId: paymentStatus === 'CONFIRMED' ? 'pay_' + Math.random().toString(36).substring(2, 10) : undefined,
-          razorpaySignature: paymentStatus === 'CONFIRMED' ? 'sig_mock' : undefined,
           status: paymentStatus
-        });
+        };
+
+        if (paymentStatus === 'CONFIRMED') {
+          verifyPayload.razorpayPaymentId = 'pay_' + Math.random().toString(36).substring(2, 10);
+          verifyPayload.razorpaySignature = 'sig_mock';
+        } else if (paymentStatus === 'PENDING_CONFIRMATION') {
+          verifyPayload.transactionId = txnId;
+          verifyPayload.paymentProof = proof;
+        }
+
+        await api.post('/bookings/verify', verifyPayload);
 
         if (paymentStatus === 'FAILED') {
           return;
@@ -504,7 +519,7 @@ export default function App() {
           time: joinedSlotsStr,
           sport: selectedTurf.sport,
           amount: totalPrice,
-          status: 'UPCOMING'
+          status: paymentStatus === 'PENDING_CONFIRMATION' ? 'PENDING_CONFIRMATION' : 'UPCOMING'
         };
 
         setBookings([newBooking, ...bookings]);
@@ -1121,15 +1136,7 @@ export default function App() {
                               variant="primary"
                               className="w-full py-4 shadow-lg shadow-emerald-500/20 font-bold rounded-xl flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-all text-white"
                               onClick={() => {
-                                setQrVerifyStatus('verifying');
-                                setTimeout(async () => {
-                                  try {
-                                    await handleBookSlot('CONFIRMED');
-                                    setQrVerifyStatus('success');
-                                  } catch (err) {
-                                    setQrVerifyStatus('failed');
-                                  }
-                                }, 2500);
+                                setShowMockPaymentModal(true);
                               }}
                             >
                               Verify Mock Payment
@@ -1161,6 +1168,33 @@ export default function App() {
                       </div>
                     )}
 
+                    {qrVerifyStatus === 'submitted' && (
+                      <div className="flex flex-col items-center justify-center py-8 space-y-4 animate-scaleUp">
+                        <div className="h-16 w-16 bg-amber-500/10 rounded-full flex items-center justify-center border border-amber-500/30">
+                          <CheckCircle className="h-10 w-10 text-amber-400 animate-pulse" />
+                        </div>
+                        <div className="text-center">
+                          <h4 className="font-black text-white text-lg font-bold">Proof Submitted</h4>
+                          <p className="text-xs text-slate-400 mt-1">Pending turf owner confirmation...</p>
+                        </div>
+                        <div className="pt-4 w-full">
+                          <Button
+                            variant="primary"
+                            className="w-full py-3"
+                            onClick={() => {
+                              setActiveTab('bookings');
+                              setSelectedTurf(null);
+                              setSelectedTimes([]);
+                              setShowQRCode(false);
+                              setQrVerifyStatus('idle');
+                            }}
+                          >
+                            Go to My Bookings
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     {qrVerifyStatus === 'failed' && (
                       <div className="flex flex-col items-center justify-center py-6 space-y-4 animate-scaleUp">
                         <div className="h-16 w-16 bg-rose-500/10 rounded-full flex items-center justify-center border border-rose-500/30">
@@ -1175,15 +1209,7 @@ export default function App() {
                             variant="primary"
                             className="flex-1 py-3 text-xs font-bold rounded-xl"
                             onClick={() => {
-                              setQrVerifyStatus('verifying');
-                              setTimeout(async () => {
-                                try {
-                                  await handleBookSlot('CONFIRMED');
-                                  setQrVerifyStatus('success');
-                                } catch (err) {
-                                  setQrVerifyStatus('failed');
-                                }
-                              }, 2500);
+                              setShowMockPaymentModal(true);
                             }}
                           >
                             Retry Verify
@@ -1327,7 +1353,15 @@ export default function App() {
                   <div>
                     <div className="flex items-center gap-2.5 mb-3">
                       <span className={`text-xs px-2.5 py-1 rounded-lg font-mono border ${isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700/30' : 'bg-slate-100 text-slate-600 border-slate-200/60'}`}>{b.id}</span>
-                      <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider">{b.status}</span>
+                      <span className={`text-[10px] px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider ${
+                        b.status === 'PENDING_CONFIRMATION'
+                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse'
+                          : b.status === 'UPCOMING'
+                          ? 'bg-emerald-500/10 text-emerald-400'
+                          : b.status === 'COMPLETED'
+                          ? 'bg-blue-500/10 text-blue-400'
+                          : 'bg-rose-500/10 text-rose-400'
+                      }`}>{b.status.replace('_', ' ')}</span>
                     </div>
                     <h3 className={`font-bold text-lg mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{b.turfName}</h3>
                     <p className="text-xs text-slate-400 flex items-center gap-2">
@@ -1939,6 +1973,90 @@ export default function App() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mock Payment Verification Modal */}
+      {showMockPaymentModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-scaleUp">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-900 bg-slate-950/20 flex items-center justify-between">
+              <h3 className="font-extrabold text-xl text-white">Mock Payment Verification</h3>
+              <button 
+                type="button"
+                onClick={() => { setShowMockPaymentModal(false); setMockTxnId(''); setMockProof(''); }}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!mockTxnId.trim()) {
+                  alert('Please enter a Transaction ID');
+                  return;
+                }
+                setShowMockPaymentModal(false);
+                setQrVerifyStatus('verifying');
+                try {
+                  await handleBookSlot('PENDING_CONFIRMATION', mockTxnId, mockProof);
+                  setQrVerifyStatus('submitted');
+                } catch (err) {
+                  setQrVerifyStatus('failed');
+                }
+              }}
+              className="p-6 space-y-5"
+            >
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Transaction ID / UTR Number <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={mockTxnId}
+                  onChange={(e) => setMockTxnId(e.target.value)}
+                  placeholder="e.g. 349847183920"
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-650 focus:border-emerald-500/80 focus:ring-1 focus:ring-emerald-500/80 outline-none transition-all text-sm font-semibold"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Upload Proof Description / Notes
+                </label>
+                <textarea
+                  value={mockProof}
+                  onChange={(e) => setMockProof(e.target.value)}
+                  placeholder="e.g. Paid using PhonePe reference ID 9283..."
+                  rows={3}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-white placeholder-slate-650 focus:border-emerald-500/80 focus:ring-1 focus:ring-emerald-500/80 outline-none transition-all text-sm font-semibold resize-none"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 py-3 text-xs font-bold rounded-xl border-slate-800 text-slate-450 hover:bg-slate-900"
+                  onClick={() => { setShowMockPaymentModal(false); setMockTxnId(''); setMockProof(''); }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="flex-1 py-3 text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/20 text-white"
+                >
+                  Submit Details
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

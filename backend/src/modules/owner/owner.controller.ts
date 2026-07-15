@@ -98,6 +98,15 @@ export class OwnerController {
     }
   };
 
+  public confirmBooking = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await ownerService.confirmBooking(req.user!.id, req.params.id);
+      return sendResponse(res, 200, true, 'Booking confirmed successfully', result);
+    } catch (error) {
+      return next(error);
+    }
+  };
+
   // --- Payments ---
   public getPayments = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {

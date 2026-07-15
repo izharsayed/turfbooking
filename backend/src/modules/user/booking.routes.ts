@@ -7,6 +7,7 @@ import Razorpay from 'razorpay';
 import { env } from '../../config/env.js';
 import crypto from 'crypto';
 import { logger } from '../../config/logger.js';
+import { firestoreDb } from '../../config/firebase.js';
 
 const router = Router();
 
@@ -105,8 +106,8 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
       const hasOverlap = targetSlots.some((slot: string) => bookedSlots.includes(slot));
       if (!hasOverlap) return false;
 
-      // If already confirmed, it's a conflict
-      if (b.status === 'CONFIRMED') return true;
+      // If already confirmed or pending manager confirmation, it's a conflict
+      if (b.status === 'CONFIRMED' || b.status === 'PENDING_CONFIRMATION') return true;
 
       // If pending and created less than 5 minutes ago, it's a conflict (temporary reservation active)
       if (b.status === 'PENDING') {
@@ -203,7 +204,7 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
  */
 router.post('/verify', authenticate as any, async (req: any, res, next) => {
   try {
-    const { bookingId, razorpayOrderId, razorpayPaymentId, razorpaySignature, status } = req.body;
+    const { bookingId, razorpayOrderId, razorpayPaymentId, razorpaySignature, status, transactionId, paymentProof } = req.body;
 
     const booking = await bookingRepository.findById(bookingId);
     if (!booking) {
@@ -219,6 +220,21 @@ router.post('/verify', authenticate as any, async (req: any, res, next) => {
       await bookingRepository.updateStatus(bookingId, 'CANCELLED');
       await paymentRepository.updateStatus(payment.id, 'FAILED');
       return sendResponse(res, 200, false, 'Payment failed. Booking cancelled.');
+    }
+
+    if (status === 'PENDING_CONFIRMATION') {
+      await bookingRepository.updateStatus(bookingId, 'PENDING_CONFIRMATION');
+      await paymentRepository.updateStatus(payment.id, 'PENDING_CONFIRMATION', {
+        razorpayPaymentId: transactionId || 'mock-txn-id',
+        razorpaySignature: 'mock-proof-sig',
+      });
+      const docRef = firestoreDb!.collection('bookings').doc(bookingId);
+      await docRef.update({
+        transactionId: transactionId || '',
+        paymentProof: paymentProof || '',
+        updatedAt: new Date(),
+      });
+      return sendResponse(res, 200, true, 'Verification proof submitted. Pending manager approval.');
     }
 
     // Verify signature if using real Razorpay

@@ -1,10 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-<<<<<<< HEAD
-> Last updated: 2026-07-15 13:40 IST
-=======
-> Last updated: 2026-07-14 19:05 IST
->>>>>>> 527c20786b2f957272024649802b2303ba65b4af
+> Last updated: 2026-07-15 17:15 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1822,3 +1818,26 @@ pnpm dev:backend      # start the server
 - **`mobile/app/owner/turfs.tsx` & `[id].tsx`**: Restored image options and presets, combined with peak-hour/weekend pricing surcharges configuration fields and backend details synchronization.
 - **`owner.validators.ts`**: Preserved both the dynamic pricing peak hour variables and the custom `images` list inside Zod validator objects.
 - **Why**: Resolved divergence between local commits and remote git repository PR updates.
+
+### 202. Custom QR Mock Payment Verification Workflow — Modified
+- **`backend/src/modules/user/booking.routes.ts`**:
+  - Handled `PENDING_CONFIRMATION` payment verify status.
+  - Stored customer `transactionId` and `paymentProof` directly onto the Firestore booking document.
+  - Blocked slots for bookings in `PENDING_CONFIRMATION` status to prevent double-booking.
+- **`backend/src/repositories/firebase/FirebaseOwnerRepository.ts`**:
+  - Mapped `transactionId` and `paymentProof` in `listBookings`.
+- **`backend/src/modules/owner/owner.routes.ts`**:
+  - Registered `PUT /bookings/:id/confirm` route.
+- **`backend/src/modules/owner/owner.controller.ts`**:
+  - Added `confirmBooking` controller action.
+- **`backend/src/modules/owner/owner.service.ts`**:
+  - Added `confirmBooking` service function to mark booking as `CONFIRMED` and payment as `PAID`.
+- **`frontend/src/pages/customer/CustomerApp.tsx`**:
+  - Added states for transaction verification popup details: `showMockPaymentModal`, `mockTxnId`, `mockProof`.
+  - Modified QR payment verify buttons to trigger the popup modal and submit details to the backend.
+  - Rendered a custom success state for pending manager confirmations.
+- **`frontend/src/pages/owner/OwnerApp.tsx`**:
+  - Added `handleConfirmBooking` action trigger.
+  - Displayed player's Transaction ID and Proof Notes under their phone number details in the table.
+  - Rendered a custom status badge for `PENDING CONFIRMATION` and a **Confirm** action button.
+- **Why**: Fulfills the user request to allow customers to submit transaction references for QR mock payments, keeping slot reserves active, and enabling turf owners to confirm payments manually to finalize bookings.

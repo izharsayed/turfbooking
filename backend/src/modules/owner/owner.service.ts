@@ -137,6 +137,31 @@ export class OwnerService {
     return result;
   }
 
+  public async confirmBooking(ownerId: string, bookingId: string) {
+    const booking = await bookingRepository.findById(bookingId);
+    if (!booking) throw new NotFoundError('Booking not found');
+
+    const turf = await turfRepository.findById(booking.turfId);
+    if (!turf || turf.ownerId !== ownerId) {
+      throw new ValidationError('Not authorized to confirm this booking');
+    }
+
+    const result = await bookingRepository.updateStatus(bookingId, 'CONFIRMED');
+
+    const payment = await paymentRepository.findByBookingId(bookingId);
+    if (payment) {
+      await paymentRepository.updateStatus(payment.id, 'PAID');
+    }
+
+    // Notify real-time socket channels
+    emitSocketEvent(`owner_${ownerId}`, 'booking_confirmed', {
+      bookingId,
+      turfId: turf.id,
+    });
+
+    return result;
+  }
+
   // --- Payments ---
   public async getPayments(ownerId: string) {
     return ownerRepository.listPayments(ownerId);
