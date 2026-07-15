@@ -87,6 +87,16 @@ export class AdminController {
     }
   };
 
+  public updateOwnerPayment = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { status, paymentEntry } = req.body;
+      const result = await adminService.updateOwnerPayment(req.params.id, status, paymentEntry);
+      return sendResponse(res, 200, true, 'Owner payment details updated successfully', result);
+    } catch (error) {
+      return next(error);
+    }
+  };
+
   // --- Turfs ---
   public updateTurfStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {

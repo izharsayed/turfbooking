@@ -40,6 +40,9 @@ export default function App() {
   // --- MODAL STATES ---
   const [showAddOwnerModal, setShowAddOwnerModal] = useState(false);
   const [newOwnerForm, setNewOwnerForm] = useState({ companyName: '', email: '', phone: '', password: '', businessRegisterNumber: '', businessAddress: '', billingEmail: '' });
+  const [selectedOwnerForPayment, setSelectedOwnerForPayment] = useState<any>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ amount: '', type: 'REGISTRATION_FEE', paymentMethod: 'UPI', transactionId: '' });
 
   // --- API CALLS ---
   const fetchDashboardStats = async () => {
@@ -131,6 +134,59 @@ export default function App() {
       } else {
         alert(err.response?.data?.message || 'Failed to add owner');
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleShowPaymentHistory = (owner: any) => {
+    setSelectedOwnerForPayment(owner);
+    setShowPaymentModal(true);
+  };
+
+  const handleUpdatePaymentStatus = async (ownerId: string, status: 'PENDING' | 'PAID') => {
+    try {
+      setIsLoading(true);
+      await api.put(`/admin/owners/${ownerId}/payment`, { status });
+      const res = await api.get('/admin/owners');
+      setOwners(res.data.data);
+      if (selectedOwnerForPayment && selectedOwnerForPayment.id === ownerId) {
+        const updated = res.data.data.find((o: any) => o.id === ownerId);
+        setSelectedOwnerForPayment(updated);
+      }
+      alert(`Payment status updated to ${status}`);
+    } catch (err) {
+      console.error("Failed to update payment status", err);
+      alert("Failed to update payment status");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRecordPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOwnerForPayment) return;
+    try {
+      setIsLoading(true);
+      const payload = {
+        status: 'PAID',
+        paymentEntry: {
+          amount: Number(paymentForm.amount),
+          type: paymentForm.type,
+          paymentMethod: paymentForm.paymentMethod,
+          transactionId: paymentForm.transactionId || `tx_${Date.now()}`
+        }
+      };
+      await api.put(`/admin/owners/${selectedOwnerForPayment.id}/payment`, payload);
+      const res = await api.get('/admin/owners');
+      setOwners(res.data.data);
+      const updated = res.data.data.find((o: any) => o.id === selectedOwnerForPayment.id);
+      setSelectedOwnerForPayment(updated);
+      setPaymentForm({ amount: '', type: 'REGISTRATION_FEE', paymentMethod: 'UPI', transactionId: '' });
+      alert('Payment recorded successfully');
+    } catch (err) {
+      console.error("Failed to record payment", err);
+      alert("Failed to record payment");
     } finally {
       setIsLoading(false);
     }
@@ -364,14 +420,15 @@ export default function App() {
                   <th className="py-4 px-6">Owner Name</th>
                   <th className="py-4 px-6">Email</th>
                   <th className="py-4 px-6">Phone</th>
-                  <th className="py-4 px-6">Status</th>
+                  <th className="py-4 px-6">Approval</th>
+                  <th className="py-4 px-6">Payment Status</th>
                   <th className="py-4 px-6">Joined</th>
                   <th className="py-4 px-6 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
                 {owners.length === 0 && (
-                   <tr><td colSpan={7} className="py-8 text-center opacity-50">No owners found</td></tr>
+                   <tr><td colSpan={8} className="py-8 text-center opacity-50">No owners found</td></tr>
                 )}
                 {owners.map((owner) => (
                   <tr key={owner.id} className={`border-b last:border-0 transition-colors duration-200 ${
@@ -382,6 +439,20 @@ export default function App() {
                     <td className="py-4 px-6">{owner.email}</td>
                     <td className="py-4 px-6 font-semibold">{owner.phone || 'N/A'}</td>
                     <td className="py-4 px-6">{getStatusBadge(owner.ownerStatus || 'PENDING')}</td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(owner.paymentStatus || 'PENDING')}
+                        <button 
+                          onClick={() => handleShowPaymentHistory(owner)}
+                          title="View Payment History"
+                          className={`p-1.5 rounded-lg border transition-all ${
+                            isDarkMode ? 'border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white' : 'border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-900'
+                          }`}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
                     <td className={`py-4 px-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{new Date(owner.createdAt).toLocaleDateString()}</td>
                     <td className="py-4 px-6 text-right flex justify-end gap-2">
                       {owner.ownerStatus !== 'APPROVED' && (
@@ -439,6 +510,121 @@ export default function App() {
                 <Button type="submit" disabled={isLoading}>{isLoading ? 'Adding...' : 'Add Owner'}</Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showPaymentModal && selectedOwnerForPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className={`w-full max-w-2xl p-6 rounded-2xl shadow-2xl ${isDarkMode ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white border border-slate-200 text-slate-900'} max-h-[90vh] overflow-y-auto`}>
+            <div className="flex items-center justify-between mb-6 border-b pb-4 border-slate-500/10">
+              <div>
+                <h3 className="text-xl font-bold">Payment Setup & History</h3>
+                <p className={`text-sm mt-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{selectedOwnerForPayment.name || selectedOwnerForPayment.email}</p>
+              </div>
+              <button onClick={() => setShowPaymentModal(false)} className={`p-1.5 rounded-lg ${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}><X className="h-5 w-5" /></button>
+            </div>
+
+            {selectedOwnerForPayment.ownerStatus !== 'APPROVED' && (
+              <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 ${
+                isDarkMode ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-amber-50 border-amber-250 text-amber-800'
+              }`}>
+                <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <strong>Registration Pending Approval:</strong> You must approve this owner's registration first in order to manage or record subscription payments.
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Payment Status & Recording */}
+              <div className="space-y-6">
+                <div>
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-slate-400 mb-3">Overall Payment Status</h4>
+                  <div className={`flex items-center justify-between p-4 rounded-xl border ${isDarkMode ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(selectedOwnerForPayment.paymentStatus || 'PENDING')}
+                    </div>
+                    <div className="flex gap-2">
+                      {selectedOwnerForPayment.paymentStatus !== 'PAID' ? (
+                        <Button disabled={selectedOwnerForPayment.ownerStatus !== 'APPROVED'} variant="primary" className="py-1 px-3 text-xs" onClick={() => handleUpdatePaymentStatus(selectedOwnerForPayment.id, 'PAID')}>Mark Paid</Button>
+                      ) : (
+                        <Button disabled={selectedOwnerForPayment.ownerStatus !== 'APPROVED'} variant="outline" className={`py-1 px-3 text-xs ${isDarkMode ? 'border-rose-500/30 text-rose-400 hover:bg-rose-500/10' : 'border-rose-250 text-rose-700 hover:bg-rose-50'}`} onClick={() => handleUpdatePaymentStatus(selectedOwnerForPayment.id, 'PENDING')}>Mark Pending</Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleRecordPayment} className="space-y-4">
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-slate-400 border-b pb-1 border-slate-500/10">Record New Payment</h4>
+                  <div>
+                    <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Amount (INR)</label>
+                    <input disabled={selectedOwnerForPayment.ownerStatus !== 'APPROVED'} required type="number" value={paymentForm.amount} onChange={e => setPaymentForm({...paymentForm, amount: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} placeholder="e.g. 5000" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Type</label>
+                      <select disabled={selectedOwnerForPayment.ownerStatus !== 'APPROVED'} value={paymentForm.type} onChange={e => setPaymentForm({...paymentForm, type: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`}>
+                        <option value="REGISTRATION_FEE">Registration Fee</option>
+                        <option value="SUBSCRIPTION_RENEWAL">Subscription Renewal</option>
+                        <option value="COMMISSION_PAYMENT">Commission Payment</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Method</label>
+                      <select disabled={selectedOwnerForPayment.ownerStatus !== 'APPROVED'} value={paymentForm.paymentMethod} onChange={e => setPaymentForm({...paymentForm, paymentMethod: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`}>
+                        <option value="UPI">UPI</option>
+                        <option value="CASH">Cash</option>
+                        <option value="CARD">Card</option>
+                        <option value="NET_BANKING">Net Banking</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={`block text-xs font-semibold mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Transaction ID (Optional)</label>
+                    <input disabled={selectedOwnerForPayment.ownerStatus !== 'APPROVED'} type="text" value={paymentForm.transactionId} onChange={e => setPaymentForm({...paymentForm, transactionId: e.target.value})} className={`w-full px-3 py-2 rounded-lg border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`} placeholder="e.g. txn_abc123" />
+                  </div>
+                  <Button disabled={selectedOwnerForPayment.ownerStatus !== 'APPROVED' || isLoading} type="submit" variant="primary" className="w-full py-2">Record Payment</Button>
+                </form>
+              </div>
+
+              {/* Payment History Log */}
+              <div className="flex flex-col h-full">
+                <h4 className="font-bold text-sm uppercase tracking-wider text-slate-400 mb-3">Payment History</h4>
+                <div className={`flex-1 border rounded-xl p-4 overflow-y-auto ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'} min-h-[300px] max-h-[350px]`}>
+                  {!selectedOwnerForPayment.paymentHistory || selectedOwnerForPayment.paymentHistory.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center opacity-50 py-10">
+                      <Clock className="h-8 w-8 mb-2" />
+                      <p className="text-sm">No payment history found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedOwnerForPayment.paymentHistory.map((item: any) => (
+                        <div key={item.id} className={`p-3 rounded-lg border text-xs transition-all ${
+                          isDarkMode ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-sm hover:shadow'
+                        }`}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-emerald-500">{formatCurrency(item.amount)}</span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              item.type === 'REGISTRATION_FEE' ? 'bg-blue-500/10 text-blue-400' :
+                              item.type === 'SUBSCRIPTION_RENEWAL' ? 'bg-purple-500/10 text-purple-400' :
+                              'bg-amber-500/10 text-amber-400'
+                            }`}>{item.type.replace('_', ' ')}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-450 mt-1">
+                            <span>Method: {item.paymentMethod}</span>
+                            <span>{new Date(item.date).toLocaleDateString()}</span>
+                          </div>
+                          {item.transactionId && (
+                            <div className="text-[10px] text-slate-500 mt-1 break-all">ID: {item.transactionId}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

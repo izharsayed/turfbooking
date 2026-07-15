@@ -158,6 +158,15 @@ export class PrismaAdminRepository implements IAdminRepository {
     return turf;
   }
 
+  public async updateOwnerPayment(
+    ownerId: string,
+    status: 'PENDING' | 'PAID',
+    paymentEntry?: { amount: number; type: string; paymentMethod: string; transactionId?: string }
+  ): Promise<any> {
+    // Stub implementation for Prisma provider (not active)
+    return { id: ownerId, paymentStatus: status, paymentHistory: paymentEntry ? [paymentEntry] : [] };
+  }
+
   public async listAuditLogs(): Promise<any[]> {
     return prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },

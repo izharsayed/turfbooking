@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-14 16:15 IST
+> Last updated: 2026-07-15 12:50 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1683,3 +1683,42 @@ pnpm dev:backend      # start the server
 - Wrapped the preview image element with load validation (`onError` handler) that triggers the error state.
 - Created a custom fallback card rendering `ShieldAlert` with troubleshooting steps and a "Clear URL" button when an invalid URL is pasted.
 - **Why**: Fixes the broken image preview experience when users paste an invalid image URL (like a standard webpage URL), explaining exactly why it failed and giving a cleaner, premium design interface instead of the default browser broken icon.
+
+### 193. Git Working Directory Cleaned — Action
+- Executed `git reset --hard HEAD` and `git clean -fd` on branch `tanveer`.
+- **Why**: Responded to the user request to clean the project and reset local modifications, preserving ignored configuration files like `.env` and `node_modules`.
+
+### 194. Owner Payment Status & History in Admin Panel — Modified | Created
+- **`backend/src/repositories/interfaces/IAdminRepository.ts`**: Declared `updateOwnerPayment` method.
+- **`backend/src/repositories/prisma/PrismaAdminRepository.ts`**: Added stub implementation of `updateOwnerPayment`.
+- **`backend/src/repositories/firebase/FirebaseAdminRepository.ts`**:
+  - Modified `listOwners` to fetch the full owner profile, merging and returning `paymentStatus` and `paymentHistory` logs.
+  - Implemented `updateOwnerPayment` which updates status fields in Firestore and appends new records to their `paymentHistory`.
+- **`backend/src/modules/admin/admin.service.ts`**: Added `updateOwnerPayment` method.
+- **`backend/src/modules/admin/admin.controller.ts`**: Added `updateOwnerPayment` action.
+- **`backend/src/modules/admin/admin.routes.ts`**: Registered `PUT /owners/:id/payment` route.
+- **`frontend/src/pages/admin/AdminApp.tsx`**:
+  - Added new React states (`selectedOwnerForPayment`, `showPaymentModal`, and `paymentForm`).
+  - Added handlers (`handleShowPaymentHistory`, `handleUpdatePaymentStatus`, and `handleRecordPayment`).
+  - Rendered a new "Payment Status" column in the owners table (with status badge + document history icon).
+  - Implemented a payment history details and record payment modal drawer.
+- **Why**: Responds to user request to show the pending payment status and payment history for turf owners inside the Super Admin dashboard table, without making any modifications to the mobile app.
+
+### 195. Blocked Payments for Unapproved Owners — Modified
+- **`backend/src/repositories/firebase/FirebaseAdminRepository.ts`**:
+  - Imported `ValidationError`.
+  - Added verification inside `updateOwnerPayment` to throw a `ValidationError` if the owner's status is not `APPROVED`, rejecting the request.
+- **`frontend/src/pages/admin/AdminApp.tsx`**:
+  - Added a warning alert banner in the Payment Setup & History modal if `selectedOwnerForPayment.ownerStatus !== 'APPROVED'`.
+  - Disabled the "Mark Paid" / "Mark Pending" toggle buttons, form inputs, and the "Record Payment" submission button if the owner is not approved.
+- **Why**: Fixes the issue where admins were able to record payments and transition unapproved (pending) owners to PAID status, enforcing that owners must be approved first.
+
+### 196. Mobile App Admin Payment Management — Modified
+- **`mobile/app/admin.tsx`**:
+  - Added new fields `paymentStatus` and `paymentHistory` to the `Owner` type interface.
+  - Declared new state variables: `selectedOwnerForPayment`, `showPaymentModal`, `paymentAmount`, `paymentType`, `paymentMethod`, and `transactionId`.
+  - Added handlers: `handleShowPaymentHistory`, `handleUpdatePaymentStatus`, and `handleRecordPayment` making API requests via `apiFetch`.
+  - Added payment details representation and a "History" trigger button inside the owner card rendering in the Owners tab.
+  - Implemented a modal popup representing the payment setup dashboard: displays unapproved status alert warning, overall paid status toggle switch, record payment input form fields, and scrollable transaction history feed.
+  - Styled all modal and selector views inside the stylesheet.
+- **Why**: Responds to user request to port the payment tracking and unapproved blocking features to the Admin screen of the mobile application using the React Native / Expo stack.
