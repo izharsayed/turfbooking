@@ -170,7 +170,7 @@ export default function TurfDetailScreen() {
             imagePath = '/images/cricket.jpg';
           }
 
-          setTurf({
+          const normalized = {
             id: bt.id,
             name: bt.name,
             sport: sport,
@@ -183,8 +183,14 @@ export default function TurfDetailScreen() {
             description: bt.description || '',
             amenities: bt.amenities || [],
             slots: bt.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
-          });
-          setSelectedSport(sport === 'Football' ? 'Football' : 'Cricket');
+            peakStartHour: bt.peakStartHour,
+            peakEndHour: bt.peakEndHour,
+            peakSurcharge: bt.peakSurcharge,
+            weekendSurcharge: bt.weekendSurcharge,
+            blockedSlots: bt.blockedSlots || [],
+          };
+          setTurf(normalized);
+          setSelectedSport(normalized.sport === 'Football' ? 'Football' : 'Cricket');
         }
       } catch (err) {
         console.log('Failed to fetch turf details from backend, using mock fallback', err);
@@ -494,38 +500,44 @@ export default function TurfDetailScreen() {
               const slotStartTime = new Date(sYear, sMonth - 1, sDay, hours, 0, 0, 0);
               const isPast = new Date().getTime() >= slotStartTime.getTime();
 
+              const blockKey = `${selectedDate}|${time}`;
+              const isBlocked = turf.blockedSlots?.includes(blockKey);
+              const isDisabled = isBooked || isPast || isBlocked;
+
               const displayLabel = isBooked
                 ? `${displayHours}:00\nBooked`
-                : isPast
-                  ? `${displayHours}:00\nPassed`
-                  : `${displayHours}:00\n${period}`;
+                : isBlocked
+                  ? `${displayHours}:00\nBlocked`
+                  : isPast
+                    ? `${displayHours}:00\nPassed`
+                    : `${displayHours}:00\n${period}`;
 
               return (
                 <TouchableOpacity
                   key={time}
-                  disabled={isBooked || isPast}
+                  disabled={isDisabled}
                   style={[
                     styles.slotCardBadge,
                     {
-                      backgroundColor: isBooked
+                      backgroundColor: isBooked || isBlocked
                         ? 'rgba(239, 68, 68, 0.08)'
                         : isPast
                           ? (isDarkMode ? 'rgba(30, 41, 59, 0.2)' : 'rgba(241, 245, 249, 0.5)')
                           : isSel
                             ? 'rgba(16, 185, 129, 0.18)'
                             : (isDarkMode ? 'rgba(30, 41, 59, 0.4)' : '#f1f5f9'),
-                      borderColor: isBooked
+                      borderColor: isBooked || isBlocked
                         ? 'rgba(239, 68, 68, 0.4)'
                         : isPast
                           ? (isDarkMode ? 'rgba(226, 232, 240, 0.1)' : 'rgba(226, 232, 240, 0.5)')
                           : isSel
                             ? '#10b981'
                             : theme.border,
-                      opacity: isBooked ? 0.8 : isPast ? 0.4 : 1,
+                      opacity: isBooked || isBlocked ? 0.8 : isPast ? 0.4 : 1,
                     }
                   ]}
                   onPress={() => {
-                    if (isBooked || isPast) return;
+                    if (isDisabled) return;
                     setSelectedTimes((prev) =>
                       prev.includes(time)
                         ? prev.filter((t) => t !== time)
@@ -533,22 +545,22 @@ export default function TurfDetailScreen() {
                     );
                   }}
                 >
-                  {isSel && !isBooked && !isPast && (
+                  {isSel && !isDisabled && (
                     <View style={styles.slotCheckDot} />
                   )}
                   <Text style={[
                     styles.slotBadgeText,
                     {
-                      color: isBooked
+                      color: isBooked || isBlocked
                         ? '#f87171'
                         : isPast
                           ? theme.textMuted
                           : isSel
                             ? '#10b981'
                             : theme.text,
-                      fontWeight: (isSel || isBooked || isPast) ? 'bold' : 'normal',
+                      fontWeight: (isSel || isBooked || isBlocked || isPast) ? 'bold' : 'normal',
                       textAlign: 'center',
-                      fontSize: (isBooked || isPast) ? 10 : 11,
+                      fontSize: (isBooked || isBlocked || isPast) ? 10 : 11,
                     }
                   ]}>
                     {displayLabel}

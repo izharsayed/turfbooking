@@ -11,6 +11,11 @@ export interface Turf {
   description: string;
   amenities: string[];
   slots: string[];
+  peakStartHour?: number;
+  peakEndHour?: number;
+  peakSurcharge?: number;
+  weekendSurcharge?: number;
+  blockedSlots?: string[];
 }
 
 export const turfs: Turf[] = [

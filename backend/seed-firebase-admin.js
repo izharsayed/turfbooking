@@ -42,7 +42,7 @@ async function seed() {
 
     await docRef.set({
       email: 'admin@turfbook.com',
-      phone: '9999999999',
+      phone: '8888877777',
       passwordHash,
       role: 'SUPER_ADMIN',
       isActive: true,          // Admin is immediately active

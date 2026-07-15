@@ -117,16 +117,21 @@ export class PrismaAdminRepository implements IAdminRepository {
       include: { ownerProfile: true },
       orderBy: { createdAt: 'desc' },
     });
-    return owners.map((o: any) => ({
-      id: o.id,
-      email: o.email,
-      phone: o.phone,
-      isActive: o.isActive,
-      createdAt: o.createdAt,
-      companyName: o.ownerProfile?.companyName || 'N/A',
-      businessRegisterNumber: o.ownerProfile?.businessRegisterNumber || 'N/A',
-      businessAddress: o.ownerProfile?.businessAddress || 'N/A',
-    }));
+    return owners.map((o: any) => {
+      const statusStr = o.isActive ? 'APPROVED' : 'PENDING';
+      return {
+        id: o.id,
+        email: o.email,
+        phone: o.phone,
+        isActive: o.isActive,
+        createdAt: o.createdAt,
+        companyName: o.ownerProfile?.companyName || 'N/A',
+        businessRegisterNumber: o.ownerProfile?.businessRegisterNumber || 'N/A',
+        businessAddress: o.ownerProfile?.businessAddress || 'N/A',
+        ownerStatus: statusStr,
+        status: statusStr,
+      };
+    });
   }
 
   public async updateOwnerApproval(

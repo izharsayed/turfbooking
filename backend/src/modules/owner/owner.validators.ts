@@ -11,6 +11,10 @@ export const createTurfSchema = z.object({
   areaId: z.string().min(1, 'Area ID is required'),
   sports: z.array(z.string().min(1)).min(1, 'At least one sport must be assigned'),
   amenities: z.array(z.string().min(1)).optional(),
+  peakStartHour: z.number().int().min(0).max(23).optional(),
+  peakEndHour: z.number().int().min(0).max(23).optional(),
+  peakSurcharge: z.number().nonnegative().optional(),
+  weekendSurcharge: z.number().nonnegative().optional(),
   images: z.array(z.string()).optional(),
 });
 
@@ -22,6 +26,11 @@ export const updateTurfSchema = z.object({
   longitude: z.number().optional(),
   pricePerHour: z.number().positive().optional(),
   isActive: z.boolean().optional(),
+  peakStartHour: z.number().int().min(0).max(23).optional(),
+  peakEndHour: z.number().int().min(0).max(23).optional(),
+  peakSurcharge: z.number().nonnegative().optional(),
+  weekendSurcharge: z.number().nonnegative().optional(),
+  blockedSlots: z.array(z.string()).optional(),
   images: z.array(z.string()).optional(),
 });
 

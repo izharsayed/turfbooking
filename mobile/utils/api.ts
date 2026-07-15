@@ -54,6 +54,22 @@ const handleMockFetch = (path: string, options: ApiOptions): any => {
     };
   }
 
+  if (cleanPath === '/auth/register-owner' && options.method === 'POST') {
+    return {
+      success: true,
+      message: 'Owner registered successfully (Mock). Account is pending admin approval.',
+      data: {
+        user: {
+          id: `mock-owner-${Date.now()}`,
+          email: (options.body as any)?.email || 'owner@turfbook.com',
+          phone: (options.body as any)?.phone || '9999999999',
+          role: 'TURF_OWNER',
+          isActive: false,
+        }
+      }
+    };
+  }
+
   if (cleanPath === '/profile') {
     const nameParts = mockUser.name.split(' ');
     return {

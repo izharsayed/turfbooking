@@ -61,6 +61,11 @@ export class FirebaseTurfRepository implements ITurfRepository {
       numReviews: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
+      peakStartHour: turfData.peakStartHour || 18,
+      peakEndHour: turfData.peakEndHour || 22,
+      peakSurcharge: turfData.peakSurcharge || 300,
+      weekendSurcharge: turfData.weekendSurcharge || 200,
+      blockedSlots: turfData.blockedSlots || [],
     };
     await docRef.set(newTurf);
     return this.mapTurf(docRef.id, newTurf);
@@ -93,6 +98,11 @@ export class FirebaseTurfRepository implements ITurfRepository {
       isActive: data.isActive,
       createdAt: data.createdAt instanceof Date ? data.createdAt : data.createdAt?.toDate?.() || new Date(),
       updatedAt: data.updatedAt instanceof Date ? data.updatedAt : data.updatedAt?.toDate?.() || new Date(),
+      peakStartHour: data.peakStartHour,
+      peakEndHour: data.peakEndHour,
+      peakSurcharge: data.peakSurcharge,
+      weekendSurcharge: data.weekendSurcharge,
+      blockedSlots: data.blockedSlots,
     };
   }
 }

@@ -55,14 +55,6 @@ export default function LoginPage() {
   const { login } = useAuthStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
 
-  const [loginTab, setLoginTab] = useState<'password' | 'otp'>('password');
-  
-  // Login: OTP inputs
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
-
   // Login: Password inputs
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -73,76 +65,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [devDropdownOpen, setDevDropdownOpen] = useState(false);
   const [roleSelection, setRoleSelection] = useState<'customer' | 'owner'>('customer');
-
-  const handleSendOtp = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!phone || phone.length < 10) {
-      setError('Please enter a valid phone number');
-      return;
-    }
-    setError('');
-    setOtpLoading(true);
-    try {
-      await api.post('/auth/send-otp', { phone });
-      setOtpSent(true);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to send OTP. Ensure number is registered.');
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e?: React.FormEvent, directOtp?: string) => {
-    if (e) e.preventDefault();
-    const verificationCode = directOtp || otp;
-    if (!verificationCode || verificationCode.length !== 6) {
-      setError('Please enter a 6-digit OTP code');
-      return;
-    }
-    setError('');
-    setIsLoading(true);
-    try {
-      const res = await api.post('/auth/verify-otp', { phone, code: verificationCode });
-      const { accessToken, refreshToken, user: backendUser } = res.data.data;
-
-      const roleMap: Record<string, UserRole> = {
-        SUPER_ADMIN: 'admin',
-        TURF_OWNER: 'owner',
-        CUSTOMER: 'customer',
-      };
-      const mappedRole: UserRole = roleMap[backendUser.role] || 'customer';
-
-      if (mappedRole !== 'admin') {
-        if (roleSelection === 'customer' && mappedRole === 'owner') {
-          throw new Error('This account is registered as a Turf Owner. Please select "Login as Turf Owner".');
-        }
-        if (roleSelection === 'owner' && mappedRole === 'customer') {
-          throw new Error('This account is registered as a Customer. Please select "Login as Customer".');
-        }
-      }
-
-      const userProfile = {
-        id: backendUser.id,
-        email: backendUser.email,
-        role: mappedRole,
-        name: backendUser.name || backendUser.email,
-        phone: backendUser.phone,
-      };
-
-      login(userProfile, accessToken, refreshToken);
-
-      const redirects: Record<UserRole, string> = {
-        customer: '/customer',
-        owner: '/owner',
-        admin: '/admin',
-      };
-      navigate(redirects[mappedRole]);
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Invalid verification code');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,184 +208,81 @@ export default function LoginPage() {
             </select>
           </div>
         </div>
-
-        {/* Login Tab Selectors */}
-        <div className="flex border-b border-slate-200/10 dark:border-slate-800/60 mb-6">
-          <button
-            type="button"
-            onClick={() => { setLoginTab('password'); setError(''); setOtpSent(false); setOtp(''); }}
-            className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all ${
-              loginTab === 'password'
-                ? 'border-[#10B981] text-[#10B981]'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-            }`}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => { setLoginTab('otp'); setError(''); setOtpSent(false); setOtp(''); }}
-            className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all ${
-              loginTab === 'otp'
-                ? 'border-[#10B981] text-[#10B981]'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-            }`}
-          >
-            Login with OTP
-          </button>
-        </div>
-
         {/* Password Login Form */}
-        {loginTab === 'password' ? (
-          <form onSubmit={handlePasswordLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Email or Mobile Number
-              </label>
-              <div className={`flex items-center border rounded-xl px-4 py-3 transition-colors ${
-                isDarkMode 
-                  ? 'border-slate-700/30 bg-slate-900/40 focus-within:border-emerald-500/50' 
-                  : 'border-slate-200 bg-white/50 focus-within:border-emerald-500/50'
-              }`}>
-                <User className="w-4 h-4 text-slate-400 mr-2.5" />
-                <input
-                  type="text"
-                  value={emailOrPhone}
-                  onChange={(e) => setEmailOrPhone(e.target.value)}
-                  placeholder="Enter email or mobile number"
-                  className={`bg-transparent border-none outline-none text-sm w-full focus:ring-0 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
-                />
-              </div>
+        <form onSubmit={handlePasswordLogin} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Email or Mobile Number
+            </label>
+            <div className={`flex items-center border rounded-xl px-4 py-3 transition-colors ${
+              isDarkMode 
+                ? 'border-slate-700/30 bg-slate-900/40 focus-within:border-emerald-500/50' 
+                : 'border-slate-200 bg-white/50 focus-within:border-emerald-500/50'
+            }`}>
+              <User className="w-4 h-4 text-slate-400 mr-2.5" />
+              <input
+                type="text"
+                value={emailOrPhone}
+                onChange={(e) => setEmailOrPhone(e.target.value)}
+                placeholder="Enter email or mobile number"
+                className={`bg-transparent border-none outline-none text-sm w-full focus:ring-0 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
+              />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Password
-              </label>
-              <div className={`flex items-center border rounded-xl px-4 py-3 transition-colors ${
-                isDarkMode 
-                  ? 'border-slate-700/30 bg-slate-900/40 focus-within:border-emerald-500/50' 
-                  : 'border-slate-200 bg-white/50 focus-within:border-emerald-500/50'
-              }`}>
-                <Lock className="w-4 h-4 text-slate-400 mr-2.5" />
-                <input
-                  type={passwordVisible ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className={`bg-transparent border-none outline-none text-sm w-full focus:ring-0 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setPasswordVisible(!passwordVisible)}
-                  className="text-slate-400 hover:text-slate-200"
-                >
-                  {passwordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Password
+            </label>
+            <div className={`flex items-center border rounded-xl px-4 py-3 transition-colors ${
+              isDarkMode 
+                ? 'border-slate-700/30 bg-slate-900/40 focus-within:border-emerald-500/50' 
+                : 'border-slate-200 bg-white/50 focus-within:border-emerald-500/50'
+            }`}>
+              <Lock className="w-4 h-4 text-slate-400 mr-2.5" />
+              <input
+                type={passwordVisible ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className={`bg-transparent border-none outline-none text-sm w-full focus:ring-0 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
+              />
+              <button
+                type="button"
+                onClick={() => setPasswordVisible(!passwordVisible)}
+                className="text-slate-400 hover:text-slate-200"
+              >
+                {passwordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
+          </div>
 
-            <div className="flex items-center justify-between pt-1">
-              <label className={`flex items-center text-xs font-semibold cursor-pointer select-none ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="mr-2 rounded text-[#10B981] focus:ring-[#10B981]/20 w-4 h-4 bg-transparent border-slate-400"
-                />
-                Remember me
-              </label>
-              <a href="#" className="text-xs font-bold text-[#10B981] hover:underline">
-                Forgot Password?
-              </a>
-            </div>
+          <div className="flex items-center justify-between pt-1">
+            <label className={`flex items-center text-xs font-semibold cursor-pointer select-none ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="mr-2 rounded text-[#10B981] focus:ring-[#10B981]/20 w-4 h-4 bg-transparent border-slate-400"
+              />
+              Remember me
+            </label>
+            <a href="#" className="text-xs font-bold text-[#10B981] hover:underline">
+              Forgot Password?
+            </a>
+          </div>
 
-            {error && loginTab === 'password' && <p className="text-red-500 text-xs font-medium">{error}</p>}
+          {error && <p className="text-red-500 text-xs font-medium">{error}</p>}
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3.5 mt-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-extrabold text-sm transition-all duration-300 flex items-center justify-center gap-1 shadow-lg shadow-emerald-500/20 disabled:opacity-60"
-            >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Login'}
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-        ) : (
-          /* OTP Login Form */
-          <form onSubmit={otpSent ? (e) => handleVerifyOtp(e) : handleSendOtp} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Mobile Number
-              </label>
-              <div className={`flex items-center border rounded-xl overflow-hidden ${
-                isDarkMode 
-                  ? 'border-slate-700/30 bg-slate-900/40' 
-                  : 'border-slate-200 bg-white/50'
-              }`}>
-                <div className={`flex items-center gap-1 px-3 border-r ${isDarkMode ? 'border-slate-800/80' : 'border-slate-200'}`}>
-                  <span className={`text-xs font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>IN +91</span>
-                  <ChevronDown className="w-3 h-3 text-slate-400" />
-                </div>
-                <div className="flex items-center px-3 py-3 w-full">
-                  <Phone className="w-4 h-4 text-slate-400 mr-2.5" />
-                  <input
-                    type="text"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="Enter mobile number"
-                    maxLength={10}
-                    className={`bg-transparent border-none outline-none text-sm w-full focus:ring-0 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {otpSent && (
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Enter 6-Digit OTP
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setOtpSent(false)}
-                    className="text-xs font-bold text-[#10B981] hover:underline"
-                  >
-                    Edit Number
-                  </button>
-                </div>
-                <div className={`flex items-center border rounded-xl px-4 py-3 ${
-                  isDarkMode 
-                    ? 'border-slate-700/30 bg-slate-900/40' 
-                    : 'border-slate-200 bg-white/50'
-                }`}>
-                  <ShieldCheck className="w-4 h-4 text-slate-400 mr-2.5" />
-                  <input
-                    type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="123456"
-                    maxLength={6}
-                    className={`bg-transparent border-none outline-none text-sm w-full tracking-widest font-black focus:ring-0 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
-                  />
-                </div>
-              </div>
-            )}
-
-            {error && loginTab === 'otp' && <p className="text-red-500 text-xs font-medium">{error}</p>}
-
-            <button
-              type="submit"
-              disabled={otpLoading || isLoading}
-              className="w-full py-3.5 mt-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-extrabold text-sm transition-all duration-300 flex items-center justify-center gap-1 shadow-lg shadow-emerald-500/20 disabled:opacity-60"
-            >
-              {otpLoading || isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {otpSent ? 'Verify & Sign In' : 'Send Verification OTP'}
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-        )}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full py-3.5 mt-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-extrabold text-sm transition-all duration-300 flex items-center justify-center gap-1 shadow-lg shadow-emerald-500/20 disabled:opacity-60"
+          >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Login'}
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </form>
 
         {/* Social Login Separator */}
         <div className="flex items-center justify-center my-6 gap-3">

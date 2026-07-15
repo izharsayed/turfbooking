@@ -67,11 +67,19 @@ export default function SignupScreen() {
   // ── Step state ──
   const [step, setStep] = useState<1 | 2>(1);
 
-  // ── Step 1 fields ──
+  // ── Role selection state ──
+  const [role, setRole] = useState<'CUSTOMER' | 'TURF_OWNER'>('CUSTOMER');
+
+  // ── Step 1 fields (Customer) ──
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+
+  // ── Step 1 fields (Turf Owner) ──
+  const [companyName, setCompanyName] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [billingEmail, setBillingEmail] = useState('');
 
   // ── Step 2 fields ──
   const [password, setPassword] = useState('');
@@ -97,8 +105,14 @@ export default function SignupScreen() {
   // ── Step 1 validation ──
   const validateStep1 = (): boolean => {
     setError('');
-    if (!firstName.trim()) { setError('First name is required'); return false; }
-    if (!lastName.trim()) { setError('Last name is required'); return false; }
+    if (role === 'CUSTOMER') {
+      if (!firstName.trim()) { setError('First name is required'); return false; }
+      if (!lastName.trim()) { setError('Last name is required'); return false; }
+    } else {
+      if (!companyName.trim()) { setError('Business Name is required'); return false; }
+      if (!businessAddress.trim()) { setError('Business Address is required'); return false; }
+      if (!billingEmail.trim() || !/\S+@\S+\.\S+/.test(billingEmail)) { setError('Enter a valid billing email address'); return false; }
+    }
     if (!phone || phone.length < 10) { setError('Enter a valid 10-digit phone number'); return false; }
     if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) { setError('Enter a valid email address'); return false; }
     return true;
@@ -135,22 +149,37 @@ export default function SignupScreen() {
     setIsLoading(true);
     setError('');
     try {
-      const res = await apiFetch('/auth/register', {
+      const endpoint = role === 'CUSTOMER' ? '/auth/register' : '/auth/register-owner';
+      const body = role === 'CUSTOMER'
+        ? {
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            email: email.trim().toLowerCase(),
+            phone: phone.trim(),
+            password,
+            acceptTerms: true,
+          }
+        : {
+            email: email.trim().toLowerCase(),
+            phone: phone.trim(),
+            password,
+            companyName: companyName.trim(),
+            businessRegisterNumber: 'N/A',
+            businessAddress: businessAddress.trim(),
+            billingEmail: billingEmail.trim().toLowerCase(),
+          };
+
+      const res = await apiFetch(endpoint, {
         method: 'POST',
-        body: {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          password,
-          acceptTerms: true,
-        },
+        body,
       });
 
       if (res.success) {
         Alert.alert(
           'Account Created! 🎉',
-          'Your TurfBook account has been created successfully. Please log in to continue.',
+          role === 'CUSTOMER'
+            ? 'Your TurfBook account has been created successfully. Please log in to continue.'
+            : 'Your Turf Owner account has been created successfully. It is now pending admin approval.',
           [{ text: 'Go to Login', onPress: () => router.replace('/login') }]
         );
       } else {
@@ -330,10 +359,14 @@ export default function SignupScreen() {
       >
         <View style={[styles.formCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>
-            {step === 1 ? 'Personal Details' : 'Set Password'}
+            {step === 1
+              ? (role === 'CUSTOMER' ? 'Personal Details' : 'Business Details')
+              : 'Set Password'}
           </Text>
           <Text style={styles.cardSubtitle}>
-            {step === 1 ? 'Tell us about yourself' : 'Choose a strong password for your account'}
+            {step === 1
+              ? (role === 'CUSTOMER' ? 'Tell us about yourself' : 'Enter your business registration details')
+              : 'Choose a strong password for your account'}
           </Text>
 
           {/* Error Banner */}
@@ -344,35 +377,112 @@ export default function SignupScreen() {
             </View>
           )}
 
-          {/* ── Step 1: Personal Info ── */}
+          {/* ── Step 1: Personal Info / Business Info ── */}
           {step === 1 && (
             <>
-              {/* Name Row */}
-              <View style={styles.nameRow}>
-                <View style={[styles.inputWrapper, { flex: 1, backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
-                  <Ionicons name="person-outline" size={18} color="#64748b" style={styles.inputIcon} />
-                  <TextInput
-                    value={firstName}
-                    onChangeText={setFirstName}
-                    placeholder="First Name"
-                    placeholderTextColor="#94a3b8"
-                    style={[styles.formInput, { color: theme.text }]}
-                    autoCapitalize="words"
-                  />
-                </View>
-                <View style={[styles.inputWrapper, { flex: 1, backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
-                  <TextInput
-                    value={lastName}
-                    onChangeText={setLastName}
-                    placeholder="Last Name"
-                    placeholderTextColor="#94a3b8"
-                    style={[styles.formInput, { color: theme.text }]}
-                    autoCapitalize="words"
-                  />
-                </View>
+              {/* Role Selection Toggle */}
+              <View style={[styles.roleSelector, { borderColor: theme.inputBorder }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.roleTab,
+                    role === 'CUSTOMER' && { backgroundColor: '#10b981' }
+                  ]}
+                  onPress={() => setRole('CUSTOMER')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[
+                    styles.roleTabText,
+                    { color: role === 'CUSTOMER' ? '#ffffff' : theme.muted }
+                  ]}>Customer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.roleTab,
+                    role === 'TURF_OWNER' && { backgroundColor: '#10b981' }
+                  ]}
+                  onPress={() => setRole('TURF_OWNER')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[
+                    styles.roleTabText,
+                    { color: role === 'TURF_OWNER' ? '#ffffff' : theme.muted }
+                  ]}>Turf Owner</Text>
+                </TouchableOpacity>
               </View>
 
-              {/* Phone */}
+              {role === 'CUSTOMER' ? (
+                /* Customer Fields */
+                <View style={styles.nameRow}>
+                  <View style={[styles.inputWrapper, { flex: 1, backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
+                    <Ionicons name="person-outline" size={18} color="#64748b" style={styles.inputIcon} />
+                    <TextInput
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      placeholder="First Name"
+                      placeholderTextColor="#94a3b8"
+                      style={[styles.formInput, { color: theme.text }]}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                  <View style={[styles.inputWrapper, { flex: 1, backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
+                    <TextInput
+                      value={lastName}
+                      onChangeText={setLastName}
+                      placeholder="Last Name"
+                      placeholderTextColor="#94a3b8"
+                      style={[styles.formInput, { color: theme.text }]}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                </View>
+              ) : (
+                /* Turf Owner Fields */
+                <>
+                  {/* Business Name */}
+                  <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
+                    <Ionicons name="business-outline" size={18} color="#64748b" style={styles.inputIcon} />
+                    <TextInput
+                      value={companyName}
+                      onChangeText={setCompanyName}
+                      placeholder="Business / Arena Name"
+                      placeholderTextColor="#94a3b8"
+                      style={[styles.formInput, { color: theme.text }]}
+                      autoCapitalize="words"
+                    />
+                  </View>
+
+
+
+                  {/* Business Address */}
+                  <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, marginTop: 14 }]}>
+                    <Ionicons name="location-outline" size={18} color="#64748b" style={styles.inputIcon} />
+                    <TextInput
+                      value={businessAddress}
+                      onChangeText={setBusinessAddress}
+                      placeholder="Business Address"
+                      placeholderTextColor="#94a3b8"
+                      style={[styles.formInput, { color: theme.text }]}
+                      autoCapitalize="words"
+                    />
+                  </View>
+
+                  {/* Billing Email */}
+                  <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, marginTop: 14 }]}>
+                    <Ionicons name="receipt-outline" size={18} color="#64748b" style={styles.inputIcon} />
+                    <TextInput
+                      value={billingEmail}
+                      onChangeText={setBillingEmail}
+                      placeholder="Billing Email Address"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      style={[styles.formInput, { color: theme.text }]}
+                    />
+                  </View>
+                </>
+              )}
+
+              {/* Phone (Shared) */}
               <View style={[styles.phoneInputContainer, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, marginTop: 14 }]}>
                 <TouchableOpacity style={styles.countryPicker} activeOpacity={0.8}>
                   <Text style={styles.flagEmoji}>🇮🇳</Text>
@@ -394,13 +504,13 @@ export default function SignupScreen() {
                 </View>
               </View>
 
-              {/* Email */}
+              {/* Email (Shared) */}
               <View style={[styles.inputWrapper, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, marginTop: 14 }]}>
                 <Ionicons name="mail-outline" size={18} color="#64748b" style={styles.inputIcon} />
                 <TextInput
                   value={email}
                   onChangeText={setEmail}
-                  placeholder="Email Address"
+                  placeholder={role === 'CUSTOMER' ? 'Email Address' : 'Account Email Address'}
                   placeholderTextColor="#94a3b8"
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -508,8 +618,8 @@ export default function SignupScreen() {
                 </View>
                 <Text style={[styles.termsLabelText, { color: theme.muted }]}>
                   I agree to the{' '}
-                  <Text style={styles.linkText}>Terms of Service</Text> and{' '}
-                  <Text style={styles.linkText}>Privacy Policy</Text>
+                  <Text style={styles.linkText} onPress={() => router.push('/terms')}>Terms of Service</Text> and{' '}
+                  <Text style={styles.linkText} onPress={() => router.push('/privacy')}>Privacy Policy</Text>
                 </Text>
               </TouchableOpacity>
 
@@ -573,6 +683,24 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  roleSelector: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 4,
+    marginBottom: 20,
+  },
+  roleTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+  },
+  roleTabText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 
   // ── Header ──

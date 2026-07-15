@@ -179,13 +179,17 @@ export class FirebaseAdminRepository implements IAdminRepository {
         const updatedAt = data.updatedAt ? (data.updatedAt.toDate ? data.updatedAt.toDate().toISOString() : new Date(data.updatedAt).toISOString()) : new Date().toISOString();
         const profile = ownerProfilesMap.get(doc.id) || {};
         
+        const statusVal = data.ownerStatus || (data.isActive ? 'APPROVED' : 'PENDING');
+        const companyNameVal = profile.companyName || data.companyName || '';
         list.push({ 
           id: doc.id, 
           ...data,
-          name: profile.companyName || data.name || data.companyName || '',
+          name: companyNameVal || data.name || '',
+          companyName: companyNameVal,
           createdAt,
           updatedAt,
-          ownerStatus: data.ownerStatus || (data.isActive ? 'APPROVED' : 'PENDING'),
+          ownerStatus: statusVal,
+          status: statusVal,
           paymentStatus: data.paymentStatus || profile.paymentStatus || 'PENDING',
           paymentHistory: data.paymentHistory || profile.paymentHistory || []
         });
