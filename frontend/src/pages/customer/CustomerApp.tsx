@@ -157,7 +157,7 @@ export default function App() {
   const [bookingStep, setBookingStep] = useState<'details' | 'checkout' | 'success'>('details');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'gpay' | 'phonepe' | 'paytm' | 'razorpay'>('paytm');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'gpay' | 'phonepe' | 'paytm'>('paytm');
   const [showQRCode, setShowQRCode] = useState(false);
   const [isOpeningApp, setIsOpeningApp] = useState(false);
   
@@ -1252,8 +1252,7 @@ export default function App() {
                     </label>
                     <div className="w-full">
                       {[
-                        { id: 'paytm', name: 'Paytm / UPI (Simulated)', icon: CreditCard },
-                        { id: 'razorpay', name: 'Razorpay (Real Payment)', icon: Zap }
+                        { id: 'paytm', name: 'Paytm / UPI (Simulated)', icon: CreditCard }
                       ].map((method) => {
                         const Icon = method.icon;
                         const isSelected = selectedPaymentMethod === method.id;
@@ -1279,7 +1278,6 @@ export default function App() {
                       <Button
                         variant="outline"
                         className="py-4 border-slate-800 text-slate-400 hover:text-slate-200 font-bold rounded-xl hover:scale-[1.02] transition-all"
-                        disabled={selectedPaymentMethod === 'razorpay'}
                         onClick={() => {
                           setQrVerifyStatus('idle');
                           setShowQRCode(true);
@@ -1291,19 +1289,15 @@ export default function App() {
                         variant="primary"
                         className="py-4 shadow-lg shadow-emerald-500/20 font-bold rounded-xl flex items-center justify-center gap-1.5 hover:scale-[1.02] transition-all text-white"
                         onClick={() => {
-                          if (selectedPaymentMethod === 'razorpay') {
-                            handleBookSlot();
-                          } else {
-                            setGatewayStatus('idle');
-                            setGatewaySelectedMethod('upi');
-                            setGatewayUpiId('');
-                            setGatewayPhoneNumber('');
-                            setGatewayCardNumber('');
-                            setGatewayCardExpiry('');
-                            setGatewayCardCvv('');
-                            setGatewayErrorMessage('');
-                            setShowPaymentGateway(true);
-                          }
+                          setGatewayStatus('idle');
+                          setGatewaySelectedMethod('upi');
+                          setGatewayUpiId('');
+                          setGatewayPhoneNumber('');
+                          setGatewayCardNumber('');
+                          setGatewayCardExpiry('');
+                          setGatewayCardCvv('');
+                          setGatewayErrorMessage('');
+                          setShowPaymentGateway(true);
                         }}
                       >
                         Pay {formatCurrency(getSelectedSlotPrice())}
