@@ -1,5 +1,6 @@
 import { IAdminRepository } from '../interfaces/IAdminRepository.js';
 import { firestoreDb } from '../../config/firebase.js';
+import { ValidationError } from '../../shared/utils/errors.js';
 
 export class FirebaseAdminRepository implements IAdminRepository {
   private get collection() {
@@ -166,7 +167,7 @@ export class FirebaseAdminRepository implements IAdminRepository {
     ownerProfilesSnap.forEach(d => {
       const data = d.data();
       if (data.userId) {
-        ownerProfilesMap.set(data.userId, data.companyName);
+        ownerProfilesMap.set(data.userId, data);
       }
     });
 
@@ -176,9 +177,10 @@ export class FirebaseAdminRepository implements IAdminRepository {
       if (!data.deletedAt) {
         const createdAt = data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAt).toISOString()) : new Date().toISOString();
         const updatedAt = data.updatedAt ? (data.updatedAt.toDate ? data.updatedAt.toDate().toISOString() : new Date(data.updatedAt).toISOString()) : new Date().toISOString();
+        const profile = ownerProfilesMap.get(doc.id) || {};
         
         const statusVal = data.ownerStatus || (data.isActive ? 'APPROVED' : 'PENDING');
-        const companyNameVal = ownerProfilesMap.get(doc.id) || data.companyName || '';
+        const companyNameVal = profile.companyName || data.companyName || '';
         list.push({ 
           id: doc.id, 
           ...data,
@@ -188,6 +190,8 @@ export class FirebaseAdminRepository implements IAdminRepository {
           updatedAt,
           ownerStatus: statusVal,
           status: statusVal,
+          paymentStatus: data.paymentStatus || profile.paymentStatus || 'PENDING',
+          paymentHistory: data.paymentHistory || profile.paymentHistory || []
         });
       }
     });
@@ -212,6 +216,52 @@ export class FirebaseAdminRepository implements IAdminRepository {
     await docRef.update(updateData);
     const doc = await docRef.get();
     return { id: doc.id, ...doc.data() };
+  }
+
+  public async updateOwnerPayment(
+    ownerId: string,
+    status: 'PENDING' | 'PAID',
+    paymentEntry?: { amount: number; type: string; paymentMethod: string; transactionId?: string }
+  ): Promise<any> {
+    const docRef = this.collection.doc(ownerId);
+    const doc = await docRef.get();
+    if (!doc.exists) throw new Error('Owner user not found');
+
+    const data = doc.data() || {};
+    const ownerStatus = data.ownerStatus || (data.isActive ? 'APPROVED' : 'PENDING');
+    if (ownerStatus !== 'APPROVED') {
+      throw new ValidationError('Cannot manage payments for unapproved owners. Please approve the owner first.');
+    }
+
+    const history = data.paymentHistory || [];
+
+    if (paymentEntry) {
+      history.push({
+        id: `pay_${Date.now()}`,
+        date: new Date().toISOString(),
+        ...paymentEntry,
+      });
+    }
+
+    const updateData: any = {
+      paymentStatus: status,
+      paymentHistory: history,
+      updatedAt: new Date(),
+    };
+
+    await docRef.update(updateData);
+
+    const profileRef = firestoreDb!.collection('owner_profiles').doc(ownerId);
+    const profileDoc = await profileRef.get();
+    if (profileDoc.exists) {
+      await profileRef.update({
+        paymentStatus: status,
+        paymentHistory: history,
+        updatedAt: new Date(),
+      });
+    }
+
+    return { id: ownerId, ...data, ...updateData };
   }
 
   public async updateTurfStatus(

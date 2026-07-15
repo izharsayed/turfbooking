@@ -183,6 +183,8 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
         time: data.timeSlot || data.slotId || '17:00 - 18:00',
         amount: data.totalAmount || data.finalAmount || 0,
         status: data.status,
+        transactionId: data.transactionId || '',
+        paymentProof: data.paymentProof || '',
       });
     });
 

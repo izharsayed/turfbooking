@@ -47,6 +47,16 @@ export class AdminService {
     return adminRepository.updateOwnerApproval(ownerId, status, rejectionReason);
   }
 
+  public async updateOwnerPayment(
+    ownerId: string,
+    status: 'PENDING' | 'PAID',
+    paymentEntry?: { amount: number; type: string; paymentMethod: string; transactionId?: string }
+  ) {
+    const user = await userRepository.findById(ownerId);
+    if (!user) throw new NotFoundError('Owner user not found');
+    return adminRepository.updateOwnerPayment(ownerId, status, paymentEntry);
+  }
+
   // --- Turf Controls ---
   public async updateTurfStatus(turfId: string, status: { isActive?: boolean; isFeatured?: boolean }) {
     // (In future we can verify turf existence via turfRepository)

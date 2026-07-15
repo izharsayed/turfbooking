@@ -68,6 +68,13 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [devDropdownOpen, setDevDropdownOpen] = useState(false);
 
+  // Signup role and owner-specific fields
+  const [signupRole, setSignupRole] = useState<'customer' | 'owner'>('customer');
+  const [companyName, setCompanyName] = useState('');
+  const [businessRegisterNumber, setBusinessRegisterNumber] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [billingEmail, setBillingEmail] = useState('');
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -77,6 +84,20 @@ export default function SignupPage() {
     if (!phone || phone.length < 10) {
       setError('Please enter a valid 10-digit mobile number');
       return;
+    }
+    if (signupRole === 'owner') {
+      if (!companyName.trim()) {
+        setError('Please enter your Company/Business name');
+        return;
+      }
+      if (!businessRegisterNumber.trim()) {
+        setError('Please enter your Business Register Number');
+        return;
+      }
+      if (!businessAddress.trim()) {
+        setError('Please enter your Business Address');
+        return;
+      }
     }
     if (!password) {
       setError('Please create a password');
@@ -99,40 +120,55 @@ export default function SignupPage() {
     const lastName = lastNameParts.join(' ') || ' ';
 
     try {
-      await api.post('/auth/register', {
-        firstName,
-        lastName,
-        email: finalEmail,
-        phone,
-        password,
-        acceptTerms: true,
-      });
+      if (signupRole === 'owner') {
+        await api.post('/auth/register-owner', {
+          companyName: companyName.trim(),
+          email: finalEmail,
+          phone,
+          password,
+          businessRegisterNumber: businessRegisterNumber.trim(),
+          businessAddress: businessAddress.trim(),
+          billingEmail: billingEmail.trim() || finalEmail,
+        });
 
-      const res = await api.post('/auth/login', { email: finalEmail, password });
-      const { accessToken, refreshToken, user: backendUser } = res.data.data;
+        alert('Owner registration submitted successfully! Your account is pending Super Admin approval. Please log in once approved.');
+        navigate('/login');
+      } else {
+        await api.post('/auth/register', {
+          firstName,
+          lastName,
+          email: finalEmail,
+          phone,
+          password,
+          acceptTerms: true,
+        });
 
-      const roleMap: Record<string, UserRole> = {
-        SUPER_ADMIN: 'admin',
-        TURF_OWNER: 'owner',
-        CUSTOMER: 'customer',
-      };
-      const mappedRole: UserRole = roleMap[backendUser.role] || 'customer';
+        const res = await api.post('/auth/login', { email: finalEmail, password });
+        const { accessToken, refreshToken, user: backendUser } = res.data.data;
 
-      const userProfile = {
-        id: backendUser.id,
-        email: backendUser.email,
-        role: mappedRole,
-        name: backendUser.name || `${firstName} ${lastName}`.trim(),
-        phone: backendUser.phone,
-      };
+        const roleMap: Record<string, UserRole> = {
+          SUPER_ADMIN: 'admin',
+          TURF_OWNER: 'owner',
+          CUSTOMER: 'customer',
+        };
+        const mappedRole: UserRole = roleMap[backendUser.role] || 'customer';
 
-      login(userProfile, accessToken, refreshToken);
-      const redirects: Record<UserRole, string> = {
-        customer: '/customer',
-        owner: '/owner',
-        admin: '/admin',
-      };
-      navigate(redirects[mappedRole]);
+        const userProfile = {
+          id: backendUser.id,
+          email: backendUser.email,
+          role: mappedRole,
+          name: backendUser.name || `${firstName} ${lastName}`.trim(),
+          phone: backendUser.phone,
+        };
+
+        login(userProfile, accessToken, refreshToken);
+        const redirects: Record<UserRole, string> = {
+          customer: '/customer',
+          owner: '/owner',
+          admin: '/admin',
+        };
+        navigate(redirects[mappedRole]);
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed');
     } finally {
@@ -310,6 +346,32 @@ export default function SignupPage() {
                 <h3 className={`text-2xl font-black mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Create Your Account</h3>
                 <p className={`text-xs mb-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Join TurfBook and start booking</p>
 
+                {/* Signup Role Switcher Tabs */}
+                <div className="flex border-b border-slate-200/10 dark:border-slate-800/60 mb-6">
+                  <button
+                    type="button"
+                    onClick={() => { setSignupRole('customer'); setError(''); }}
+                    className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all ${
+                      signupRole === 'customer'
+                        ? 'border-[#10B981] text-[#10B981]'
+                        : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+                    }`}
+                  >
+                    Customer Sign Up
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSignupRole('owner'); setError(''); }}
+                    className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all ${
+                      signupRole === 'owner'
+                        ? 'border-[#10B981] text-[#10B981]'
+                        : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+                    }`}
+                  >
+                    Owner Sign Up
+                  </button>
+                </div>
+
                 <form onSubmit={handleRegister} className="space-y-4">
                   {/* Full Name */}
                   <div>
@@ -380,6 +442,95 @@ export default function SignupPage() {
                       />
                     </div>
                   </div>
+
+                  {/* Turf Owner Specific Fields */}
+                  {signupRole === 'owner' && (
+                    <>
+                      {/* Company Name */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                          Company / Business Name
+                        </label>
+                        <div className={`flex items-center border rounded-xl px-4 py-3 transition-colors ${
+                          isDarkMode 
+                            ? 'border-slate-700/30 bg-slate-900/40 focus-within:border-emerald-500/50' 
+                            : 'border-slate-200 bg-white/50 focus-within:border-emerald-500/50'
+                        }`}>
+                          <User className="w-4 h-4 text-slate-400 mr-2.5" />
+                          <input
+                            type="text"
+                            value={companyName}
+                            onChange={(e) => setCompanyName(e.target.value)}
+                            placeholder="Enter business or company name"
+                            className={`bg-transparent border-none outline-none text-sm w-full focus:ring-0 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Business Register Number */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                          Business Register Number
+                        </label>
+                        <div className={`flex items-center border rounded-xl px-4 py-3 transition-colors ${
+                          isDarkMode 
+                            ? 'border-slate-700/30 bg-slate-900/40 focus-within:border-emerald-500/50' 
+                            : 'border-slate-200 bg-white/50 focus-within:border-emerald-500/50'
+                        }`}>
+                          <Mail className="w-4 h-4 text-slate-400 mr-2.5" />
+                          <input
+                            type="text"
+                            value={businessRegisterNumber}
+                            onChange={(e) => setBusinessRegisterNumber(e.target.value)}
+                            placeholder="Enter business registration number"
+                            className={`bg-transparent border-none outline-none text-sm w-full focus:ring-0 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Business Address */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                          Business Address
+                        </label>
+                        <div className={`flex items-center border rounded-xl px-4 py-3 transition-colors ${
+                          isDarkMode 
+                            ? 'border-slate-700/30 bg-slate-900/40 focus-within:border-emerald-500/50' 
+                            : 'border-slate-200 bg-white/50 focus-within:border-emerald-500/50'
+                        }`}>
+                          <Mail className="w-4 h-4 text-slate-400 mr-2.5" />
+                          <input
+                            type="text"
+                            value={businessAddress}
+                            onChange={(e) => setBusinessAddress(e.target.value)}
+                            placeholder="Enter registered business address"
+                            className={`bg-transparent border-none outline-none text-sm w-full focus:ring-0 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Billing Email */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                          Billing Email (Optional)
+                        </label>
+                        <div className={`flex items-center border rounded-xl px-4 py-3 transition-colors ${
+                          isDarkMode 
+                            ? 'border-slate-700/30 bg-slate-900/40 focus-within:border-emerald-500/50' 
+                            : 'border-slate-200 bg-white/50 focus-within:border-emerald-500/50'
+                        }`}>
+                          <Mail className="w-4 h-4 text-slate-400 mr-2.5" />
+                          <input
+                            type="email"
+                            value={billingEmail}
+                            onChange={(e) => setBillingEmail(e.target.value)}
+                            placeholder="Enter billing email if different"
+                            className={`bg-transparent border-none outline-none text-sm w-full focus:ring-0 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   {/* Create Password */}
                   <div>

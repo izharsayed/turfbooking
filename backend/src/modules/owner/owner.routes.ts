@@ -46,6 +46,7 @@ router.delete('/turfs/:id', ownerController.deleteTurf);
 router.get('/bookings', ownerController.getBookings);
 router.post('/bookings/offline', validate({ body: manualBookingSchema }), ownerController.createOfflineBooking);
 router.put('/bookings/:id/cancel', ownerController.cancelBooking);
+router.put('/bookings/:id/confirm', ownerController.confirmBooking);
 
 // --- Payments ---
 router.get('/payments', ownerController.getPayments);
