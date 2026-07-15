@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-14 19:05 IST
+> Last updated: 2026-07-15 11:20 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1769,4 +1769,14 @@ pnpm dev:backend      # start the server
 - **`mobile/app/owner/turfs.tsx` & `[id].tsx`**: Restored image options and presets, combined with peak-hour/weekend pricing surcharges configuration fields and backend details synchronization.
 - **`owner.validators.ts`**: Preserved both the dynamic pricing peak hour variables and the custom `images` list inside Zod validator objects.
 - **Why**: Resolved divergence between local commits and remote git repository PR updates.
+
+### 199. Revert Razorpay Integration & Restore Simulated Sandbox Checkout — Connected
+- **`backend/src/modules/user/booking.routes.ts`**: Reverted booking creation to produce simulated mock order IDs (`order_mock_...`). Bypassed signature matching in `POST /bookings/verify`. Deleted `:id/checkout-page` HTML checkout page and `:id/status` endpoints.
+- **`frontend/src/pages/customer/CustomerApp.tsx`**: Removed the Razorpay payment method button. Defaulted active method to Paytm (Simulated). Restored simulated checkout gateway trigger modal on slot payment.
+- **`mobile/app/payment/index.tsx`**: Restored Payment Methods selection view (UPI Apps, Card, Netbanking). Reverted `handlePayment` to trigger local sandbox simulation modal immediately, removing `expo-web-browser` usage.
+- **Why**: Responds to user request to cancel the Razorpay integration and revert checkout flows back to fully simulated sandbox gateways.
+
+### 200. `tsconfig.json` — Modified
+- Removed `"extends": "expo/tsconfig.base"` from the root `tsconfig.json` and added `"mobile"`, `"frontend"`, and `"backend"` subprojects to its `exclude` configuration array.
+- **Why**: Fixes a typescript compiler configuration warning in the IDE because the root workspace does not contain the `expo` dependency, and prevents the root compiler from trying to parse the independent sub-projects.
 
