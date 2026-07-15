@@ -72,6 +72,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [devDropdownOpen, setDevDropdownOpen] = useState(false);
+  const [roleSelection, setRoleSelection] = useState<'customer' | 'owner'>('customer');
 
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -111,6 +112,15 @@ export default function LoginPage() {
       };
       const mappedRole: UserRole = roleMap[backendUser.role] || 'customer';
 
+      if (mappedRole !== 'admin') {
+        if (roleSelection === 'customer' && mappedRole === 'owner') {
+          throw new Error('This account is registered as a Turf Owner. Please select "Login as Turf Owner".');
+        }
+        if (roleSelection === 'owner' && mappedRole === 'customer') {
+          throw new Error('This account is registered as a Customer. Please select "Login as Customer".');
+        }
+      }
+
       const userProfile = {
         id: backendUser.id,
         email: backendUser.email,
@@ -128,7 +138,7 @@ export default function LoginPage() {
       };
       navigate(redirects[mappedRole]);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid verification code');
+      setError(err.response?.data?.message || err.message || 'Invalid verification code');
     } finally {
       setIsLoading(false);
     }
@@ -166,6 +176,15 @@ export default function LoginPage() {
       };
       const mappedRole: UserRole = roleMap[backendUser.role] || 'customer';
 
+      if (mappedRole !== 'admin') {
+        if (roleSelection === 'customer' && mappedRole === 'owner') {
+          throw new Error('This account is registered as a Turf Owner. Please select "Login as Turf Owner".');
+        }
+        if (roleSelection === 'owner' && mappedRole === 'customer') {
+          throw new Error('This account is registered as a Customer. Please select "Login as Customer".');
+        }
+      }
+
       const userProfile = {
         id: backendUser.id,
         email: backendUser.email,
@@ -183,7 +202,7 @@ export default function LoginPage() {
       };
       navigate(redirects[mappedRole]);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid email/phone or password');
+      setError(err.response?.data?.message || err.message || 'Invalid email/phone or password');
     } finally {
       setIsLoading(false);
     }
@@ -244,6 +263,29 @@ export default function LoginPage() {
       <div>
         <h3 className={`text-2xl font-black mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Welcome Back!</h3>
         <p className={`text-xs mb-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Login to your account to continue</p>
+
+        {/* Role Selector Dropdown */}
+        <div className="mb-6">
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+            Login Mode
+          </label>
+          <div className={`flex items-center border rounded-xl px-4 py-2.5 transition-all ${
+            isDarkMode 
+              ? 'border-slate-700/30 bg-[#0f172a]/50 focus-within:border-emerald-500/50' 
+              : 'border-slate-200 bg-white/50 focus-within:border-emerald-500/50'
+          }`}>
+            <select
+              value={roleSelection}
+              onChange={(e) => setRoleSelection(e.target.value as 'customer' | 'owner')}
+              className={`bg-transparent border-none outline-none text-sm w-full font-bold focus:ring-0 ${
+                isDarkMode ? 'text-white' : 'text-slate-950'
+              }`}
+            >
+              <option value="customer" className={isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-white text-slate-900'}>👤 Login as Customer</option>
+              <option value="owner" className={isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-white text-slate-900'}>🏟️ Login as Turf Owner</option>
+            </select>
+          </div>
+        </div>
 
         {/* Login Tab Selectors */}
         <div className="flex border-b border-slate-200/10 dark:border-slate-800/60 mb-6">

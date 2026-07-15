@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-15 12:50 IST
+> Last updated: 2026-07-15 13:40 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1722,3 +1722,13 @@ pnpm dev:backend      # start the server
   - Implemented a modal popup representing the payment setup dashboard: displays unapproved status alert warning, overall paid status toggle switch, record payment input form fields, and scrollable transaction history feed.
   - Styled all modal and selector views inside the stylesheet.
 - **Why**: Responds to user request to port the payment tracking and unapproved blocking features to the Admin screen of the mobile application using the React Native / Expo stack.
+
+### 197. Web Turf Owner Sign Up & Login — Modified
+- **`frontend/src/pages/LoginPage.tsx`**:
+  - Added role selector dropdown ("Login as Customer" and "Login as Turf Owner") inside the login card.
+  - Added validation checking that the logged-in account matches the selected mode, preventing role mismatches.
+- **`frontend/src/pages/SignupPage.tsx`**:
+  - Added tab selector header buttons to switch between Customer and Owner registration.
+  - Implemented states and inputs for owner business fields: Company Name, Business Register Number, Business Address, Billing Email.
+  - Configured `handleRegister` to call `/auth/register-owner` when signing up as a Turf Owner, prompting that their account is pending approval before redirecting.
+- **Why**: Fulfills the request to implement Turf Owner authentication directly on the web app client, checking mobile app capabilities and backend requirements without editing the mobile app itself.
