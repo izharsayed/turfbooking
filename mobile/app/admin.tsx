@@ -10,6 +10,8 @@ import {
   FlatList,
   Platform,
   RefreshControl,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -27,6 +29,15 @@ interface Owner {
   phone: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   businessName?: string;
+  paymentStatus?: 'PENDING' | 'PAID';
+  paymentHistory?: Array<{
+    id: string;
+    amount: number;
+    type: string;
+    paymentMethod: string;
+    date: string;
+    transactionId?: string;
+  }>;
 }
 
 interface UserAccount {
@@ -65,6 +76,14 @@ export default function AdminScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // States for Owner Payment Modal
+  const [selectedOwnerForPayment, setSelectedOwnerForPayment] = useState<Owner | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentType, setPaymentType] = useState('REGISTRATION_FEE');
+  const [paymentMethod, setPaymentMethod] = useState('UPI');
+  const [transactionId, setTransactionId] = useState('');
+
   // States for backend data
   const [dashboardStats, setDashboardStats] = useState({
     totalBookings: 148,
@@ -87,9 +106,9 @@ export default function AdminScreen() {
   };
 
   const fallbackOwners: Owner[] = [
-    { id: 'o1', name: 'Zeeshan Khan', email: 'zeeshan@arena.com', phone: '9823456789', status: 'PENDING', businessName: 'Ahmednagar Sports Club' },
-    { id: 'o2', name: 'Rahul Joshi', email: 'rahul@turf.com', phone: '9923456781', status: 'APPROVED', businessName: 'Joshi Football Turf' },
-    { id: 'o3', name: 'Siddharth Patil', email: 'siddharth@stadium.com', phone: '9123456782', status: 'REJECTED', businessName: 'Patil Box Cricket' },
+    { id: 'o1', name: 'Zeeshan Khan', email: 'zeeshan@arena.com', phone: '9823456789', status: 'PENDING', businessName: 'Ahmednagar Sports Club', paymentStatus: 'PENDING', paymentHistory: [] },
+    { id: 'o2', name: 'Rahul Joshi', email: 'rahul@turf.com', phone: '9923456781', status: 'APPROVED', businessName: 'Joshi Football Turf', paymentStatus: 'PAID', paymentHistory: [{ id: 'p1', amount: 5000, type: 'REGISTRATION_FEE', paymentMethod: 'UPI', date: '2026-07-12T10:00:00Z', transactionId: 'txn_98765' }] },
+    { id: 'o3', name: 'Siddharth Patil', email: 'siddharth@stadium.com', phone: '9123456782', status: 'REJECTED', businessName: 'Patil Box Cricket', paymentStatus: 'PENDING', paymentHistory: [] },
   ];
 
   const fallbackUsers: UserAccount[] = [
@@ -210,6 +229,89 @@ export default function AdminScreen() {
     } catch (err: any) {
       setOwners(owners.map((o) => (o.id === ownerId ? { ...o, status: 'REJECTED' } : o)));
       Alert.alert('Rejected (Local Bypass)', 'Owner registration request declined.');
+    }
+  };
+
+  const handleShowPaymentHistory = (owner: Owner) => {
+    setSelectedOwnerForPayment(owner);
+    setShowPaymentModal(true);
+  };
+
+  const handleUpdatePaymentStatus = async (ownerId: string, status: 'PENDING' | 'PAID') => {
+    try {
+      setLoading(true);
+      const res = await apiFetch(`/admin/owners/${ownerId}/payment`, {
+        method: 'PUT',
+        body: { status }
+      });
+      if (res.success) {
+        Alert.alert('Success', `Payment status updated to ${status}`);
+        setOwners(owners.map(o => o.id === ownerId ? { ...o, paymentStatus: status } : o));
+        if (selectedOwnerForPayment && selectedOwnerForPayment.id === ownerId) {
+          setSelectedOwnerForPayment({ ...selectedOwnerForPayment, paymentStatus: status });
+        }
+      }
+    } catch (err) {
+      // Local Bypass / Fallback
+      setOwners(owners.map(o => o.id === ownerId ? { ...o, paymentStatus: status } : o));
+      if (selectedOwnerForPayment && selectedOwnerForPayment.id === ownerId) {
+        setSelectedOwnerForPayment({ ...selectedOwnerForPayment, paymentStatus: status });
+      }
+      Alert.alert('Success (Local Bypass)', `Payment status marked as ${status}.`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRecordPayment = async () => {
+    if (!selectedOwnerForPayment) return;
+    if (!paymentAmount || isNaN(Number(paymentAmount))) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+    try {
+      setLoading(true);
+      const newEntry = {
+        amount: Number(paymentAmount),
+        type: paymentType,
+        paymentMethod: paymentMethod,
+        transactionId: transactionId || `tx_${Date.now()}`
+      };
+      const res = await apiFetch(`/admin/owners/${selectedOwnerForPayment.id}/payment`, {
+        method: 'PUT',
+        body: {
+          status: 'PAID',
+          paymentEntry: newEntry
+        }
+      });
+      if (res.success) {
+        Alert.alert('Success', 'Payment recorded successfully');
+        const updatedHistory = [
+          ...(selectedOwnerForPayment.paymentHistory || []),
+          { id: `pay_${Date.now()}`, date: new Date().toISOString(), ...newEntry }
+        ];
+        setOwners(owners.map(o => o.id === selectedOwnerForPayment.id ? { ...o, paymentStatus: 'PAID', paymentHistory: updatedHistory } : o));
+        setSelectedOwnerForPayment({ ...selectedOwnerForPayment, paymentStatus: 'PAID', paymentHistory: updatedHistory });
+        setPaymentAmount('');
+        setTransactionId('');
+      }
+    } catch (err: any) {
+      const errorMsg = err.message || 'Failed to record payment';
+      if (errorMsg.includes('unapproved')) {
+        Alert.alert('Validation Error', errorMsg);
+      } else {
+        const updatedHistory = [
+          ...(selectedOwnerForPayment.paymentHistory || []),
+          { id: `pay_${Date.now()}`, date: new Date().toISOString(), amount: Number(paymentAmount), type: paymentType, paymentMethod, transactionId: transactionId || `tx_${Date.now()}` }
+        ];
+        setOwners(owners.map(o => o.id === selectedOwnerForPayment.id ? { ...o, paymentStatus: 'PAID', paymentHistory: updatedHistory } : o));
+        setSelectedOwnerForPayment({ ...selectedOwnerForPayment, paymentStatus: 'PAID', paymentHistory: updatedHistory });
+        setPaymentAmount('');
+        setTransactionId('');
+        Alert.alert('Success (Local Bypass)', 'Payment recorded offline.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -477,6 +579,18 @@ export default function AdminScreen() {
                           <Ionicons name="call-outline" size={14} color={theme.textMuted} />
                           <Text style={[styles.infoText, { color: theme.text }]}>+91 {owner.phone}</Text>
                         </View>
+                        <View style={styles.infoRow}>
+                          <Ionicons name="card-outline" size={14} color={theme.textMuted} />
+                          <Text style={[styles.infoText, { color: theme.text }]}>
+                            Payment: <Text style={{ color: owner.paymentStatus === 'PAID' ? '#10b981' : '#eab308', fontWeight: 'bold' }}>{owner.paymentStatus || 'PENDING'}</Text>
+                          </Text>
+                          <TouchableOpacity 
+                            style={styles.historyTextBtn} 
+                            onPress={() => handleShowPaymentHistory(owner)}
+                          >
+                            <Text style={styles.historyTextBtnLabel}>History</Text>
+                          </TouchableOpacity>
+                        </View>
 
                         {owner.status === 'PENDING' && (
                           <View style={styles.actionRow}>
@@ -610,6 +724,238 @@ export default function AdminScreen() {
           )}
         />
       )}
+
+      <Modal
+        visible={showPaymentModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPaymentModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#0f172a' : '#ffffff' }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Payment Setup & History</Text>
+                <Text style={[styles.modalSubtitle, { color: theme.textMuted }]}>
+                  {selectedOwnerForPayment?.name || selectedOwnerForPayment?.email}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowPaymentModal(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Ionicons name="close" size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalScroll}>
+              {selectedOwnerForPayment && (() => {
+                const isApproved = selectedOwnerForPayment.status === 'APPROVED';
+                return (
+                  <>
+                    {!isApproved && (
+                      <View style={styles.modalAlert}>
+                        <Ionicons name="warning-outline" size={20} color="#eab308" style={{ marginTop: 2 }} />
+                        <Text style={styles.modalAlertText}>
+                          You must approve this owner's registration first in order to manage or record payments.
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Overall Status */}
+                    <Text style={[styles.modalSectionTitle, { color: theme.textMuted }]}>OVERALL PAYMENT STATUS</Text>
+                    <View style={[styles.modalStatusRow, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : '#f1f5f9' }]}>
+                      <View style={[
+                        styles.statusBadge,
+                        {
+                          backgroundColor:
+                            selectedOwnerForPayment.paymentStatus === 'PAID'
+                              ? 'rgba(16, 185, 129, 0.12)'
+                              : 'rgba(234, 179, 8, 0.12)',
+                        }
+                      ]}>
+                        <Text style={{
+                          color: selectedOwnerForPayment.paymentStatus === 'PAID' ? '#10b981' : '#eab308',
+                          fontSize: 12,
+                          fontWeight: '800'
+                        }}>
+                          {selectedOwnerForPayment.paymentStatus || 'PENDING'}
+                        </Text>
+                      </View>
+                      
+                      <TouchableOpacity
+                        disabled={!isApproved}
+                        style={[
+                          styles.statusToggleBtn,
+                          {
+                            backgroundColor: selectedOwnerForPayment.paymentStatus === 'PAID'
+                              ? 'rgba(239, 68, 68, 0.1)'
+                              : '#10b981',
+                            opacity: isApproved ? 1 : 0.5
+                          }
+                        ]}
+                        onPress={() => handleUpdatePaymentStatus(
+                          selectedOwnerForPayment.id,
+                          selectedOwnerForPayment.paymentStatus === 'PAID' ? 'PENDING' : 'PAID'
+                        )}
+                      >
+                        <Text style={{
+                          color: selectedOwnerForPayment.paymentStatus === 'PAID' ? '#ef4444' : '#fff',
+                          fontWeight: '700',
+                          fontSize: 12
+                        }}>
+                          {selectedOwnerForPayment.paymentStatus === 'PAID' ? 'Mark Pending' : 'Mark Paid'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Record Form */}
+                    <Text style={[styles.modalSectionTitle, { color: theme.textMuted }]}>RECORD NEW PAYMENT</Text>
+                    <View style={styles.formContainer}>
+                      <Text style={[styles.inputLabel, { color: theme.text }]}>Amount (INR)</Text>
+                      <TextInput
+                        editable={isApproved}
+                        placeholder="e.g. 5000"
+                        placeholderTextColor="#64748b"
+                        value={paymentAmount}
+                        onChangeText={setPaymentAmount}
+                        keyboardType="numeric"
+                        style={[
+                          styles.textInput,
+                          {
+                            color: theme.text,
+                            borderColor: theme.border,
+                            backgroundColor: isDarkMode ? '#1e293b' : '#f8fafc',
+                            opacity: isApproved ? 1 : 0.5
+                          }
+                        ]}
+                      />
+
+                      <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inputLabel, { color: theme.text }]}>Type</Text>
+                          <View style={{ flexDirection: 'column', gap: 6 }}>
+                            {['REGISTRATION_FEE', 'SUBSCRIPTION_RENEWAL'].map((type) => (
+                              <TouchableOpacity
+                                key={type}
+                                disabled={!isApproved}
+                                style={[
+                                  styles.selectBtn,
+                                  {
+                                    borderColor: paymentType === type ? '#10b981' : theme.divider,
+                                    backgroundColor: paymentType === type ? 'rgba(16,185,129,0.1)' : 'transparent',
+                                    opacity: isApproved ? 1 : 0.5
+                                  }
+                                ]}
+                                onPress={() => setPaymentType(type)}
+                              >
+                                <Text style={{
+                                  fontSize: 11,
+                                  color: paymentType === type ? '#10b981' : theme.text,
+                                  fontWeight: '600'
+                                }}>
+                                  {type === 'REGISTRATION_FEE' ? 'Registration Fee' : 'Subscription'}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inputLabel, { color: theme.text }]}>Method</Text>
+                          <View style={{ flexDirection: 'column', gap: 6 }}>
+                            {['UPI', 'CASH', 'CARD'].map((method) => (
+                              <TouchableOpacity
+                                key={method}
+                                disabled={!isApproved}
+                                style={[
+                                  styles.selectBtn,
+                                  {
+                                    borderColor: paymentMethod === method ? '#10b981' : theme.divider,
+                                    backgroundColor: paymentMethod === method ? 'rgba(16,185,129,0.1)' : 'transparent',
+                                    opacity: isApproved ? 1 : 0.5
+                                  }
+                                ]}
+                                onPress={() => setPaymentMethod(method)}
+                              >
+                                <Text style={{
+                                  fontSize: 11,
+                                  color: paymentMethod === method ? '#10b981' : theme.text,
+                                  fontWeight: '600'
+                                }}>
+                                  {method}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      </View>
+
+                      <Text style={[styles.inputLabel, { color: theme.text, marginTop: 12 }]}>Transaction ID (Optional)</Text>
+                      <TextInput
+                        editable={isApproved}
+                        placeholder="e.g. txn_abc123"
+                        placeholderTextColor="#64748b"
+                        value={transactionId}
+                        onChangeText={setTransactionId}
+                        style={[
+                          styles.textInput,
+                          {
+                            color: theme.text,
+                            borderColor: theme.border,
+                            backgroundColor: isDarkMode ? '#1e293b' : '#f8fafc',
+                            opacity: isApproved ? 1 : 0.5
+                          }
+                        ]}
+                      />
+
+                      <TouchableOpacity
+                        disabled={!isApproved}
+                        style={[
+                          styles.recordBtn,
+                          {
+                            backgroundColor: '#10b981',
+                            opacity: isApproved ? 1 : 0.5
+                          }
+                        ]}
+                        onPress={handleRecordPayment}
+                      >
+                        <Text style={styles.recordBtnText}>Record Payment</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* History list */}
+                    <Text style={[styles.modalSectionTitle, { color: theme.textMuted }]}>PAYMENT HISTORY</Text>
+                    {!selectedOwnerForPayment.paymentHistory || selectedOwnerForPayment.paymentHistory.length === 0 ? (
+                      <View style={styles.emptyHistory}>
+                        <Ionicons name="time-outline" size={24} color={theme.textMuted} />
+                        <Text style={[styles.emptyHistoryText, { color: theme.textMuted }]}>No payment history found</Text>
+                      </View>
+                    ) : (
+                      selectedOwnerForPayment.paymentHistory.map((item: any) => (
+                        <View key={item.id} style={[styles.historyCard, { backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9' }]}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={styles.historyAmount}>{formatCurrency(item.amount)}</Text>
+                            <Text style={styles.historyType}>{item.type.replace('_', ' ')}</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                            <Text style={[styles.historyDetailText, { color: theme.textMuted }]}>Method: {item.paymentMethod}</Text>
+                            <Text style={[styles.historyDetailText, { color: theme.textMuted }]}>{new Date(item.date).toLocaleDateString()}</Text>
+                          </View>
+                          {item.transactionId && (
+                            <Text style={[styles.historyTxId, { color: theme.textMuted }]}>ID: {item.transactionId}</Text>
+                          )}
+                        </View>
+                      ))
+                    )}
+                  </>
+                );
+              })()}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -925,5 +1271,164 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
     marginTop: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    height: '85%',
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 15,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  modalScroll: {
+    paddingVertical: 15,
+    paddingBottom: 40,
+  },
+  modalAlert: {
+    backgroundColor: 'rgba(234, 179, 8, 0.1)',
+    borderColor: 'rgba(234, 179, 8, 0.2)',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 15,
+  },
+  modalAlertText: {
+    color: '#eab308',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 18,
+  },
+  modalSectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 8,
+    marginTop: 15,
+  },
+  modalStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 10,
+  },
+  statusToggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  formContainer: {
+    gap: 8,
+    marginBottom: 15,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  textInput: {
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  selectBtn: {
+    borderWidth: 1,
+    borderRadius: 8,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  recordBtn: {
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  recordBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  emptyHistory: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    gap: 8,
+  },
+  emptyHistoryText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  historyCard: {
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+  },
+  historyAmount: {
+    fontSize: 14,
+    fontWeight: '850',
+    color: '#10b981',
+  },
+  historyType: {
+    fontSize: 10,
+    fontWeight: '800',
+    backgroundColor: 'rgba(16,185,129,0.08)',
+    color: '#10b981',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  historyDetailText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  historyTxId: {
+    fontSize: 9,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  historyTextBtn: {
+    marginLeft: 'auto',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  historyTextBtnLabel: {
+    color: '#10b981',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

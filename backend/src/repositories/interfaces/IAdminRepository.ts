@@ -16,6 +16,11 @@ export interface IAdminRepository {
     turfId: string,
     status: { isActive?: boolean; isFeatured?: boolean }
   ): Promise<any>;
+  updateOwnerPayment(
+    ownerId: string,
+    status: 'PENDING' | 'PAID',
+    paymentEntry?: { amount: number; type: string; paymentMethod: string; transactionId?: string }
+  ): Promise<any>;
   listAuditLogs(): Promise<any[]>;
   createAuditLog(log: {
     userId?: string;

@@ -59,6 +59,7 @@ router.delete('/users/:id', adminController.deleteUser);
 router.get('/owners', adminController.getOwners);
 router.put('/owners/:id/approve', adminController.approveOwner);
 router.put('/owners/:id/reject', validate({ body: ownerApprovalSchema }), adminController.rejectOwner);
+router.put('/owners/:id/payment', adminController.updateOwnerPayment);
 
 // --- Turf Management ---
 router.put('/turfs/:id/status', validate({ body: turfStatusSchema }), adminController.updateTurfStatus);

@@ -932,6 +932,18 @@ export default function App() {
     }
   };
 
+  const handleConfirmBooking = async (id: string) => {
+    if (confirm('Confirm this booking payment? The customer slot will be confirmed.')) {
+      try {
+        await api.put(`/owner/bookings/${id}/confirm`);
+        setBookings(bookings.map(b => b.id === id ? { ...b, status: 'CONFIRMED' } : b));
+      } catch (err) {
+        console.error('Error confirming booking:', err);
+        alert('Failed to confirm booking.');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-screen bg-[#030712] flex items-center justify-center">
@@ -2248,6 +2260,16 @@ export default function App() {
                             <span className="text-xs text-slate-500 flex items-center gap-1">
                               <Phone className="h-3 w-3 text-slate-500" /> {booking.customerPhone}
                             </span>
+                            {booking.transactionId && (
+                              <div className="mt-1 text-[11px] font-semibold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 w-fit">
+                                Txn ID: {booking.transactionId}
+                              </div>
+                            )}
+                            {booking.paymentProof && (
+                              <div className="text-[10px] text-slate-400 max-w-[200px] truncate mt-0.5" title={booking.paymentProof}>
+                                Proof: {booking.paymentProof}
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="p-4">
@@ -2281,12 +2303,30 @@ export default function App() {
                               ? 'bg-emerald-500/10 text-emerald-500'
                               : booking.status === 'COMPLETED'
                               ? 'bg-blue-500/10 text-blue-550'
+                              : booking.status === 'PENDING_CONFIRMATION'
+                              ? 'bg-amber-500/10 text-amber-500 animate-pulse border border-amber-500/20'
                               : 'bg-rose-500/10 text-rose-550'
                           }`}>
-                            {booking.status}
+                            {booking.status.replace('_', ' ')}
                           </span>
                         </td>
                         <td className="p-4 text-right pr-6">
+                          {booking.status === 'PENDING_CONFIRMATION' && (
+                            <div className="flex justify-end items-center gap-3">
+                              <button
+                                onClick={() => handleConfirmBooking(booking.id)}
+                                className="text-xs font-extrabold text-emerald-500 hover:text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-3 py-1.5 rounded-lg transition-all"
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                onClick={() => handleCancelBooking(booking.id)}
+                                className="text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
                           {booking.status === 'CONFIRMED' && (
                             <button
                               onClick={() => handleCancelBooking(booking.id)}
