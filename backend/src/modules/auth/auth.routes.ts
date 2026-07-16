@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { AuthController } from './auth.controller.js';
 import { authenticate } from '../../middlewares/auth.js';
 import { validate } from '../../middlewares/validator.js';
-import { authRateLimiter } from '../../middlewares/rateLimiter.js';
+import { loginRateLimiter, otpRateLimiter, passwordResetRateLimiter, registrationRateLimiter } from '../../middlewares/rateLimiter.js';
 import {
   registerCustomerSchema,
   registerOwnerSchema,
@@ -34,7 +34,7 @@ const controller = new AuthController();
  *       201:
  *         description: Registered successfully
  */
-router.post('/register', validate({ body: registerCustomerSchema }), controller.registerCustomer);
+router.post('/register', registrationRateLimiter, validate({ body: registerCustomerSchema }), controller.registerCustomer);
 
 /**
  * @openapi
@@ -52,7 +52,7 @@ router.post('/register', validate({ body: registerCustomerSchema }), controller.
  *       201:
  *         description: Registered successfully (Pending verification)
  */
-router.post('/register-owner', validate({ body: registerOwnerSchema }), controller.registerOwner);
+router.post('/register-owner', registrationRateLimiter, validate({ body: registerOwnerSchema }), controller.registerOwner);
 
 /**
  * @openapi
@@ -111,7 +111,7 @@ router.post('/resend-verification', controller.resendVerification);
  *       200:
  *         description: Login successful
  */
-router.post('/login', authRateLimiter, validate({ body: loginSchema }), controller.login);
+router.post('/login', loginRateLimiter, validate({ body: loginSchema }), controller.login);
 
 /**
  * @openapi
@@ -129,7 +129,7 @@ router.post('/login', authRateLimiter, validate({ body: loginSchema }), controll
  *       200:
  *         description: OTP dispatched
  */
-router.post('/send-otp', validate({ body: sendOtpSchema }), controller.sendOtp);
+router.post('/send-otp', otpRateLimiter, validate({ body: sendOtpSchema }), controller.sendOtp);
 
 /**
  * @openapi
@@ -147,7 +147,7 @@ router.post('/send-otp', validate({ body: sendOtpSchema }), controller.sendOtp);
  *       200:
  *         description: Verified successfully
  */
-router.post('/verify-otp', validate({ body: verifyOtpSchema }), controller.verifyOtp);
+router.post('/verify-otp', otpRateLimiter, validate({ body: verifyOtpSchema }), controller.verifyOtp);
 
 /**
  * @openapi
@@ -234,25 +234,8 @@ router.post('/logout-all', authenticate as any, controller.logoutAll as any);
  *       200:
  *         description: Email dispatched
  */
-router.post('/forgot-password', validate({ body: forgotPasswordSchema }), controller.forgotPassword);
-
-/**
- * @openapi
- * /auth/reset-password:
- *   post:
- *     summary: Reset password using verification token
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/ResetPassword'
- *     responses:
- *       200:
- *         description: Password reset successfully
- */
-router.post('/reset-password', validate({ body: resetPasswordSchema }), controller.resetPassword);
+router.post('/forgot-password', passwordResetRateLimiter, validate({ body: forgotPasswordSchema }), controller.forgotPassword);
+router.post('/reset-password', passwordResetRateLimiter, validate({ body: resetPasswordSchema }), controller.resetPassword);
 
 /**
  * @openapi

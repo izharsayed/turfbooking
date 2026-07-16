@@ -16,9 +16,9 @@ export const rateLimiter = rateLimit({
   },
 });
 
-export const authRateLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 15, // Limit each IP to 15 login/auth requests per hour
+export const loginRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // Limit each IP to 5 attempts per minute
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
@@ -26,7 +26,45 @@ export const authRateLimiter = rateLimit({
       res,
       429,
       false,
-      'Too many login attempts. Please try again after an hour.'
+      'Too many login attempts. Please try again after a minute.'
+    );
+  },
+});
+
+export const registrationRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => sendResponse(res, 429, false, 'Too many registration attempts. Please try again later.'),
+});
+
+export const otpRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // Limit each IP to 5 OTP requests/verifications per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    return sendResponse(
+      res,
+      429,
+      false,
+      'Too many OTP requests. Please try again after a minute.'
+    );
+  },
+});
+
+export const passwordResetRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // Limit each IP to 3 password reset attempts per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    return sendResponse(
+      res,
+      429,
+      false,
+      'Too many password reset requests. Please try again after an hour.'
     );
   },
 });

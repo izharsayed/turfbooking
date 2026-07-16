@@ -37,6 +37,7 @@ enum BlockReason {
 
 enum BookingStatus {
   PENDING
+  PENDING_CONFIRMATION
   CONFIRMED
   COMPLETED
   CANCELLED
@@ -47,6 +48,7 @@ enum BookingStatus {
 
 enum PaymentStatus {
   PENDING
+  PENDING_CONFIRMATION
   PAID
   FAILED
   REFUNDED

@@ -21,6 +21,7 @@ import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../utils/api';
 import CustomMap, { Marker } from '../../components/CustomMap';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 
 const ACCENT = '#10b981';
 
@@ -249,6 +250,33 @@ export default function OwnerTurfsScreen() {
       latitudeDelta: 0.005,
       longitudeDelta: 0.005,
     }, 1000);
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Permission to access media library is required to select photos.');
+        return;
+      }
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.4,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const dataUrl = `data:image/jpeg;base64,${asset.base64}`;
+        setFormImage(dataUrl);
+      }
+    } catch (e) {
+      console.warn(e);
+      Alert.alert('Error', 'Failed to pick image from gallery.');
+    }
   };
 
   const theme = {
@@ -576,44 +604,30 @@ export default function OwnerTurfsScreen() {
                 style={[styles.input, styles.inputMultiline, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
               />
 
-              {/* Turf Photo URL */}
-              <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>TURF PHOTO URL</Text>
+              {/* Turf Photo URL / Upload */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={[styles.fieldLabel, { color: theme.textMuted, marginBottom: 0 }]}>TURF PHOTO</Text>
+                <TouchableOpacity 
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: ACCENT, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 12, backgroundColor: 'rgba(16,185,129,0.05)' }} 
+                  onPress={handlePickImage}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="image-outline" size={16} color={ACCENT} />
+                  <Text style={{ color: ACCENT, fontSize: 12, fontWeight: '700' }}>Upload Photo</Text>
+                </TouchableOpacity>
+              </View>
               <TextInput
-                value={formImage}
-                onChangeText={setFormImage}
-                placeholder="https://example.com/photo.jpg or select below"
+                value={formImage.startsWith('data:image') ? '[Uploaded Image Data]' : formImage}
+                onChangeText={(val) => {
+                  if (val === '') setFormImage('');
+                  else if (!val.startsWith('[Uploaded')) setFormImage(val);
+                }}
+                placeholder="https://example.com/photo.jpg or upload"
                 placeholderTextColor={theme.textMuted}
+                editable={!formImage.startsWith('data:image')}
                 style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
               />
 
-              {/* Quick Presets */}
-              <Text style={[styles.fieldLabel, { color: theme.textMuted, fontSize: 8, marginTop: -8, marginBottom: 12 }]}>
-                QUICK PRESETS
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                {[
-                  { name: 'Soccer', url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60' },
-                  { name: 'Cricket', url: 'https://images.unsplash.com/photo-1531415080295-6ad6679ff877?w=600&auto=format&fit=crop&q=60' },
-                  { name: 'Arena', url: 'https://images.unsplash.com/photo-1544698310-74ea9d1c8258?w=600&auto=format&fit=crop&q=60' }
-                ].map((preset) => (
-                  <TouchableOpacity
-                    key={preset.name}
-                    style={{ 
-                      backgroundColor: formImage === preset.url ? ACCENT : theme.inputBg, 
-                      borderColor: formImage === preset.url ? ACCENT : theme.cardBorder,
-                      borderWidth: 1.5,
-                      borderRadius: 10,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                    }}
-                    onPress={() => setFormImage(preset.url)}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: formImage === preset.url ? '#fff' : theme.text }}>
-                      {preset.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
 
               {/* Photo Preview inside modal */}
               {formImage ? (

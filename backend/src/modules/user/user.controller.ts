@@ -43,5 +43,18 @@ export class UserController {
       return next(error);
     }
   };
+
+  /**
+   * DELETE /profile/account
+   * Permanently anonymizes and soft-deletes the authenticated user's account (GDPR Art. 17).
+   */
+  public deleteAccount = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await userService.deleteAccount(req.user!.id);
+      return sendResponse(res, 200, true, result.message);
+    } catch (error) {
+      return next(error);
+    }
+  };
 }
 export const userController = new UserController();

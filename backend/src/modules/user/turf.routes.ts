@@ -88,7 +88,12 @@ router.get('/:id/bookings', async (req, res, next) => {
     const bookings = await bookingRepository.findByTurfId(req.params.id);
     // Filter active or pending bookings to avoid double-booking
     const activeBookings = bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'PENDING');
-    return sendResponse(res, 200, true, 'Active turf bookings retrieved successfully', activeBookings);
+    const availability = activeBookings.map((booking) => ({
+      date: booking.bookingDate,
+      slotId: booking.slotId,
+      status: booking.status,
+    }));
+    return sendResponse(res, 200, true, 'Active turf bookings retrieved successfully', availability);
   } catch (error) {
     return next(error);
   }

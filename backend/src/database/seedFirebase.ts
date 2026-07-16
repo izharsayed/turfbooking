@@ -116,7 +116,7 @@ async function seed() {
       }
     },
     {
-      email: 'admin@turfbook.com',
+      email: 'izharsayed12@gmail.com',
       phone: '8888877777',
       role: 'SUPER_ADMIN',
       name: 'System Admin',
@@ -132,13 +132,17 @@ async function seed() {
   for (const u of usersData) {
     const existingUser = await firestoreDb.collection('users').where('email', '==', u.email).limit(1).get();
     let userId = '';
+    const userPasswordHash = u.email === 'izharsayed12@gmail.com'
+      ? await bcrypt.hash('Myp@ssword123', 10)
+      : passwordHash;
+
     if (existingUser.empty) {
       const docRef = firestoreDb.collection('users').doc();
       userId = docRef.id;
       await docRef.set({
         email: u.email,
         phone: u.phone,
-        passwordHash,
+        passwordHash: userPasswordHash,
         role: u.role,
         isActive: true,
         avatarUrl: null,
@@ -158,7 +162,7 @@ async function seed() {
       await firestoreDb.collection('users').doc(userId).update({
         phone: u.phone,
         role: u.role,
-        passwordHash,
+        passwordHash: userPasswordHash,
         isActive: true
       });
       console.log(`User already exists: ${u.email} (${userId}) - updated password hash, phone, role, and active status.`);

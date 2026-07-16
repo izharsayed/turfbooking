@@ -51,36 +51,65 @@ TurfBook/
 
 ## ⚙️ Environment Configuration
 
-Create a `.env` file in `backend/` using the following properties:
+> ### 🚨 SECURITY: rotate previously committed secrets
+> Real credentials (a Firebase Admin service-account private key, Razorpay key ID + secret,
+> and the Firebase web config) were previously committed to this repository in `.env` files.
+> **Removing them from the working tree does NOT remove them from git history** — anyone with
+> access to the repo (or any clone/fork) can still recover them. Before deploying:
+> 1. **Rotate the Firebase service-account key**: Firebase Console → Project Settings →
+>    Service Accounts → generate a new private key, then delete the old key in
+>    Google Cloud Console → IAM & Admin → Service Accounts → Keys.
+> 2. **Deactivate the old Razorpay key pair** (`rzp_test_TCyMJrrvTVxEh2`): Razorpay has been
+>    removed from this platform entirely, so disable the keys in the Razorpay Dashboard →
+>    Settings → API Keys rather than regenerating them.
+> 3. **Restrict the Firebase Web API key** (`AIzaSy…`): it is public by design, but add
+>    application restrictions in Google Cloud Console → APIs & Services → Credentials,
+>    and verify Firestore/Storage Security Rules deny unauthorized access.
+> 4. Consider scrubbing history with `git filter-repo` / BFG if the repo is or becomes public.
+
+Copy the example files and fill in real values (never commit `.env` files — they are gitignored):
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+cp mobile/.env.example mobile/.env
+```
+
+Backend variables (see [backend/.env.example](backend/.env.example) for the full annotated list):
 
 ```bash
 # Provider selector: "prisma" or "firebase"
 DATABASE_PROVIDER=prisma
 
 # Relational DB (PostgreSQL) URL
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/turf_booking?schema=public"
+DATABASE_URL="postgresql://user:password@localhost:5432/turf_booking?schema=public"
 
 # Redis Cache URL
 REDIS_URL="redis://localhost:6379"
 
-# Token secrets
+# Token secrets (generate strong random values, e.g. `openssl rand -base64 48`)
 JWT_SECRET="your-super-secret-jwt-key"
 JWT_REFRESH_SECRET="your-super-secret-jwt-refresh-key"
 JWT_EXPIRE="7d"
 
-# Integration API Keys
-CLOUDINARY_NAME="your_cloudinary_cloud_name"
+# Integration API Keys (server-side only)
+CLOUDINARY_CLOUD_NAME="your_cloudinary_cloud_name"
 CLOUDINARY_API_KEY="your_cloudinary_api_key"
 CLOUDINARY_API_SECRET="your_cloudinary_api_secret"
-RAZORPAY_KEY_ID="rzp_test_your_key_id"
-RAZORPAY_SECRET="your_razorpay_secret"
 
-# Firebase Credentials (for DATABASE_PROVIDER=firebase or FCM notifications)
+# Firebase service-account credentials (server-side ONLY — never ship to a client)
 FIREBASE_PROJECT_ID="your-firebase-project-id"
 FIREBASE_CLIENT_EMAIL="firebase-adminsdk-xxxxx@your-firebase-project.iam.gserviceaccount.com"
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0...\n-----END PRIVATE KEY-----\n"
 FIREBASE_STORAGE_BUCKET="your-firebase-project.appspot.com"
 ```
+
+Client env rules:
+- **frontend/** (Vite): every `VITE_*` variable is bundled into the browser build. Only public-safe values (like the API URL) belong here.
+- **mobile/** (Expo): every `EXPO_PUBLIC_*` variable is embedded in the app bundle. Only the Firebase **web** config and Google OAuth **client ID** belong here — never the Firebase Admin private key or JWT secrets.
+
+> **Payments**: the platform uses direct UPI settlement to the turf owner's UPI ID plus
+> owner-side booking confirmation. No payment gateway SDK or gateway credentials are required.
 
 ---
 

@@ -118,8 +118,8 @@ export default function AdminScreen() {
   ];
 
   const fallbackLogs: AuditLog[] = [
-    { id: 'l1', action: 'OWNER_APPROVED', details: 'Approved owner request for Zeeshan Khan', timestamp: '2026-07-11 12:14:02', user: 'admin@turfbook.com' },
-    { id: 'l2', action: 'USER_BLOCKED', details: 'Blocked user Rohan Deshmukh (Spam behavior)', timestamp: '2026-07-11 11:45:22', user: 'admin@turfbook.com' },
+    { id: 'l1', action: 'OWNER_APPROVED', details: 'Approved owner request for Zeeshan Khan', timestamp: '2026-07-11 12:14:02', user: 'izharsayed12@gmail.com' },
+    { id: 'l2', action: 'USER_BLOCKED', details: 'Blocked user Rohan Deshmukh (Spam behavior)', timestamp: '2026-07-11 11:45:22', user: 'izharsayed12@gmail.com' },
     { id: 'l3', action: 'TURF_CREATED', details: 'New turf registered: Ahmednagar Sports Arena', timestamp: '2026-07-11 10:30:15', user: 'owner@turfbook.com' },
   ];
 

@@ -190,6 +190,7 @@ export class PrismaCouponRepository implements ICouponRepository {
         perUserLimit: data.perUserLimit || 1,
         expiryDate: new Date(data.expiryDate),
         isActive: data.isActive !== undefined ? data.isActive : true,
+        createdBy: data.createdBy || null,
       },
     });
     return { ...item, description: item.description || null };

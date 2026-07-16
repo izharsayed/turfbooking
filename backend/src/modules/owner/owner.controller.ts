@@ -187,5 +187,42 @@ export class OwnerController {
       return next(error);
     }
   };
+
+  // --- Employee Management ---
+  public getEmployees = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const list = await ownerService.getEmployees(req.user!.id);
+      return sendResponse(res, 200, true, 'Employees retrieved successfully', list);
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  public createEmployee = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await ownerService.createEmployee(req.user!.id, req.body);
+      return sendResponse(res, 201, true, 'Employee created successfully', result);
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  public updateEmployee = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await ownerService.updateEmployee(req.user!.id, req.params.id, req.body);
+      return sendResponse(res, 200, true, 'Employee updated successfully', result);
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  public deleteEmployee = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await ownerService.deleteEmployee(req.user!.id, req.params.id);
+      return sendResponse(res, 200, true, 'Employee deleted successfully', result);
+    } catch (error) {
+      return next(error);
+    }
+  };
 }
 export const ownerController = new OwnerController();

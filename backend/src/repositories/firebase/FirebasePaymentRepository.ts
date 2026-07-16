@@ -2,6 +2,9 @@ import { Payment } from '../../shared/types/domain.js';
 import { IPaymentRepository } from '../interfaces/IPaymentRepository.js';
 import { firestoreDb } from '../../config/firebase.js';
 
+// Note: existing Firestore documents use legacy `razorpay*` field names; reads
+// fall back to them so old payment records keep working. New writes use the
+// gateway-neutral names.
 export class FirebasePaymentRepository implements IPaymentRepository {
   private get collection() {
     if (!firestoreDb) {
@@ -29,9 +32,8 @@ export class FirebasePaymentRepository implements IPaymentRepository {
       bookingId: paymentData.bookingId,
       userId: paymentData.userId,
       amount: paymentData.amount,
-      razorpayOrderId: paymentData.razorpayOrderId,
-      razorpayPaymentId: paymentData.razorpayPaymentId || null,
-      razorpaySignature: paymentData.razorpaySignature || null,
+      orderId: paymentData.orderId || null,
+      transactionId: paymentData.transactionId || null,
       status: paymentData.status,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -43,12 +45,11 @@ export class FirebasePaymentRepository implements IPaymentRepository {
   public async updateStatus(
     id: string,
     status: Payment['status'],
-    extra?: { razorpayPaymentId?: string; razorpaySignature?: string }
+    extra?: { transactionId?: string }
   ): Promise<Payment> {
     const docRef = this.collection.doc(id);
     const updateData: any = { status, updatedAt: new Date() };
-    if (extra?.razorpayPaymentId) updateData.razorpayPaymentId = extra.razorpayPaymentId;
-    if (extra?.razorpaySignature) updateData.razorpaySignature = extra.razorpaySignature;
+    if (extra?.transactionId) updateData.transactionId = extra.transactionId;
 
     await docRef.update(updateData);
     const doc = await docRef.get();
@@ -61,9 +62,8 @@ export class FirebasePaymentRepository implements IPaymentRepository {
       bookingId: data.bookingId,
       userId: data.userId,
       amount: data.amount,
-      razorpayOrderId: data.razorpayOrderId,
-      razorpayPaymentId: data.razorpayPaymentId || undefined,
-      razorpaySignature: data.razorpaySignature || undefined,
+      orderId: data.orderId ?? data.razorpayOrderId,
+      transactionId: (data.transactionId ?? data.razorpayPaymentId) || undefined,
       status: data.status,
       createdAt: data.createdAt instanceof Date ? data.createdAt : data.createdAt?.toDate?.() || new Date(),
       updatedAt: data.updatedAt instanceof Date ? data.updatedAt : data.updatedAt?.toDate?.() || new Date(),

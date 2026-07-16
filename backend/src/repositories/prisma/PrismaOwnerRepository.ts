@@ -127,4 +127,17 @@ export class PrismaOwnerRepository implements IOwnerRepository {
       },
     });
   }
+
+  public async listEmployees(ownerId: string): Promise<any[]> {
+    return [];
+  }
+  public async createEmployee(ownerId: string, data: any): Promise<any> {
+    return { id: 'dummy-id', ...data };
+  }
+  public async updateEmployee(employeeId: string, data: any): Promise<any> {
+    return { id: employeeId, ...data };
+  }
+  public async deleteEmployee(employeeId: string): Promise<any> {
+    return { success: true };
+  }
 }

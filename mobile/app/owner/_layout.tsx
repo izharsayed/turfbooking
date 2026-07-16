@@ -67,6 +67,18 @@ export default function OwnerLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="payments"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="employees"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

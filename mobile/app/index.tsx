@@ -123,7 +123,7 @@ const faqs = [
   },
   {
     q: 'Is my payment secure?',
-    a: 'Absolutely. All transactions are securely processed through Razorpay encryption protocols.',
+    a: 'Absolutely. Payments are made directly to the venue via secure UPI transfer, and every booking is verified by the turf owner.',
   },
 ];
 

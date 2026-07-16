@@ -449,20 +449,6 @@ export default function App() {
     }
   };
 
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      if ((window as any).Razorpay) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
-
   const handleBookSlot = async (
     paymentStatus?: 'CONFIRMED' | 'FAILED' | 'PENDING_CONFIRMATION',
     txnId?: string,
@@ -485,128 +471,49 @@ export default function App() {
         time: joinedSlotsStr,
         date: selectedDate,
       };
-      
+
       // 1. Create PENDING booking
       const res = await api.post('/bookings', bookingPayload);
-      const { booking, razorpayOrderId } = res.data?.data || {};
+      const { booking } = res.data?.data || {};
 
-      // If simulated payment status is provided, automatically verify mock payment
-      if (paymentStatus) {
-        const verifyPayload: any = {
-          bookingId: booking.id,
-          razorpayOrderId,
-          status: paymentStatus
-        };
-
-        if (paymentStatus === 'CONFIRMED') {
-          verifyPayload.razorpayPaymentId = 'pay_' + Math.random().toString(36).substring(2, 10);
-          verifyPayload.razorpaySignature = 'sig_mock';
-        } else if (paymentStatus === 'PENDING_CONFIRMATION') {
-          verifyPayload.transactionId = txnId;
-          verifyPayload.paymentProof = proof;
-        }
-
-        await api.post('/bookings/verify', verifyPayload);
-
-        if (paymentStatus === 'FAILED') {
-          return;
-        }
-
-        const newBooking = {
-          id: booking.id,
-          turfName: selectedTurf.name,
-          date: selectedDate,
-          time: joinedSlotsStr,
-          sport: selectedTurf.sport,
-          amount: totalPrice,
-          status: paymentStatus === 'PENDING_CONFIRMATION' ? 'PENDING_CONFIRMATION' : 'UPCOMING'
-        };
-
-        setBookings([newBooking, ...bookings]);
-
-        // Immediately refresh turf bookings in UI to block this slot
-        try {
-          const bookingsRes = await api.get(`/turfs/${selectedTurf.id}/bookings`);
-          setTurfBookings(bookingsRes.data?.data || []);
-        } catch (e) {
-          console.error('Error refreshing bookings:', e);
-        }
-        return;
-      }
-
-      // Real Razorpay flow
-      if (!razorpayOrderId) {
-        throw new Error('Failed to retrieve Razorpay Order ID from backend');
-      }
-
-      // Load Razorpay SDK
-      const sdkLoaded = await loadRazorpayScript();
-      if (!sdkLoaded) {
-        alert('Razorpay SDK failed to load. Are you connected to the internet?');
-        return;
-      }
-
-      const options = {
-        key: "rzp_test_TCyMJrrvTVxEh2", // The test key ID
-        amount: totalPrice * 100, // Amount in paise
-        currency: "INR",
-        name: "TurfBook",
-        description: `Booking for ${selectedTurf.name}`,
-        order_id: razorpayOrderId,
-        handler: async function (response: any) {
-          try {
-            // 2. Verify payment (using real details from Razorpay)
-            const verifyRes = await api.post('/bookings/verify', {
-              bookingId: booking.id,
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-              status: 'CONFIRMED'
-            });
-
-            if (verifyRes.data?.success) {
-              const newBooking = {
-                id: booking.id,
-                turfName: selectedTurf.name,
-                date: selectedDate,
-                time: joinedSlotsStr,
-                sport: selectedTurf.sport,
-                amount: totalPrice,
-                status: 'UPCOMING'
-              };
-
-              setBookings([newBooking, ...bookings]);
-
-              // 3. Immediately refresh turf bookings in UI to block this slot
-              try {
-                const bookingsRes = await api.get(`/turfs/${selectedTurf.id}/bookings`);
-                setTurfBookings(bookingsRes.data?.data || []);
-              } catch (e) {
-                console.error('Error refreshing bookings:', e);
-              }
-
-              setBookingStep('success');
-            } else {
-              alert('Payment verification failed.');
-            }
-          } catch (verifyErr: any) {
-            console.error('Verification error:', verifyErr);
-            alert(verifyErr.response?.data?.message || 'Payment verification failed.');
-          }
-        },
-        prefill: {
-          name: user?.name || '',
-          email: user?.email || '',
-          contact: user?.phone || '',
-        },
-        theme: {
-          color: "#10B981"
-        }
+      // 2. Record the payment outcome (UPI/manual flow — owner confirms receipt)
+      const verifyPayload: any = {
+        bookingId: booking.id,
+        status: paymentStatus || 'PENDING_CONFIRMATION'
       };
 
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
+      if (paymentStatus === 'CONFIRMED') {
+        verifyPayload.transactionId = 'txn_' + Math.random().toString(36).substring(2, 10);
+      } else if (!paymentStatus || paymentStatus === 'PENDING_CONFIRMATION') {
+        verifyPayload.transactionId = txnId;
+        verifyPayload.paymentProof = proof;
+      }
 
+      await api.post('/bookings/verify', verifyPayload);
+
+      if (paymentStatus === 'FAILED') {
+        return;
+      }
+
+      const newBooking = {
+        id: booking.id,
+        turfName: selectedTurf.name,
+        date: selectedDate,
+        time: joinedSlotsStr,
+        sport: selectedTurf.sport,
+        amount: totalPrice,
+        status: paymentStatus === 'CONFIRMED' ? 'UPCOMING' : 'PENDING_CONFIRMATION'
+      };
+
+      setBookings([newBooking, ...bookings]);
+
+      // Immediately refresh turf bookings in UI to block this slot
+      try {
+        const bookingsRes = await api.get(`/turfs/${selectedTurf.id}/bookings`);
+        setTurfBookings(bookingsRes.data?.data || []);
+      } catch (e) {
+        console.error('Error refreshing bookings:', e);
+      }
     } catch (err: any) {
       console.error('Error creating booking:', err);
       alert(err.response?.data?.message || 'Failed to complete booking on the server.');

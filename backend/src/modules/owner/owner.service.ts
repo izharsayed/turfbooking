@@ -8,6 +8,7 @@ import {
 } from '../../repositories/index.js';
 import { NotFoundError, ValidationError } from '../../shared/utils/errors.js';
 import { emitSocketEvent } from '../../socket/index.js';
+import bcrypt from 'bcryptjs';
 
 export class OwnerService {
   // --- Dashboard & Analytics ---
@@ -20,9 +21,16 @@ export class OwnerService {
     const user = await userRepository.findById(ownerId);
     if (!user) throw new NotFoundError('Owner profile not found');
     const ownerProfile = await userRepository.getOwnerProfile(ownerId);
+    // Razorpay was removed from the platform; strip any legacy stored
+    // credentials so they never reach a client.
+    let safeOwnerProfile = ownerProfile || null;
+    if (safeOwnerProfile) {
+      const { razorpayKeyId, razorpayKeySecret, ...rest } = safeOwnerProfile;
+      safeOwnerProfile = rest;
+    }
     return {
       user,
-      ownerProfile: ownerProfile || null
+      ownerProfile: safeOwnerProfile
     };
   }
 
@@ -31,6 +39,11 @@ export class OwnerService {
     if (!user) throw new NotFoundError('Owner profile not found');
 
     const { name, phone, email, ...ownerProfileData } = data;
+
+    // Razorpay was removed from the platform; never persist gateway credentials.
+    delete ownerProfileData.razorpayKeyId;
+    delete ownerProfileData.razorpayKeySecret;
+    delete ownerProfileData.hasRazorpayKeySecret;
 
     if (name || phone || email) {
       const updates: any = {};
@@ -173,14 +186,16 @@ export class OwnerService {
   }
 
   public async replyToReview(ownerId: string, reviewId: string, reply: string) {
-    // Verify review owner scope
+    const reviews = await ownerRepository.listReviews(ownerId);
+    if (!reviews.some((review: any) => review.id === reviewId)) {
+      throw new NotFoundError('Review not found');
+    }
     return ownerRepository.replyToReview(reviewId, reply);
   }
 
   // --- Coupons CRUD ---
   public async getCoupons(ownerId: string) {
-    // Owners list all coupons or coupons they created
-    return couponRepository.findAll();
+    return (await couponRepository.findAll()).filter((coupon) => coupon.createdBy === ownerId);
   }
 
   public async createCoupon(ownerId: string, data: any) {
@@ -192,13 +207,13 @@ export class OwnerService {
 
   public async updateCoupon(ownerId: string, couponId: string, data: any) {
     const coupon = await couponRepository.findById(couponId);
-    if (!coupon) throw new NotFoundError('Coupon not found');
+    if (!coupon || coupon.createdBy !== ownerId) throw new NotFoundError('Coupon not found');
     return couponRepository.update(couponId, data);
   }
 
   public async deleteCoupon(ownerId: string, couponId: string) {
     const coupon = await couponRepository.findById(couponId);
-    if (!coupon) throw new NotFoundError('Coupon not found');
+    if (!coupon || coupon.createdBy !== ownerId) throw new NotFoundError('Coupon not found');
     return couponRepository.delete(couponId);
   }
 
@@ -210,6 +225,33 @@ export class OwnerService {
       contentType: format === 'csv' ? 'text/csv' : 'application/pdf',
       data: Buffer.from(mockData, 'utf-8'),
     };
+  }
+
+  // --- Employee Management ---
+  public async getEmployees(ownerId: string) {
+    return ownerRepository.listEmployees(ownerId);
+  }
+  public async createEmployee(ownerId: string, data: any) {
+    let passwordHash = undefined;
+    if (data.password) {
+      passwordHash = await bcrypt.hash(data.password, 10);
+    }
+    return ownerRepository.createEmployee(ownerId, { ...data, passwordHash });
+  }
+  public async updateEmployee(ownerId: string, employeeId: string, data: any) {
+    const employee = (await ownerRepository.listEmployees(ownerId)).find((item: any) => item.id === employeeId);
+    if (!employee) throw new NotFoundError('Employee not found');
+    const updateData = { ...data };
+    if (data.password) {
+      updateData.passwordHash = await bcrypt.hash(data.password, 10);
+      delete updateData.password;
+    }
+    return ownerRepository.updateEmployee(employeeId, updateData);
+  }
+  public async deleteEmployee(ownerId: string, employeeId: string) {
+    const employee = (await ownerRepository.listEmployees(ownerId)).find((item: any) => item.id === employeeId);
+    if (!employee) throw new NotFoundError('Employee not found');
+    return ownerRepository.deleteEmployee(employeeId);
   }
 }
 export const ownerService = new OwnerService();

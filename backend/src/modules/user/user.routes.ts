@@ -79,4 +79,19 @@ router.put('/avatar', authenticate as any, upload.single('avatar'), userControll
  */
 router.delete('/avatar', authenticate as any, userController.deleteAvatar as any);
 
+/**
+ * @openapi
+ * /profile/account:
+ *   delete:
+ *     summary: Permanently delete your account (GDPR Art. 17 — Right to Erasure)
+ *     description: Anonymizes all personal data (email, phone, name) and soft-deletes the account. This action is irreversible.
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Account successfully deleted and all personal data anonymized
+ */
+router.delete('/account', authenticate as any, userController.deleteAccount as any);
+
 export default router;

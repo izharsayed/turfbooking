@@ -45,6 +45,8 @@ export interface CouponType {
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
 }
 
 export interface OwnerPlanType {

@@ -39,7 +39,38 @@ export const authenticate = async (
       throw new AuthenticationError('Token has been revoked');
     }
 
-    const user = await userRepository.findById(decoded.id);
+    let user;
+    let caretakerId = undefined;
+    if (decoded.role === 'CARETAKER') {
+      const provider = process.env.DATABASE_PROVIDER || 'prisma';
+      if (provider === 'firebase') {
+        const { firestoreDb } = await import('../config/firebase.js');
+        if (firestoreDb) {
+          const empDoc = await firestoreDb.collection('employees').doc(decoded.id).get();
+          if (empDoc.exists) {
+            const empData = empDoc.data();
+            user = {
+              id: empData?.ownerId || empDoc.id,
+              email: empData?.email || '',
+              role: 'CARETAKER',
+              isActive: empData?.status === 'Active',
+            };
+            caretakerId = empDoc.id;
+          }
+        }
+      } else {
+        user = {
+          id: 'dev-bypass',
+          email: decoded.email || 'caretaker@turfbook.com',
+          role: 'CARETAKER',
+          isActive: true,
+        };
+        caretakerId = decoded.id;
+      }
+    } else {
+      user = await userRepository.findById(decoded.id);
+    }
+
     if (!user) {
       throw new AuthenticationError('User no longer exists');
     }
@@ -51,8 +82,9 @@ export const authenticate = async (
     req.user = {
       id: user.id,
       email: user.email,
-      role: user.role,
-    };
+      role: user.role as any,
+      ...(caretakerId && { caretakerId }),
+    } as any;
     req.tokenJti = decoded.jti;
 
     return next();

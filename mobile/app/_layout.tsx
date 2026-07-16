@@ -82,6 +82,7 @@ export default function RootLayout() {
         <Stack.Screen name="privacy" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
         <Stack.Screen name="owner" options={{ headerShown: false }} />
+        <Stack.Screen name="admin" options={{ headerShown: false }} />
       </Stack>
     </QueryClientProvider>
   );

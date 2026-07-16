@@ -229,4 +229,54 @@ export class FirebaseOwnerRepository implements IOwnerRepository {
     const doc = await docRef.get();
     return { id: doc.id, ...doc.data() };
   }
+
+  public async listEmployees(ownerId: string): Promise<any[]> {
+    if (!firestoreDb) return [];
+    const snap = await firestoreDb.collection('employees').where('ownerId', '==', ownerId).get();
+    const list: any[] = [];
+    snap.forEach((doc) => {
+      const { passwordHash: _ph, ...safeData } = doc.data() as any;
+      list.push({ id: doc.id, ...safeData });
+    });
+    return list;
+  }
+
+  public async createEmployee(ownerId: string, data: any): Promise<any> {
+    if (!firestoreDb) return null;
+    const docRef = firestoreDb.collection('employees').doc();
+    const newEmp = {
+      ownerId,
+      name: data.name || '',
+      phone: data.phone || '',
+      email: data.email || '',
+      role: data.role || 'Caretaker',
+      turfId: data.turfId || '',
+      turfName: data.turfName || 'All Turfs',
+      status: data.status || 'Active',
+      passwordHash: data.passwordHash || null,
+      createdAt: new Date(),
+    };
+    await docRef.set(newEmp);
+    const { passwordHash: _ph, ...safeEmp } = newEmp;
+    return { id: docRef.id, ...safeEmp };
+  }
+
+  public async updateEmployee(employeeId: string, data: any): Promise<any> {
+    if (!firestoreDb) return null;
+    const docRef = firestoreDb.collection('employees').doc(employeeId);
+    await docRef.update({
+      ...data,
+      updatedAt: new Date(),
+    });
+    const doc = await docRef.get();
+    const { passwordHash: _ph, ...safeData } = doc.data() as any;
+    return { id: doc.id, ...safeData };
+  }
+
+  public async deleteEmployee(employeeId: string): Promise<any> {
+    if (!firestoreDb) return null;
+    const docRef = firestoreDb.collection('employees').doc(employeeId);
+    await docRef.delete();
+    return { success: true };
+  }
 }

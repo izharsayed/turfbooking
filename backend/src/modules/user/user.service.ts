@@ -111,5 +111,35 @@ export class UserService {
     await userRepository.update(userId, { avatarUrl: undefined });
     return { message: 'Profile picture removed successfully' };
   }
+  public async deleteAccount(userId: string) {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    // Anonymize all PII before marking as deleted (GDPR Art. 17 — Right to Erasure)
+    const anonymizedData = {
+      email: `deleted_${userId}@deleted.invalid`,
+      phone: '0000000000',
+      name: 'Deleted User',
+      avatarUrl: undefined,
+      isActive: false,
+      deletedAt: new Date(),
+    };
+
+    await userRepository.update(userId, anonymizedData as any);
+
+    // Remove Cloudinary avatar if it exists
+    if (cloudinaryClient && user.avatarUrl && user.avatarUrl.includes('cloudinary')) {
+      try {
+        await cloudinaryClient.uploader.destroy(`turfbook_avatars/avatar_${userId}`);
+      } catch (err) {
+        logger.error('❌ Failed to destroy Cloudinary avatar during account deletion:', err);
+      }
+    }
+
+    logger.info(`🗑️ Account deletion: user anonymized and soft-deleted.`);
+    return { message: 'Your account and personal data have been permanently deleted.' };
+  }
 }
 export const userService = new UserService();

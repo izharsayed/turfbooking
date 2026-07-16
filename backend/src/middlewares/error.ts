@@ -10,7 +10,10 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ): Response => {
-  logger.error(`[${req.method}] ${req.url} - Error: ${err.message} \nStack: ${err.stack}`);
+  const correlationId = 'ERR-' + Math.random().toString(36).substring(2, 11).toUpperCase();
+
+  // Log the full detailed error with the correlation ID to the server logs
+  logger.error(`[${correlationId}] [${req.method}] ${req.url} - Error: ${err.message} \nStack: ${err.stack}`);
 
   if (err instanceof AppError) {
     return sendResponse(
@@ -38,14 +41,26 @@ export const errorHandler = (
     );
   }
 
-  // Fallback for general uncaught errors
-  const message = process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message;
+  // Fallback for general uncaught errors (such as database or runtime issues)
+  const isProduction = process.env.NODE_ENV === 'production';
+  const clientMessage = isProduction
+    ? `An internal server error occurred. Please reference Correlation ID: ${correlationId}`
+    : err.message;
+
+  const errorData = isProduction
+    ? { correlationId }
+    : {
+        correlationId,
+        name: err.name,
+        stack: err.stack,
+      };
+
   return sendResponse(
     res,
     500,
     false,
-    message,
+    clientMessage,
     null,
-    err.name !== 'Error' ? { name: err.name } : null
+    errorData
   );
 };

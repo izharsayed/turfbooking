@@ -14,9 +14,9 @@ import {
 
 const router = Router();
 
-// Apply TURF_OWNER protection globally to all owner sub-routes
+// Apply TURF_OWNER and CARETAKER protection globally to owner sub-routes
 router.use(authenticate as any);
-router.use(authorizeRoles('TURF_OWNER') as any);
+router.use(authorizeRoles('TURF_OWNER', 'CARETAKER') as any);
 
 /**
  * @openapi
@@ -36,11 +36,11 @@ router.get('/dashboard', ownerController.getDashboard);
 router.get('/profile', ownerController.getProfile);
 router.put('/profile', ownerController.updateProfile);
 
-// --- Turf Management ---
+// --- Turf Management (Read for all, Write for Owner only) ---
 router.get('/turfs', ownerController.getTurfs);
-router.post('/turfs', validate({ body: createTurfSchema }), ownerController.createTurf);
-router.put('/turfs/:id', validate({ body: updateTurfSchema }), ownerController.updateTurf);
-router.delete('/turfs/:id', ownerController.deleteTurf);
+router.post('/turfs', authorizeRoles('TURF_OWNER') as any, validate({ body: createTurfSchema }), ownerController.createTurf);
+router.put('/turfs/:id', authorizeRoles('TURF_OWNER') as any, validate({ body: updateTurfSchema }), ownerController.updateTurf);
+router.delete('/turfs/:id', authorizeRoles('TURF_OWNER') as any, ownerController.deleteTurf);
 
 // --- Bookings ---
 router.get('/bookings', ownerController.getBookings);
@@ -48,20 +48,26 @@ router.post('/bookings/offline', validate({ body: manualBookingSchema }), ownerC
 router.put('/bookings/:id/cancel', ownerController.cancelBooking);
 router.put('/bookings/:id/confirm', ownerController.confirmBooking);
 
-// --- Payments ---
-router.get('/payments', ownerController.getPayments);
+// --- Payments (Owner only) ---
+router.get('/payments', authorizeRoles('TURF_OWNER') as any, ownerController.getPayments);
 
 // --- Reviews ---
 router.get('/reviews', ownerController.getReviews);
 router.post('/reviews/:id/reply', validate({ body: reviewReplySchema }), ownerController.replyToReview);
 
-// --- Coupons ---
-router.get('/coupons', ownerController.getCoupons);
-router.post('/coupons', ownerController.createCoupon);
-router.put('/coupons/:id', ownerController.updateCoupon);
-router.delete('/coupons/:id', ownerController.deleteCoupon);
+// --- Coupons (Owner only) ---
+router.get('/coupons', authorizeRoles('TURF_OWNER') as any, ownerController.getCoupons);
+router.post('/coupons', authorizeRoles('TURF_OWNER') as any, ownerController.createCoupon);
+router.put('/coupons/:id', authorizeRoles('TURF_OWNER') as any, ownerController.updateCoupon);
+router.delete('/coupons/:id', authorizeRoles('TURF_OWNER') as any, ownerController.deleteCoupon);
 
-// --- Reports ---
-router.get('/reports', ownerController.getReports);
+// --- Reports (Owner only) ---
+router.get('/reports', authorizeRoles('TURF_OWNER') as any, ownerController.getReports);
+
+// --- Employees (Owner only) ---
+router.get('/employees', authorizeRoles('TURF_OWNER') as any, ownerController.getEmployees);
+router.post('/employees', authorizeRoles('TURF_OWNER') as any, ownerController.createEmployee);
+router.put('/employees/:id', authorizeRoles('TURF_OWNER') as any, ownerController.updateEmployee);
+router.delete('/employees/:id', authorizeRoles('TURF_OWNER') as any, ownerController.deleteEmployee);
 
 export default router;

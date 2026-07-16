@@ -51,7 +51,6 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [devDropdownOpen, setDevDropdownOpen] = useState(false);
 
   const safeRedirect = (path: string) => {
     setTimeout(() => {
@@ -62,69 +61,6 @@ export default function LoginScreen() {
         setTimeout(() => router.replace(path as any), 300);
       }
     }, 100);
-  };
-
-  // ── Dummy accounts for quick dev testing ──────────────────────────────
-  const DUMMY_ACCOUNTS = [
-    { label: '👤 Customer', phone: '9876543210', email: 'customer@turfbook.com', password: 'password', role: 'CUSTOMER',    name: 'Demo Customer' },
-    { label: '🏟️ Owner',    phone: '9999988888', email: 'owner@turfbook.com',    password: 'password',    role: 'TURF_OWNER', name: 'Ahmednagar Sports Arena' },
-    { label: '🔑 Admin',    phone: '8888877777', email: 'admin@turfbook.com',    password: 'Admin@12345', role: 'SUPER_ADMIN', name: 'System Administrator' },
-  ];
-
-  const applyDummyLogin = async (account: typeof DUMMY_ACCOUNTS[0]) => {
-    const fetchWithTimeout = async (path: string, options: any, timeoutMs = 1500) => {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const res = await apiFetch(path, {
-          ...options,
-          signal: controller.signal,
-        });
-        clearTimeout(id);
-        return res;
-      } catch (err) {
-        clearTimeout(id);
-        throw err;
-      }
-    };
-
-    try {
-      const res = await fetchWithTimeout('/auth/login', {
-        method: 'POST',
-        body: { email: account.email, password: account.password },
-      }, 1500);
-
-      if (res.success && res.data) {
-        login(
-          {
-            id: res.data.user.id,
-            email: res.data.user.email,
-            name: `${res.data.user.profile?.firstName || ''} ${res.data.user.profile?.lastName || ''}`.trim() || res.data.user.name || account.name,
-            phone: res.data.user.phone,
-            role: res.data.user.role,
-          },
-          res.data.accessToken
-        );
-        setDevDropdownOpen(false);
-        safeRedirect(res.data.user.role === 'SUPER_ADMIN' ? '/admin' : (res.data.user.role === 'TURF_OWNER' ? '/owner' : '/'));
-        return;
-      }
-    } catch (e) {
-      console.log('Real dev login failed or timed out, falling back to bypass mode', e);
-    }
-
-    login(
-      {
-        id: `dev-${account.role.toLowerCase()}`,
-        email: account.email,
-        name: account.name,
-        phone: account.phone,
-        role: account.role,
-      },
-      'dev-token-bypass'
-    );
-    setDevDropdownOpen(false);
-    safeRedirect(account.role === 'SUPER_ADMIN' ? '/admin' : (account.role === 'TURF_OWNER' ? '/owner' : '/'));
   };
 
   // Google Sign-In credentials check
@@ -256,7 +192,7 @@ export default function LoginScreen() {
           },
           res.data.accessToken
         );
-        safeRedirect(res.data.user.role === 'SUPER_ADMIN' ? '/admin' : (res.data.user.role === 'TURF_OWNER' ? '/owner' : '/'));
+        safeRedirect(res.data.user.role === 'SUPER_ADMIN' ? '/admin' : ((res.data.user.role === 'TURF_OWNER' || res.data.user.role === 'CARETAKER') ? '/owner' : '/'));
       } else {
         throw new Error('TurfBook server auth failed.');
       }
@@ -307,7 +243,7 @@ export default function LoginScreen() {
           },
           res.data.accessToken
         );
-        safeRedirect(res.data.user.role === 'SUPER_ADMIN' ? '/admin' : (res.data.user.role === 'TURF_OWNER' ? '/owner' : '/'));
+        safeRedirect(res.data.user.role === 'SUPER_ADMIN' ? '/admin' : ((res.data.user.role === 'TURF_OWNER' || res.data.user.role === 'CARETAKER') ? '/owner' : '/'));
       } else {
         Alert.alert('Login Failed', res.message || 'Invalid email or password');
       }
@@ -484,42 +420,7 @@ export default function LoginScreen() {
           <Text style={styles.guestButtonText}>Continue as guest →</Text>
         </TouchableOpacity>
 
-        {/* Dev Quick Login (At the very bottom) */}
-        <TouchableOpacity
-          style={[styles.devBar, { backgroundColor: isDarkMode ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)', borderColor: 'rgba(99,102,241,0.2)', marginTop: 20 }]}
-          onPress={() => setDevDropdownOpen(!devDropdownOpen)}
-          activeOpacity={0.75}
-        >
-          <MaterialCommunityIcons name="test-tube" size={14} color="#6366f1" />
-          <Text style={styles.devBarText}>Dev Quick Login</Text>
-          <MaterialCommunityIcons
-            name={devDropdownOpen ? 'chevron-up' : 'chevron-down'}
-            size={16}
-            color="#6366f1"
-            style={{ marginLeft: 'auto' }}
-          />
-        </TouchableOpacity>
 
-        {devDropdownOpen && (
-          <View style={[styles.devDropdown, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', borderColor: 'rgba(99,102,241,0.25)' }]}>
-            {DUMMY_ACCOUNTS.map((acct) => (
-              <TouchableOpacity
-                key={acct.role}
-                style={[styles.devAccountRow, { borderBottomColor: isDarkMode ? '#334155' : '#f1f5f9' }]}
-                onPress={() => applyDummyLogin(acct)}
-                activeOpacity={0.7}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.devAccountLabel, { color: isDarkMode ? '#ffffff' : '#0f172a' }]}>{acct.label}</Text>
-                  <Text style={[styles.devAccountEmail, { color: '#6366f1' }]}>📱 {acct.phone} · Bypass</Text>
-                </View>
-                <View style={[styles.devFillBtn, { backgroundColor: 'rgba(99,102,241,0.12)' }]}>
-                  <Text style={styles.devFillBtnText}>Fill</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );

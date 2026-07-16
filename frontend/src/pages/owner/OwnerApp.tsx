@@ -155,8 +155,6 @@ export default function App() {
   const [businessRegisterNumber, setBusinessRegisterNumber] = useState('');
   const [billingEmail, setBillingEmail] = useState('');
 
-  const [razorpayKeyId, setRazorpayKeyId] = useState('');
-  const [razorpayKeySecret, setRazorpayKeySecret] = useState('');
   const [businessUpiId, setBusinessUpiId] = useState('');
   const [advancePaymentPercent, setAdvancePaymentPercent] = useState(30);
   const [convenienceFee, setConvenienceFee] = useState(45);
@@ -227,8 +225,6 @@ export default function App() {
         setBusinessRegisterNumber(op.businessRegisterNumber || '');
         setBillingEmail(op.billingEmail || u.email || '');
 
-        setRazorpayKeyId(op.razorpayKeyId || '');
-        setRazorpayKeySecret(op.razorpayKeySecret || '');
         setBusinessUpiId(op.businessUpiId || '');
         setAdvancePaymentPercent(op.advancePaymentPercent ?? 30);
         setConvenienceFee(op.convenienceFee ?? 45);
@@ -747,8 +743,6 @@ export default function App() {
         businessAddress,
         businessRegisterNumber,
         billingEmail,
-        razorpayKeyId,
-        razorpayKeySecret,
         businessUpiId,
         advancePaymentPercent: Number(advancePaymentPercent),
         convenienceFee: Number(convenienceFee),
@@ -2565,36 +2559,10 @@ export default function App() {
                 isDarkMode ? 'bg-[#090d1a]/45 border-slate-850 text-white' : 'bg-white border-slate-200 text-slate-900'
               }`}>
                 <h3 className="text-base font-bold text-emerald-450 border-b pb-2 border-slate-800 flex items-center gap-2">
-                  <DollarSign className="h-4.5 w-4.5" /> Payments & Razorpay Credentials
+                  <DollarSign className="h-4.5 w-4.5" /> Payments & Settlement
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase block">Razorpay Key ID</label>
-                    <input
-                      type="text"
-                      placeholder="rzp_test_..."
-                      value={razorpayKeyId}
-                      onChange={(e) => setRazorpayKeyId(e.target.value)}
-                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
-                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
-                      }`}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase block">Razorpay Key Secret</label>
-                    <input
-                      type="password"
-                      placeholder="••••••••••••••••"
-                      value={razorpayKeySecret}
-                      onChange={(e) => setRazorpayKeySecret(e.target.value)}
-                      className={`w-full rounded-xl p-3 border outline-none text-xs font-semibold ${
-                        isDarkMode ? 'bg-[#030712] text-slate-100 border-slate-800 focus:border-emerald-500/40' : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-emerald-500/40'
-                      }`}
-                    />
-                  </div>
-
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase block">Business UPI ID (for Direct Settlements)</label>
                     <input

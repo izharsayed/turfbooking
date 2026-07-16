@@ -4,6 +4,10 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  const seedPassword = process.env.DEV_SEED_PASSWORD;
+  if (!seedPassword || seedPassword.length < 12) {
+    throw new Error('Set a unique DEV_SEED_PASSWORD (at least 12 characters) before seeding users.');
+  }
   console.log('🌱 Starting database seeding...');
 
   // 1. Seed Sports
@@ -106,7 +110,7 @@ async function main() {
 
   // 5. Seed Super Admin User
   console.log('  Seeding Super Admin user...');
-  const passwordHash = await bcrypt.hash('Admin@12345', 10);
+  const passwordHash = await bcrypt.hash(seedPassword, 10);
   await prisma.user.upsert({
     where: { email: 'admin@turfbook.com' },
     update: {},

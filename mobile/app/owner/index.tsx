@@ -13,7 +13,7 @@ import {
   Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useRouter, useNavigation } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -62,6 +62,7 @@ export default function OwnerDashboard() {
   const { isDarkMode } = useThemeStore();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const navigation = useNavigation() as any;
 
   const [stats, setStats] = useState<DashboardStats>({});
   const [loading, setLoading] = useState(true);
@@ -174,9 +175,9 @@ export default function OwnerDashboard() {
     fetchDashboard();
   }, [isAuthenticated, user]);
 
-  // Guard: only for TURF_OWNER role
+  // Guard: only for TURF_OWNER & CARETAKER role
   if (!isAuthenticated || !user) return <Redirect href="/login" />;
-  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
+  if (user.role !== 'TURF_OWNER' && user.role !== 'CARETAKER') return <Redirect href="/" />;
 
   if (loading) {
     return (
@@ -226,7 +227,7 @@ export default function OwnerDashboard() {
 
             {/* Slogans and status */}
             <View style={styles.headerGreetings}>
-              <Text style={styles.helloText}>Hello, Owner <Ionicons name="hand-left-outline" size={18} color="#fbbf24" /></Text>
+              <Text style={styles.helloText}>Hello, {user?.name || 'Owner'} <Ionicons name="hand-left-outline" size={18} color="#fbbf24" /></Text>
               <Text style={styles.arenaTitle}>TurfBook Arena</Text>
               <View style={styles.statusRow}>
                 <View style={styles.statusDot} />
@@ -259,36 +260,25 @@ export default function OwnerDashboard() {
               </View>
 
               {/* Metric 2 */}
-              <View style={styles.metricCol}>
-                <View style={[styles.circleIcon, { backgroundColor: 'rgba(234, 179, 8, 0.12)' }]}>
-                  <Text style={{ color: '#eab308', fontWeight: 'bold', fontSize: 13 }}>₹</Text>
+              {user?.role !== 'CARETAKER' ? (
+                <View style={styles.metricCol}>
+                  <View style={[styles.circleIcon, { backgroundColor: 'rgba(234, 179, 8, 0.12)' }]}>
+                    <Text style={{ color: '#eab308', fontWeight: 'bold', fontSize: 13 }}>₹</Text>
+                  </View>
+                  <Text style={styles.metricValue}>₹{(stats.todayRevenue ?? 0).toLocaleString('en-IN')}</Text>
+                  <Text style={styles.metricLabel}>Revenue</Text>
+                  <Text style={styles.metricTrend}>+14% today</Text>
                 </View>
-                <Text style={styles.metricValue}>₹{(stats.todayRevenue ?? 0).toLocaleString('en-IN')}</Text>
-                <Text style={styles.metricLabel}>Revenue</Text>
-                <Text style={styles.metricTrend}>+14% today</Text>
-              </View>
-
-              {/* Metric 3 */}
-              <View style={styles.metricCol}>
-                <View style={[styles.circleIcon, { backgroundColor: 'rgba(59, 130, 246, 0.12)' }]}>
-                  <Ionicons name="time-outline" size={16} color="#3b82f6" />
+              ) : (
+                <View style={styles.metricCol}>
+                  <View style={[styles.circleIcon, { backgroundColor: 'rgba(59, 130, 246, 0.12)' }]}>
+                    <Ionicons name="location-outline" size={16} color="#3b82f6" />
+                  </View>
+                  <Text style={styles.metricValue}>{stats.totalTurfs ?? 1}</Text>
+                  <Text style={styles.metricLabel}>Managed Fields</Text>
+                  <Text style={styles.metricTrend}>Active</Text>
                 </View>
-                <Text style={styles.metricValue}>{stats.fillRate ?? 0}%</Text>
-                <Text style={styles.metricLabel}>Fill Rate</Text>
-                <Text style={styles.metricTrend}>+8% today</Text>
-              </View>
-
-              {/* Metric 4 */}
-              <View style={styles.metricCol}>
-                <View style={[styles.circleIcon, { backgroundColor: 'rgba(168, 85, 247, 0.12)' }]}>
-                  <Ionicons name="star-outline" size={16} color="#a855f7" />
-                </View>
-                <Text style={styles.metricValue}>{stats.rating ?? 0}</Text>
-                <Text style={styles.metricLabel}>Rating</Text>
-                <TouchableOpacity>
-                  <Text style={styles.metricLink}>View Reviews</Text>
-                </TouchableOpacity>
-              </View>
+              )}
             </View>
           </View>
         </View>
@@ -296,7 +286,7 @@ export default function OwnerDashboard() {
         {/* Today's Bookings Section */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Today's Bookings</Text>
-          <TouchableOpacity onPress={() => router.push('/owner/bookings')}>
+          <TouchableOpacity onPress={() => navigation.navigate('bookings' as any)}>
             <Text style={styles.sectionLink}>View Schedule {'>'}</Text>
           </TouchableOpacity>
         </View>
@@ -316,7 +306,7 @@ export default function OwnerDashboard() {
                   <TouchableOpacity
                     style={styles.bookingRow}
                     activeOpacity={0.7}
-                    onPress={() => router.push('/owner/bookings')}
+                    onPress={() => navigation.navigate('bookings' as any)}
                   >
                     {/* Left Column: Time */}
                     <View style={styles.bookingTimeWrap}>
@@ -367,19 +357,31 @@ export default function OwnerDashboard() {
           <View style={styles.actionsGrid}>
             {[
               { label: 'Add Booking', icon: 'calendar-plus', library: 'MaterialCommunityIcons', route: '/owner/bookings' },
-              { label: 'Slots Manager', icon: 'grid-large', library: 'MaterialCommunityIcons', route: '/owner/turfs' },
+              { label: 'Slots Manager', icon: 'grid-large', library: 'MaterialCommunityIcons', route: '/owner/bookings' },
               { label: 'Block Slot', icon: 'calendar-lock', library: 'MaterialCommunityIcons', route: '/owner/turfs' },
-              { label: 'Customers', icon: 'people-outline', library: 'Ionicons', route: '/owner/profile' },
-              { label: 'Payments', icon: 'credit-card-outline', library: 'MaterialCommunityIcons', route: '/owner/bookings' },
+              { label: 'Employees', icon: 'people-outline', library: 'Ionicons', route: '/owner/employees' },
+              { label: 'Payments', icon: 'credit-card-outline', library: 'MaterialCommunityIcons', route: '/owner/payments' },
               { label: 'Reports', icon: 'bar-chart-outline', library: 'Ionicons', route: '/owner/bookings' },
               { label: 'Reviews', icon: 'star-outline', library: 'Ionicons', route: '/owner/profile' },
               { label: 'More', icon: 'ellipsis-horizontal-circle-outline', library: 'Ionicons', route: '/owner/profile' },
-            ].map((item) => (
+            ].filter(item => {
+              if (user?.role === 'CARETAKER') {
+                return ['Add Booking', 'Slots Manager', 'Block Slot', 'Reviews'].includes(item.label);
+              }
+              return true;
+            }).map((item) => (
               <TouchableOpacity
                 key={item.label}
                 style={[styles.actionBtn, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
                 activeOpacity={0.7}
-                onPress={() => router.push(item.route as any)}
+                onPress={() => {
+                  if (item.route.startsWith('/owner/')) {
+                    const screenName = item.route.replace('/owner/', '');
+                    navigation.navigate(screenName as any);
+                  } else {
+                    router.push(item.route as any);
+                  }
+                }}
               >
                 <View style={styles.actionIconCircle}>
                   {item.library === 'MaterialCommunityIcons' ? (
@@ -398,7 +400,7 @@ export default function OwnerDashboard() {
         {/* Recent Reviews Section */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Reviews</Text>
-          <TouchableOpacity onPress={() => router.push('/owner/profile')}>
+          <TouchableOpacity onPress={() => navigation.navigate('profile' as any)}>
             <Text style={styles.sectionLink}>View All {'>'}</Text>
           </TouchableOpacity>
         </View>

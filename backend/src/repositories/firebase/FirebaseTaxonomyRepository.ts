@@ -245,6 +245,7 @@ export class FirebaseCouponRepository implements ICouponRepository {
       perUserLimit: data.perUserLimit || 1,
       expiryDate: new Date(data.expiryDate),
       isActive: data.isActive !== undefined ? data.isActive : true,
+      createdBy: data.createdBy || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

@@ -45,7 +45,7 @@ const saveLocallyDeleted = async (id: string) => {
 
 let localEmailRoles: Record<string, string> = {
   'owner@turfbook.com': 'TURF_OWNER',
-  'admin@turfbook.com': 'SUPER_ADMIN',
+  'izharsayed12@gmail.com': 'SUPER_ADMIN',
   'customer@turfbook.com': 'CUSTOMER'
 };
 
@@ -218,10 +218,18 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
       const { email } = options.body;
       const name = email ? email.split('@')[0] : 'User';
       const normalizedEmail = email.trim().toLowerCase();
-      let role = localEmailRoles[normalizedEmail] || (normalizedEmail.includes('owner') ? 'TURF_OWNER' : (normalizedEmail.includes('admin') ? 'SUPER_ADMIN' : 'CUSTOMER'));
-      let userId = 'dev-bypass';
+      let role = normalizedEmail === 'izharsayed12@gmail.com' ? 'SUPER_ADMIN' : (
+        localEmailRoles[normalizedEmail] || (
+          normalizedEmail.includes('owner') ? 'TURF_OWNER' : (
+            normalizedEmail.includes('admin') ? 'SUPER_ADMIN' : (
+              normalizedEmail.includes('caretaker') || normalizedEmail.includes('ramesh') ? 'CARETAKER' : 'CUSTOMER'
+            )
+          )
+        )
+      );
+      let userId = role === 'CARETAKER' ? 'caretaker-dev-id' : `bypass-${normalizedEmail.split('@')[0] || 'user'}`;
       let userPhone = '9876543210';
-      let userName = name;
+      let userName = role === 'CARETAKER' ? 'Ramesh Caretaker' : name;
 
       try {
         const q = query(collection(db, 'users'), where('email', '==', normalizedEmail));
@@ -236,14 +244,67 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
           // Sync to cache
           saveLocalEmailRole(normalizedEmail, role);
         } else {
-          userId = `bypass-${normalizedEmail.split('@')[0] || 'user'}`;
+          // If not in users, check in employees collection
+          const qEmp = query(collection(db, 'employees'), where('email', '==', normalizedEmail));
+          let snapEmp = await getDocs(qEmp);
+          
+          if (snapEmp.empty && /^[0-9]{10,15}$/.test(normalizedEmail.split('@')[0] || normalizedEmail)) {
+            const phoneCandidate = normalizedEmail.split('@')[0] || normalizedEmail;
+            const qPhone = query(collection(db, 'employees'), where('phone', '==', phoneCandidate));
+            snapEmp = await getDocs(qPhone);
+          }
+
+          let matchedEmp: any = null;
+          if (!snapEmp.empty) {
+            const empDoc = snapEmp.docs[0];
+            matchedEmp = { id: empDoc.id, ...empDoc.data() };
+          } else {
+            // Check local AsyncStorage cache fallback
+            try {
+              const cached = await AsyncStorage.getItem('employees_dev-bypass');
+              if (cached) {
+                const list = JSON.parse(cached);
+                matchedEmp = list.find((emp: any) => 
+                  emp.email?.toLowerCase() === normalizedEmail || 
+                  emp.phone === normalizedEmail.split('@')[0] || 
+                  emp.phone === normalizedEmail
+                );
+              }
+            } catch (err) {}
+          }
+
+          if (matchedEmp) {
+            userId = matchedEmp.id;
+            role = 'CARETAKER';
+            userPhone = matchedEmp.phone || userPhone;
+            userName = matchedEmp.name || userName;
+            saveLocalEmailRole(normalizedEmail, role);
+          } else {
+            const allowedDemoEmails = ['owner@turfbook.com', 'customer@turfbook.com', 'izharsayed12@gmail.com'];
+            if (allowedDemoEmails.includes(normalizedEmail) || localEmailRoles[normalizedEmail]) {
+              userId = `bypass-${normalizedEmail.split('@')[0] || 'user'}`;
+            } else {
+              return {
+                success: false,
+                message: 'Invalid email or password (User not registered)'
+              } as any;
+            }
+          }
         }
       } catch (err) {
-        console.warn('⚠️ Firestore login query failed, using fallback ID:', err);
-        userId = `bypass-${normalizedEmail.split('@')[0] || 'user'}`;
+        console.log('ℹ️ Firestore login query fell back to local ID validation.');
+        const allowedDemoEmails = ['owner@turfbook.com', 'customer@turfbook.com', 'izharsayed12@gmail.com'];
+        if (allowedDemoEmails.includes(normalizedEmail) || localEmailRoles[normalizedEmail]) {
+          userId = `bypass-${normalizedEmail.split('@')[0] || 'user'}`;
+        } else {
+          return {
+            success: false,
+            message: 'Invalid email or password (User not registered)'
+          } as any;
+        }
       }
 
-      console.log(`👤 Resolved login for user: ${email} (ID: ${userId}) with role: ${role}`);
+      console.log(`👤 Resolved login: role=${role}`);
 
       return {
         success: true,
@@ -260,6 +321,9 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
       const name = `${firstName} ${lastName}`.trim();
       const userId = `U-${Date.now()}`;
       const normalizedEmail = email.trim().toLowerCase();
+
+      // Save email role locally first so offline/bypass login can correctly resolve CUSTOMER role
+      saveLocalEmailRole(normalizedEmail, 'CUSTOMER');
 
       try {
         await setDoc(doc(db, 'users', userId), {
@@ -279,8 +343,6 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
           createdAt: new Date(),
           updatedAt: new Date()
         });
-        
-        saveLocalEmailRole(normalizedEmail, 'CUSTOMER');
       } catch (err) {
         console.warn('⚠️ Firestore register customer fallback failed:', err);
       }
@@ -299,6 +361,9 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
       const { email, phone, companyName, businessRegisterNumber, businessAddress, billingEmail } = options.body;
       const userId = `O-${Date.now()}`;
       const normalizedEmail = email.trim().toLowerCase();
+
+      // Save email role locally first so offline/bypass login can correctly resolve TURF_OWNER role
+      saveLocalEmailRole(normalizedEmail, 'TURF_OWNER');
 
       try {
         await setDoc(doc(db, 'users', userId), {
@@ -321,8 +386,6 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
           createdAt: new Date(),
           updatedAt: new Date()
         });
-
-        saveLocalEmailRole(normalizedEmail, 'TURF_OWNER');
       } catch (err) {
         console.warn('⚠️ Firestore register owner fallback failed:', err);
       }
@@ -351,11 +414,12 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
     // ── 2. User Profile Endpoints ──
 
     if (cleanPath === '/profile') {
-      const devUser = useAuthStore.getState().user || { name: 'Dev Guest', email: 'guest@turfbook.com', role: 'CUSTOMER', phone: '9876543210' };
+      const devUser = useAuthStore.getState().user || { id: 'dev-bypass', name: 'Dev Guest', email: 'guest@turfbook.com', role: 'CUSTOMER', phone: '9876543210' };
+      const currentUserId = devUser.id || 'dev-bypass';
       
       if (method === 'GET') {
         try {
-          const docRef = doc(db, 'users', 'dev-bypass');
+          const docRef = doc(db, 'users', currentUserId);
           const userDoc = await getDoc(docRef);
           if (userDoc.exists()) {
             const data = userDoc.data();
@@ -363,7 +427,7 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
               success: true,
               data: {
                 user: {
-                  id: 'dev-bypass',
+                  id: currentUserId,
                   email: data.email || devUser.email,
                   name: data.name || devUser.name,
                   phone: data.phone || devUser.phone || '',
@@ -378,14 +442,14 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
             } as any;
           }
         } catch (e) {
-          console.warn('⚠️ Firestore profile fetch failed, using local fallback:', e);
+          console.log('ℹ️ Firestore profile fetch fell back to local mock profile.');
         }
 
         return {
           success: true,
           data: {
             user: {
-              id: 'dev-bypass',
+              id: currentUserId,
               email: devUser.email,
               name: devUser.name,
               phone: devUser.phone || '',
@@ -403,7 +467,7 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
       if (method === 'PUT') {
         const { firstName, lastName } = options.body;
         try {
-          await setDoc(doc(db, 'users', 'dev-bypass'), {
+          await setDoc(doc(db, 'users', currentUserId), {
             name: `${firstName} ${lastName}`.trim(),
             updatedAt: new Date()
           }, { merge: true });
@@ -421,31 +485,6 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
         const turfsSnap = await getDocs(collection(db, 'turfs'));
         let list = turfsSnap.docs.map(doc => mapFirestoreTurf(doc.id, doc.data()));
 
-        // Auto-populate / Seed Firestore if collection is empty ( Ahmednagar mock data )
-        if (list.length === 0) {
-          console.log('🌱 Firestore turfs collection is empty. Auto-seeding mock turfs...');
-          const { turfs: localTurfs } = require('../data/turfs');
-          for (const t of localTurfs) {
-            const turfDocRef = doc(db, 'turfs', t.id);
-            const seedData = {
-              name: t.name,
-              description: t.description,
-              location: { address: t.area, city: 'Ahmednagar', latitude: t.latitude || 19.0948, longitude: t.longitude || 74.7480 },
-              pricePerHour: t.price,
-              images: [t.image],
-              rating: t.rating,
-              numReviews: 5,
-              isActive: true,
-              amenities: t.amenities || ['Washroom', 'Parking', 'Flood Lights'],
-              sports: [t.sport],
-              slots: t.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
-              createdAt: new Date(),
-              updatedAt: new Date()
-            };
-            await setDoc(turfDocRef, seedData);
-            list.push(mapFirestoreTurf(t.id, seedData));
-          }
-        }
         return { success: true, data: list } as any;
       } catch (e) {
         console.warn('⚠️ Firestore fetch /turfs failed, falling back to local mock data:', e);
@@ -573,7 +612,7 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
           success: true,
           data: {
             booking: { id: bookingId },
-            razorpayOrderId: `order_mock_${Date.now()}`
+            orderId: `order_mock_${Date.now()}`
           }
         } as any;
       }
@@ -808,6 +847,105 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
           return { success: true, message: 'Turf updated successfully' } as any;
         }
       }
+
+      // --- Employees local Firebase interceptors ---
+      if (cleanPath === '/owner/employees') {
+        const ownerId = useAuthStore.getState().user?.id || 'dev-bypass';
+        if (method === 'POST') {
+          const empId = `EMP-${Date.now()}`;
+          const newEmp = {
+            ownerId,
+            name: options.body.name,
+            phone: options.body.phone,
+            email: options.body.email || '',
+            role: options.body.role || 'Caretaker',
+            turfId: options.body.turfId || '',
+            turfName: options.body.turfName || 'All Turfs',
+            status: options.body.status || 'Active',
+            // NOTE: password is NOT stored locally — only hashed on the backend
+            createdAt: new Date().toISOString(),
+          };
+          try {
+            await setDoc(doc(db, 'employees', empId), newEmp);
+          } catch (e) {
+            console.log('ℹ️ Firestore local employee create fell back to local cache.');
+            try {
+              const cached = await AsyncStorage.getItem(`employees_${ownerId}`);
+              const list = cached ? JSON.parse(cached) : [];
+              list.push({ id: empId, ...newEmp });
+              await AsyncStorage.setItem(`employees_${ownerId}`, JSON.stringify(list));
+            } catch (err) {
+              console.warn('⚠️ AsyncStorage write failed:', err);
+            }
+          }
+          return { success: true, message: 'Employee created', data: { id: empId, ...newEmp } } as any;
+        }
+
+        try {
+          const snap = await getDocs(collection(db, 'employees'));
+          const list: any[] = [];
+          snap.forEach((doc) => {
+            const d = doc.data();
+            if (d.ownerId === ownerId) {
+              list.push({ id: doc.id, ...d });
+            }
+          });
+          return { success: true, data: list } as any;
+        } catch (e) {
+          console.log('ℹ️ Firestore local employees fetch loaded from local cache.');
+          try {
+            const cached = await AsyncStorage.getItem(`employees_${ownerId}`);
+            const list = cached ? JSON.parse(cached) : [];
+            return { success: true, data: list } as any;
+          } catch (err) {
+            return { success: true, data: [] } as any;
+          }
+        }
+      }
+
+      if (cleanPath.startsWith('/owner/employees/')) {
+        const empId = cleanPath.split('/')[3];
+        const ownerId = useAuthStore.getState().user?.id || 'dev-bypass';
+
+        if (method === 'DELETE') {
+          try {
+            await deleteDoc(doc(db, 'employees', empId));
+          } catch (e) {
+            console.log('ℹ️ Firestore local employee delete fell back to local cache.');
+            try {
+              const cached = await AsyncStorage.getItem(`employees_${ownerId}`);
+              if (cached) {
+                const list = JSON.parse(cached).filter((emp: any) => emp.id !== empId);
+                await AsyncStorage.setItem(`employees_${ownerId}`, JSON.stringify(list));
+              }
+            } catch (err) {}
+          }
+          return { success: true, message: 'Employee deleted' } as any;
+        }
+        if (method === 'PUT') {
+          try {
+            await updateDoc(doc(db, 'employees', empId), {
+              ...options.body,
+              updatedAt: new Date(),
+            });
+          } catch (e) {
+            console.log('ℹ️ Firestore local employee update fell back to local cache.');
+            try {
+              const cached = await AsyncStorage.getItem(`employees_${ownerId}`);
+              if (cached) {
+                const list = JSON.parse(cached).map((emp: any) => {
+                  if (emp.id === empId) {
+                    return { ...emp, ...options.body, updatedAt: new Date().toISOString() };
+                  }
+                  return emp;
+                });
+                await AsyncStorage.setItem(`employees_${ownerId}`, JSON.stringify(list));
+              }
+            } catch (err) {}
+          }
+          return { success: true, message: 'Employee updated' } as any;
+        }
+      }
     }
 
     if (cleanPath.startsWith('/admin/')) {
@@ -939,9 +1077,9 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
             success: true,
             data: [
               { id: 'jd9DYegcD95rYQxSjhFy', name: 'Demo Customer', email: 'customer@turfbook.com', phone: '9876543210', role: 'CUSTOMER', status: 'ACTIVE' },
-              { id: 'u1', name: 'Ahmed Shaikh', email: 'ahmed@gmail.com', phone: '9359473030', role: 'CUSTOMER', status: 'ACTIVE' },
-              { id: 'u2', name: 'Rohan Deshmukh', email: 'rohan@gmail.com', phone: '8859473031', role: 'CUSTOMER', status: 'BLOCKED' },
-              { id: 'u3', name: 'Izhar Sayed', email: 'izhar@turfbook.com', phone: '7759473032', role: 'CUSTOMER', status: 'ACTIVE' },
+              { id: 'u1', name: 'Test User Alpha', email: 'alpha@example.test', phone: '9000000001', role: 'CUSTOMER', status: 'ACTIVE' },
+              { id: 'u2', name: 'Test User Beta', email: 'beta@example.test', phone: '9000000002', role: 'CUSTOMER', status: 'BLOCKED' },
+              { id: 'u3', name: 'Test User Gamma', email: 'gamma@example.test', phone: '9000000003', role: 'CUSTOMER', status: 'ACTIVE' },
             ]
           } as any;
         }
@@ -959,7 +1097,7 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
               action: d.action || 'ACTION',
               details: d.details || '',
               timestamp: d.timestamp || (d.createdAt ? new Date(d.createdAt.seconds * 1000).toISOString() : new Date().toISOString()),
-              user: d.user || 'admin@turfbook.com'
+              user: d.user || 'izharsayed12@gmail.com'
             });
           });
           list.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
@@ -969,8 +1107,8 @@ export async function apiFetch<T = any>(path: string, options: ApiOptions = {}):
           return {
             success: true,
             data: [
-              { id: 'l1', action: 'OWNER_APPROVED', details: 'Approved owner request for Zeeshan Khan', timestamp: '2026-07-11 12:14:02', user: 'admin@turfbook.com' },
-              { id: 'l2', action: 'USER_BLOCKED', details: 'Blocked user Rohan Deshmukh (Spam behavior)', timestamp: '2026-07-11 11:45:22', user: 'admin@turfbook.com' },
+              { id: 'l1', action: 'OWNER_APPROVED', details: 'Approved owner request for Zeeshan Khan', timestamp: '2026-07-11 12:14:02', user: 'izharsayed12@gmail.com' },
+              { id: 'l2', action: 'USER_BLOCKED', details: 'Blocked user Rohan Deshmukh (Spam behavior)', timestamp: '2026-07-11 11:45:22', user: 'izharsayed12@gmail.com' },
               { id: 'l3', action: 'TURF_CREATED', details: 'New turf registered: Ahmednagar Sports Arena', timestamp: '2026-07-11 10:30:15', user: 'owner@turfbook.com' },
             ]
           } as any;

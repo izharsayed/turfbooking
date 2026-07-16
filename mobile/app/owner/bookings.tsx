@@ -168,9 +168,9 @@ export default function OwnerBookingsScreen() {
     fetchData();
   }, [selectedTurf, isAuthenticated, user]);
 
-  // Guard: only for TURF_OWNER role
+  // Guard: only for TURF_OWNER & CARETAKER role
   if (!isAuthenticated || !user) return <Redirect href="/login" />;
-  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
+  if (user.role !== 'TURF_OWNER' && user.role !== 'CARETAKER') return <Redirect href="/" />;
 
   const changeDate = (days: number) => {
     const next = new Date(selectedDate);

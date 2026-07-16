@@ -2,6 +2,8 @@ import { Payment } from '../../shared/types/domain.js';
 import { IPaymentRepository } from '../interfaces/IPaymentRepository.js';
 import { prisma } from '../../database/index.js';
 
+// Note: the underlying DB columns retain their legacy `razorpay*` names to avoid
+// a data migration; the domain model exposes gateway-neutral names.
 export class PrismaPaymentRepository implements IPaymentRepository {
   public async findById(id: string): Promise<Payment | null> {
     const p = await prisma.payment.findUnique({ where: { id } });
@@ -21,7 +23,7 @@ export class PrismaPaymentRepository implements IPaymentRepository {
         bookingId: paymentData.bookingId,
         userId: paymentData.userId,
         amount: paymentData.amount,
-        razorpayOrderId: paymentData.razorpayOrderId,
+        razorpayOrderId: paymentData.orderId,
         status: paymentData.status,
       },
     });
@@ -31,11 +33,10 @@ export class PrismaPaymentRepository implements IPaymentRepository {
   public async updateStatus(
     id: string,
     status: Payment['status'],
-    extra?: { razorpayPaymentId?: string; razorpaySignature?: string }
+    extra?: { transactionId?: string }
   ): Promise<Payment> {
     const data: any = { status };
-    if (extra?.razorpayPaymentId) data.razorpayPaymentId = extra.razorpayPaymentId;
-    if (extra?.razorpaySignature) data.razorpaySignature = extra.razorpaySignature;
+    if (extra?.transactionId) data.razorpayPaymentId = extra.transactionId;
 
     const p = await prisma.payment.update({
       where: { id },
@@ -50,9 +51,8 @@ export class PrismaPaymentRepository implements IPaymentRepository {
       bookingId: p.bookingId,
       userId: p.userId,
       amount: p.amount,
-      razorpayOrderId: p.razorpayOrderId,
-      razorpayPaymentId: p.razorpayPaymentId || undefined,
-      razorpaySignature: p.razorpaySignature || undefined,
+      orderId: p.razorpayOrderId,
+      transactionId: p.razorpayPaymentId || undefined,
       status: p.status,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,

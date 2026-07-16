@@ -2,22 +2,10 @@ import { Router } from 'express';
 import { bookingRepository, turfRepository, paymentRepository } from '../../repositories/index.js';
 import { sendResponse } from '../../shared/utils/response.js';
 import { authenticate } from '../../middlewares/auth.js';
-import { NotFoundError } from '../../shared/utils/errors.js';
-import Razorpay from 'razorpay';
-import { env } from '../../config/env.js';
-import crypto from 'crypto';
-import { logger } from '../../config/logger.js';
+import { NotFoundError, ValidationError } from '../../shared/utils/errors.js';
 import { firestoreDb } from '../../config/firebase.js';
 
 const router = Router();
-
-// Initialize Razorpay if credentials exist
-const razorpay = (env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET)
-  ? new (Razorpay as any)({
-      key_id: env.RAZORPAY_KEY_ID,
-      key_secret: env.RAZORPAY_KEY_SECRET,
-    })
-  : null;
 
 /**
  * @openapi
@@ -90,9 +78,21 @@ router.get('/', authenticate as any, async (req: any, res, next) => {
 router.post('/', authenticate as any, async (req: any, res, next) => {
   try {
     const { turfId, slotId, amount, totalAmount, time, date, bookingDate } = req.body;
+    const chargedAmount = totalAmount ?? amount;
+    if (!turfId || !Number.isFinite(chargedAmount) || chargedAmount <= 0) {
+      throw new ValidationError('A turf ID and a positive booking amount are required');
+    }
+    const turf = await turfRepository.findById(turfId);
+    if (!turf || !turf.isActive) {
+      throw new NotFoundError('Turf not found');
+    }
     
     const targetDate = date || bookingDate || new Date().toISOString().split('T')[0];
     const targetSlots = (slotId || time || '17:00 - 18:00').split(',');
+    const basePrice = Number((turf as any).pricePerHour);
+    if (Number.isFinite(basePrice) && basePrice > 0 && chargedAmount < basePrice * targetSlots.length) {
+      throw new ValidationError('Booking amount is below the server-calculated base price');
+    }
 
     // Check existing bookings for this turf to verify slots are not already booked or reserved
     const existingBookings = await bookingRepository.findByTurfId(turfId);
@@ -130,27 +130,29 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
       userId: req.user.id,
       turfId,
       slotId: slotId || time || '17:00 - 18:00',
-      totalAmount: totalAmount || amount,
+      totalAmount: chargedAmount,
       status: 'PENDING',
       bookingDate: date || bookingDate || new Date(),
     });
 
-    // 2. Generate Mock Order ID
-    const razorpayOrderId = `order_mock_${Math.random().toString(36).substring(2, 15)}`;
+    // 2. Generate internal order reference
+    const orderId = `order_${Math.random().toString(36).substring(2, 15)}`;
 
     // 3. Create Payment record in PENDING status
     await paymentRepository.create({
       bookingId: booking.id,
       userId: req.user.id,
-      amount,
-      razorpayOrderId,
+      amount: chargedAmount,
+      orderId,
       status: 'PENDING',
     });
 
     return sendResponse(res, 201, true, 'Booking initiated successfully', {
       booking,
-      razorpayOrderId,
-      amount,
+      orderId,
+      // Legacy alias kept until all clients are updated
+      razorpayOrderId: orderId,
+      amount: chargedAmount,
     });
   } catch (error) {
     return next(error);
@@ -161,7 +163,7 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
  * @openapi
  * /bookings/verify:
  *   post:
- *     summary: Verify payment signature and confirm booking
+ *     summary: Record payment outcome and confirm booking
  *     tags: [Bookings]
  *     security:
  *       - bearerAuth: []
@@ -177,11 +179,9 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
  *             properties:
  *               bookingId:
  *                 type: string
- *               razorpayOrderId:
+ *               transactionId:
  *                 type: string
- *               razorpayPaymentId:
- *                 type: string
- *               razorpaySignature:
+ *               paymentProof:
  *                 type: string
  *               status:
  *                 type: string
@@ -191,10 +191,16 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
  */
 router.post('/verify', authenticate as any, async (req: any, res, next) => {
   try {
-    const { bookingId, razorpayOrderId, razorpayPaymentId, razorpaySignature, status, transactionId, paymentProof } = req.body;
+    const { bookingId, status, paymentProof } = req.body;
+    // Accept the legacy razorpayPaymentId field from older clients as transactionId
+    const transactionId = req.body.transactionId || req.body.razorpayPaymentId;
 
-    const booking = await bookingRepository.findById(bookingId);
+    const booking = (await bookingRepository.findById(bookingId))!;
     if (!booking) {
+      throw new NotFoundError('Booking not found');
+    }
+    if (booking.userId !== req.user.id) {
+      // Do not disclose whether another customer's booking ID exists.
       throw new NotFoundError('Booking not found');
     }
 
@@ -212,11 +218,9 @@ router.post('/verify', authenticate as any, async (req: any, res, next) => {
     if (status === 'PENDING_CONFIRMATION') {
       await bookingRepository.updateStatus(bookingId, 'PENDING_CONFIRMATION');
       await paymentRepository.updateStatus(payment.id, 'PENDING_CONFIRMATION', {
-        razorpayPaymentId: transactionId || 'mock-txn-id',
-        razorpaySignature: 'mock-proof-sig',
+        transactionId: transactionId || 'txn-pending',
       });
-      const docRef = firestoreDb!.collection('bookings').doc(bookingId);
-      await docRef.update({
+      if (firestoreDb) await firestoreDb.collection('bookings').doc(bookingId).update({
         transactionId: transactionId || '',
         paymentProof: paymentProof || '',
         updatedAt: new Date(),
@@ -224,34 +228,10 @@ router.post('/verify', authenticate as any, async (req: any, res, next) => {
       return sendResponse(res, 200, true, 'Verification proof submitted. Pending manager approval.');
     }
 
-    // Verify signature if using real Razorpay
-    if (razorpay && razorpaySignature && !razorpaySignature.startsWith('sig_mock') && !razorpaySignature.startsWith('mock-')) {
-      try {
-        const hmac = crypto.createHmac('sha256', env.RAZORPAY_KEY_SECRET!);
-        hmac.update(razorpayOrderId + '|' + razorpayPaymentId);
-        const generatedSignature = hmac.digest('hex');
-        if (generatedSignature !== razorpaySignature) {
-          await bookingRepository.updateStatus(bookingId, 'CANCELLED');
-          await paymentRepository.updateStatus(payment.id, 'FAILED');
-          return sendResponse(res, 400, false, 'Signature verification failed. Payment invalid.');
-        }
-      } catch (err) {
-        console.error('Signature verification error', err);
-        return sendResponse(res, 500, false, 'Error verifying signature');
-      }
-    }
+    // Customers cannot promote a booking to PAID; an owner or verified
+    // payment webhook must perform that transition server-side.
+    throw new ValidationError('Unsupported payment status');
 
-    // Payment Successful -> Update states to CONFIRMED / PAID
-    await bookingRepository.updateStatus(bookingId, 'CONFIRMED');
-    await paymentRepository.updateStatus(payment.id, 'PAID', {
-      razorpayPaymentId,
-      razorpaySignature: razorpaySignature || 'mock-signature',
-    });
-
-    // Send confirmation notification (simulate by logging)
-    logger.info(`🔔 Booking Confirmed notification sent for Booking ID: ${bookingId}, User: ${req.user.id}, Turf: ${booking.turfId}, Slots: ${booking.slotId}`);
-
-    return sendResponse(res, 200, true, 'Payment verified and booking confirmed successfully');
   } catch (error) {
     return next(error);
   }

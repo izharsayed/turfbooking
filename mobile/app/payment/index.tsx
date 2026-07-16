@@ -127,7 +127,7 @@ export default function PaymentCheckoutScreen() {
   const [upiId, setUpiId] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'gateway_simulation' | 'success' | 'failed'>('idle');
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
-  const [activeRazorpayOrderId, setActiveRazorpayOrderId] = useState<string | null>(null);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -140,7 +140,7 @@ export default function PaymentCheckoutScreen() {
     return () => {
       subscription.remove();
     };
-  }, [paymentStatus, selectedMethod, activeBookingId, activeRazorpayOrderId]);
+  }, [paymentStatus, selectedMethod, activeBookingId, activeOrderId]);
 
   useEffect(() => {
     const handleDeepLink = (event: { url: string }) => {
@@ -288,13 +288,13 @@ export default function PaymentCheckoutScreen() {
 
       if (res.success && res.data) {
         setActiveBookingId(res.data.booking.id);
-        setActiveRazorpayOrderId(res.data.razorpayOrderId);
+        setActiveOrderId(res.data.orderId || res.data.razorpayOrderId);
         
         // Launch deep-link UPI app if UPI is selected (simulated app launch)
         if (selectedMethod === 'upi') {
           const upiAddress = turf.ownerProfile?.businessUpiId || 'turfbook@hdfcbank';
           const merchantName = turf.ownerProfile?.companyName || turf.name || 'TurfBook';
-          const query = `pa=${encodeURIComponent(upiAddress)}&pn=${encodeURIComponent(merchantName)}&tr=${res.data.razorpayOrderId}&am=${amountToPay}&cu=INR&tn=Booking%20for%20${encodeURIComponent(turf.name)}`;
+          const query = `pa=${encodeURIComponent(upiAddress)}&pn=${encodeURIComponent(merchantName)}&tr=${res.data.orderId || res.data.razorpayOrderId}&am=${amountToPay}&cu=INR&tn=Booking%20for%20${encodeURIComponent(turf.name)}`;
           let targetUrl = `upi://pay?${query}`;
           
           if (selectedUpiApp === 'Google Pay') {
@@ -333,20 +333,18 @@ export default function PaymentCheckoutScreen() {
 
   // Step 2A: Verify payment success on backend (confirms booking)
   const confirmPayment = async () => {
-    if (!activeBookingId || !activeRazorpayOrderId) return;
-    
+    if (!activeBookingId || !activeOrderId) return;
+
     setPaymentStatus('processing');
-    const paymentId = 'pay_' + Math.random().toString(36).substring(2, 10);
-    const signature = 'sig_mock_' + Math.random().toString(36).substring(2, 15);
+    const transactionId = 'txn_' + Math.random().toString(36).substring(2, 10);
 
     try {
       const res = await apiFetch('/bookings/verify', {
         method: 'POST',
         body: {
           bookingId: activeBookingId,
-          razorpayOrderId: activeRazorpayOrderId,
-          razorpayPaymentId: paymentId,
-          razorpaySignature: signature,
+          orderId: activeOrderId,
+          transactionId,
           status: 'PAID',
         },
       });
@@ -472,7 +470,7 @@ export default function PaymentCheckoutScreen() {
               </View>
               <View style={styles.simDetailRow}>
                 <Text style={styles.simDetailLabel}>Payment Order ID</Text>
-                <Text style={[styles.simDetailVal, { color: theme.text }]}>{activeRazorpayOrderId}</Text>
+                <Text style={[styles.simDetailVal, { color: theme.text }]}>{activeOrderId}</Text>
               </View>
               <View style={styles.simDetailRow}>
                 <Text style={styles.simDetailLabel}>Selected Method</Text>

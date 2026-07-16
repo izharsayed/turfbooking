@@ -61,8 +61,10 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variable files
-#.env
+# dotenv environment variable files (never commit real secrets)
+.env
+.env.*
+!.env.example
 .env.development.local
 .env.test.local
 .env.production.local

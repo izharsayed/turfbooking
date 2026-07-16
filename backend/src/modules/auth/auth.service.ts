@@ -137,6 +137,42 @@ export class AuthService {
 
     const credentials = await userRepository.findByEmailWithPassword(searchEmail);
     if (!credentials) {
+      // Check if it's an employee/caretaker
+      const { firestoreDb } = await import('../../config/firebase.js');
+      if (firestoreDb) {
+        let empSnap = await firestoreDb.collection('employees').where('email', '==', searchEmail).limit(1).get();
+        if (empSnap.empty && /^[0-9]{10,15}$/.test(searchEmail.split('@')[0] || searchEmail)) {
+          const phoneCandidate = searchEmail.split('@')[0] || searchEmail;
+          empSnap = await firestoreDb.collection('employees').where('phone', '==', phoneCandidate).limit(1).get();
+        }
+
+        if (!empSnap.empty) {
+          const empDoc = empSnap.docs[0];
+          const empData = empDoc.data();
+          if (empData.status !== 'Active') {
+            throw new AuthenticationError('Account is inactive. Please contact the owner.');
+          }
+          const isMatch = await bcrypt.compare(pass, empData.passwordHash || '');
+          if (!isMatch) {
+            await sessionManager.trackFailedLoginAttempt(searchEmail);
+            throw new AuthenticationError('Invalid email or password');
+          }
+          await sessionManager.resetFailedAttempts(searchEmail);
+
+          const employeeUser = {
+            id: empDoc.id,
+            email: empData.email || `${empData.phone}@turfbook.com`,
+            name: empData.name || 'Caretaker',
+            phone: empData.phone || '',
+            role: 'CARETAKER',
+            isActive: true,
+            createdAt: empData.createdAt?.toDate() || new Date(),
+            updatedAt: new Date(),
+          };
+          return this.createSession(employeeUser as any, deviceMetadata);
+        }
+      }
+
       await sessionManager.trackFailedLoginAttempt(searchEmail);
       throw new AuthenticationError('Invalid email or password');
     }
@@ -176,7 +212,7 @@ export class AuthService {
     await sessionManager.storeOTP(phone, code);
     
     // Simulate SMS sending (log to logger)
-    logger.info(`💬 SMS OTP Sent to ${phone}: [ ${code} ] (expires in 5 minutes)`);
+    logger.info('💬 SMS OTP dispatched (expires in 5 minutes).');
 
     return { message: 'OTP sent successfully to registered phone number' };
   }
@@ -208,7 +244,8 @@ export class AuthService {
         name = decoded.name || '';
         phone = decoded.phone_number || '';
       } catch (err: any) {
-        throw new ValidationError(`Firebase signature verification failed: ${err.message}`);
+        logger.error('❌ Firebase ID token verification failed:', err.message);
+        throw new ValidationError('Google authentication failed. Please try again.');
       }
     } else {
       // In-development mock fallback for testing without firebase credentials configured
@@ -392,8 +429,9 @@ export class AuthService {
   }
 
   private async sendVerificationEmail(email: string, token: string) {
-    const url = `http://localhost:5000/api/v1/auth/verify?token=${token}`;
-    logger.info(`📧 Send Email: Verification email dispatched to ${email}. Link: ${url}`);
+    const baseUrl = process.env.API_BASE_URL || 'http://localhost:5000';
+    const url = `${baseUrl}/api/v1/auth/verify?token=${token}`;
+    logger.info('📧 Verification email dispatched.');
     
     // Attempt SMTP send
     try {
@@ -409,8 +447,9 @@ export class AuthService {
   }
 
   private async sendResetEmail(email: string, token: string) {
-    const url = `http://localhost:5000/api/v1/auth/reset-password?token=${token}`;
-    logger.info(`📧 Send Email: Password reset email dispatched to ${email}. Link: ${url}`);
+    const baseUrl = process.env.API_BASE_URL || 'http://localhost:5000';
+    const url = `${baseUrl}/api/v1/auth/reset-password?token=${token}`;
+    logger.info('📧 Password reset email dispatched.');
 
     try {
       await mailTransporter.sendMail({

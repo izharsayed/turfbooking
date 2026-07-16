@@ -75,8 +75,6 @@ export default function OwnerProfileScreen() {
   const [formBusiness, setFormBusiness] = useState('');
 
   // Configuration settings states
-  const [razorpayKeyId, setRazorpayKeyId] = useState('');
-  const [razorpayKeySecret, setRazorpayKeySecret] = useState('');
   const [businessUpiId, setBusinessUpiId] = useState('');
   const [advancePaymentPercent, setAdvancePaymentPercent] = useState('30');
   const [convenienceFee, setConvenienceFee] = useState('45');
@@ -132,8 +130,6 @@ export default function OwnerProfileScreen() {
         totalBookings = op.totalBookings ?? 0;
 
         // Populate settings states
-        setRazorpayKeyId(op.razorpayKeyId || '');
-        setRazorpayKeySecret(op.razorpayKeySecret || '');
         setBusinessUpiId(op.businessUpiId || '');
         setAdvancePaymentPercent(String(op.advancePaymentPercent ?? 30));
         setConvenienceFee(String(op.convenienceFee ?? 45));
@@ -200,9 +196,9 @@ export default function OwnerProfileScreen() {
     fetchProfileData();
   }, [isAuthenticated, user]);
 
-  // Guard: only for TURF_OWNER role
+  // Guard: only for TURF_OWNER & CARETAKER role
   if (!isAuthenticated || !user) return <Redirect href="/login" />;
-  if (user.role !== 'TURF_OWNER') return <Redirect href="/" />;
+  if (user.role !== 'TURF_OWNER' && user.role !== 'CARETAKER') return <Redirect href="/" />;
 
   const handleSave = async () => {
     if (!formName.trim()) {
@@ -238,8 +234,6 @@ export default function OwnerProfileScreen() {
       await apiFetch('/owner/profile', {
         method: 'PUT',
         body: {
-          razorpayKeyId,
-          razorpayKeySecret,
           businessUpiId,
           convenienceFee: Number(convenienceFee),
           taxRate: Number(taxRate),
@@ -668,25 +662,6 @@ export default function OwnerProfileScreen() {
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 40, alignItems: 'center' }}>
             <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
               <Text style={[styles.modalTitle, { color: theme.text }]}>Payout Details</Text>
-              
-              <Text style={[styles.inputLabel, { color: theme.textMuted }]}>RAZORPAY KEY ID</Text>
-              <TextInput
-                value={razorpayKeyId}
-                onChangeText={setRazorpayKeyId}
-                placeholder="rzp_test_..."
-                placeholderTextColor={theme.textMuted}
-                style={[styles.modalInput, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
-              />
-
-              <Text style={[styles.inputLabel, { color: theme.textMuted }]}>RAZORPAY KEY SECRET</Text>
-              <TextInput
-                value={razorpayKeySecret}
-                onChangeText={setRazorpayKeySecret}
-                placeholder="••••••••••••••••"
-                placeholderTextColor={theme.textMuted}
-                secureTextEntry
-                style={[styles.modalInput, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder, color: theme.text }]}
-              />
 
               <Text style={[styles.inputLabel, { color: theme.textMuted }]}>BUSINESS UPI ID (DIRECT SETTLEMENT)</Text>
               <TextInput

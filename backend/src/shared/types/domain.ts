@@ -1,4 +1,4 @@
-export type UserRole = 'SUPER_ADMIN' | 'TURF_OWNER' | 'CUSTOMER';
+export type UserRole = 'SUPER_ADMIN' | 'TURF_OWNER' | 'CUSTOMER' | 'CARETAKER';
 
 export interface User {
   id: string;
@@ -45,6 +45,7 @@ export interface Turf {
 
 export type BookingStatus =
   | 'PENDING'
+  | 'PENDING_CONFIRMATION'
   | 'CONFIRMED'
   | 'COMPLETED'
   | 'CANCELLED'
@@ -64,16 +65,15 @@ export interface Booking {
   updatedAt: Date;
 }
 
-export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
+export type PaymentStatus = 'PENDING' | 'PENDING_CONFIRMATION' | 'PAID' | 'FAILED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
 
 export interface Payment {
   id: string;
   bookingId: string;
   userId: string;
   amount: number;
-  razorpayOrderId?: string;
-  razorpayPaymentId?: string;
-  razorpaySignature?: string;
+  orderId?: string;
+  transactionId?: string;
   status: PaymentStatus;
   createdAt: Date;
   updatedAt: Date;
