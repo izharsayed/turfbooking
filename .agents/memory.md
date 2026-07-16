@@ -1873,3 +1873,24 @@ pnpm dev:backend      # start the server
 - Hooked up `toggleMapType` to toggle standard, satellite, and hybrid map types when the layers icon is pressed.
 - Hooked up `handleZoomToPin` to center and zoom in on the marker pin location when the scan/target icon is pressed.
 - **Why**: Responds to user request to make the layers and scan/target buttons functional.
+
+### 219. `mobile/app/owner/turfs.tsx` — Modified
+- Increased `premiumModalSheet` height from `92%` to `97%` and reduced vertical paddings.
+- Reduced margin and padding on header, search bar, details card, and badge row to maximize space.
+- Configured a `minHeight: 350` for `premiumMapWrapper` to force the map layout to be bigger and take up the majority of the modal sheet.
+- **Why**: Responds to user request to make the map layout larger.
+
+### 220. `mobile/app/owner/turfs.tsx` — Modified
+- Reduced `minHeight` on `premiumMapWrapper` from `350` to `220`.
+- This enables the map to flex-shrink automatically on smaller screens to guarantee that the bottom "Confirm Location" button is never pushed off the viewport.
+- **Why**: Resolves the bug where the "Confirm Location" button was cut off and not visible.
+
+### 221. `mobile/app/owner/turfs.tsx` — Modified
+- Incorporated `item.streetNumber` into the geocoded address builder to fetch precise plot/door numbers.
+- De-duplicated `item.name` against `item.street` to prevent repeating redundant street names in the resolved address.
+- **Why**: Responds to user request to improve reverse-geocoding address accuracy on map pin movements.
+
+### 222. `mobile/app/owner/turfs.tsx` — Modified
+- Switched the map coordinate selector input method to utilize map dragging (`onRegionChangeComplete`) instead of dragging the marker pin manually. The marker is now locked to the center coordinates of the map view.
+- Added a `useEffect` on modal open to automatically request location permissions and center the map on the user's current GPS coordinates (for new turfs) or load and center on the existing turf location coordinates (for edit mode).
+- **Why**: Responds to user request to fix coordinate geocoding inaccuracies. Dragging the map now automatically triggers reverse geocoding on the map center, and centers precisely on startup.

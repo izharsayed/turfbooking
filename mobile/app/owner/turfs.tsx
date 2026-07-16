@@ -95,14 +95,22 @@ export default function OwnerTurfsScreen() {
       const result = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (result && result.length > 0) {
         const item = result[0];
+        
+        // Construct the street and number accurately
+        const streetDetails = [item.streetNumber, item.street].filter(Boolean).join(' ');
+        
+        // De-duplicate name if it matches street
+        const nameDetails = (item.name && item.name !== item.street) ? item.name : null;
+
         const parts = [
-          item.name,
-          item.street,
+          nameDetails,
+          streetDetails,
           item.district || item.subregion,
           item.city,
           item.region,
           item.postalCode
         ].filter(Boolean);
+        
         setMapAddress(parts.join(', '));
       } else {
         setMapAddress('Unknown location address');
@@ -118,6 +126,29 @@ export default function OwnerTurfsScreen() {
       reverseGeocode(formLat, formLng);
     }
   }, [formLat, formLng, mapModalVisible]);
+
+  useEffect(() => {
+    if (mapModalVisible) {
+      const loc = editingTurf?.location;
+      if (loc && loc.latitude && loc.longitude) {
+        const lat = loc.latitude;
+        const lng = loc.longitude;
+        setFormLat(lat);
+        setFormLng(lng);
+        reverseGeocode(lat, lng);
+        setTimeout(() => {
+          mapRef.current?.animateToRegion({
+            latitude: lat,
+            longitude: lng,
+            latitudeDelta: 0.015,
+            longitudeDelta: 0.015,
+          }, 500);
+        }, 300);
+      } else {
+        handleLocateUser();
+      }
+    }
+  }, [mapModalVisible]);
 
   const handleSearch = () => {
     const queryStr = searchQuery.trim().toLowerCase();
@@ -729,6 +760,12 @@ export default function OwnerTurfsScreen() {
                   latitudeDelta: 0.015,
                   longitudeDelta: 0.015,
                 }}
+                onRegionChangeComplete={(region: any) => {
+                  if (region?.latitude && region?.longitude) {
+                    setFormLat(region.latitude);
+                    setFormLng(region.longitude);
+                  }
+                }}
                 onPress={(e: any) => {
                   if (e?.nativeEvent?.coordinate) {
                     setFormLat(e.nativeEvent.coordinate.latitude);
@@ -739,14 +776,6 @@ export default function OwnerTurfsScreen() {
                 <Marker
                   coordinate={{ latitude: formLat, longitude: formLng }}
                   title="Turf Location"
-                  description="Tap elsewhere to move"
-                  draggable
-                  onDragEnd={(e: any) => {
-                    if (e?.nativeEvent?.coordinate) {
-                      setFormLat(e.nativeEvent.coordinate.latitude);
-                      setFormLng(e.nativeEvent.coordinate.longitude);
-                    }
-                  }}
                 />
               </CustomMap>
 
@@ -977,19 +1006,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   premiumModalSheet: {
-    height: '92%',
+    height: '98%',
     backgroundColor: '#030712',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
   premiumHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   closeBtn: {
     width: 40,
@@ -1037,7 +1066,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 16,
     height: 52,
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#1e293b',
   },
@@ -1055,7 +1084,8 @@ const styles = StyleSheet.create({
   },
   premiumMapWrapper: {
     flex: 1,
-    borderRadius: 24,
+    minHeight: 220,
+    borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#1e293b',
@@ -1118,7 +1148,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
     borderRadius: 20,
     padding: 16,
-    marginTop: 16,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: '#1e293b',
   },
@@ -1162,8 +1192,8 @@ const styles = StyleSheet.create({
   badgesRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 16,
-    marginBottom: 20,
+    marginTop: 12,
+    marginBottom: 12,
   },
   badgeCard: {
     flex: 1,
