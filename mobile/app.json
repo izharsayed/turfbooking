@@ -36,6 +36,12 @@
       ],
       "expo-web-browser"
     ],
-    "scheme": "turfbook"
+    "scheme": "turfbook",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1297cb6f-3849-47d9-bcf3-48cf152f1b43"
+      }
+    }
   }
 }
