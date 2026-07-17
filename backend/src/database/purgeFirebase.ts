@@ -14,9 +14,9 @@ if (!firebaseApp || !firestoreDb || !firebaseAuth || !expectedProject) {
 }
 
 const deleteFirestore = async (): Promise<void> => {
-  const collections = await firestoreDb.listCollections();
+  const collections = await firestoreDb!.listCollections();
   for (const collection of collections) {
-    await firestoreDb.recursiveDelete(collection);
+    await firestoreDb!.recursiveDelete(collection);
     console.log(`Deleted Firestore collection: ${collection.id}`);
   }
 };
@@ -25,9 +25,9 @@ const deleteAuthUsers = async (): Promise<void> => {
   let pageToken: string | undefined;
   let deletedUsers = 0;
   do {
-    const page = await firebaseAuth.listUsers(1000, pageToken);
+    const page = await firebaseAuth!.listUsers(1000, pageToken);
     if (page.users.length) {
-      await firebaseAuth.deleteUsers(page.users.map((user) => user.uid));
+      await firebaseAuth!.deleteUsers(page.users.map((user) => user.uid));
       deletedUsers += page.users.length;
       console.log(`Deleted ${page.users.length} Firebase Auth users`);
     }
@@ -37,7 +37,7 @@ const deleteAuthUsers = async (): Promise<void> => {
 };
 
 const deleteStorageObjects = async (): Promise<void> => {
-  const storage = firebaseApp.storage();
+  const storage = firebaseApp!.storage();
   const bucketNames = new Set([
     process.env.FIREBASE_STORAGE_BUCKET,
     `${expectedProject}.appspot.com`,

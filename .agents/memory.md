@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-17 15:22 IST
+> Last updated: 2026-07-17 16:10 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1991,3 +1991,8 @@ pnpm dev:backend      # start the server
 - Final grep verification: zero mock/dummy/fake/sandbox/console.log references remaining in entire codebase.
 - **Expo export verification**: Android bundle compiled successfully (3.86 MB) with zero errors.
 - **Why**: Remove orphaned directories and verify the project compiles cleanly.
+
+### 268. Backend Build Fixes for Deployment — Modified
+- `backend/tsconfig.json` — Removed unused `baseUrl` and path mappings (`paths` with `@/*`) configuration.
+- `backend/src/database/purgeFirebase.ts` — Added non-null assertion operators (`!`) to `firestoreDb`, `firebaseAuth`, and `firebaseApp` to resolve TS type narrowing compiler errors during build.
+- **Why**: Fixes typescript build errors (TS5102, TS5090, and TS18047) encountered during production deployment builds (e.g. on Render) so that `npm run build` succeeds cleanly.
