@@ -219,11 +219,19 @@ export class OwnerService {
 
   // --- Reports & Exports ---
   public async exportReport(ownerId: string, reportType: string, format: 'csv' | 'pdf') {
-    const mockData = `id,date,turf,revenue\n1,2026-07-04,Pitch A,1200\n2,2026-07-04,Court B,800`;
+    const bookings = await ownerRepository.listBookings(ownerId);
+    let reportData = 'id,date,turf,timeSlot,amount,status,customerName,customerEmail,customerPhone\n';
+    
+    reportData += bookings.map(b => {
+      const bDate = b.date || (b.bookingDate ? new Date(b.bookingDate).toISOString().split('T')[0] : '');
+      const bTime = b.time || b.timeSlot || '';
+      return `"${b.id}","${bDate}","${b.turfName || 'Arena Turf'}","${bTime}",${b.amount || b.totalAmount || 0},"${b.status || ''}","${b.customerName || ''}","${b.customerEmail || ''}","${b.customerPhone || ''}"`;
+    }).join('\n');
+
     return {
       filename: `${reportType}_report_${Date.now()}.${format}`,
       contentType: format === 'csv' ? 'text/csv' : 'application/pdf',
-      data: Buffer.from(mockData, 'utf-8'),
+      data: Buffer.from(reportData, 'utf-8'),
     };
   }
 
@@ -231,6 +239,7 @@ export class OwnerService {
   public async getEmployees(ownerId: string) {
     return ownerRepository.listEmployees(ownerId);
   }
+
   public async createEmployee(ownerId: string, data: any) {
     let passwordHash = undefined;
     if (data.password) {
@@ -238,6 +247,7 @@ export class OwnerService {
     }
     return ownerRepository.createEmployee(ownerId, { ...data, passwordHash });
   }
+
   public async updateEmployee(ownerId: string, employeeId: string, data: any) {
     const employee = (await ownerRepository.listEmployees(ownerId)).find((item: any) => item.id === employeeId);
     if (!employee) throw new NotFoundError('Employee not found');
@@ -248,6 +258,7 @@ export class OwnerService {
     }
     return ownerRepository.updateEmployee(employeeId, updateData);
   }
+
   public async deleteEmployee(ownerId: string, employeeId: string) {
     const employee = (await ownerRepository.listEmployees(ownerId)).find((item: any) => item.id === employeeId);
     if (!employee) throw new NotFoundError('Employee not found');

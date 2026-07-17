@@ -17,7 +17,6 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-ico
 import { Modal } from 'react-native';
 import { useBookingStore, type Booking } from '../../store/bookingStore';
 import { useThemeStore } from '../../store/themeStore';
-import { getTurfById } from '../../data/turfs';
 import { formatCurrency, getBookingStatus } from '../../utils';
 import { apiFetch } from '../../utils/api';
 
@@ -76,7 +75,6 @@ export default function BookingDetailScreen() {
           });
         }
       } catch (err) {
-        console.log('Failed to fetch booking details from backend, using store fallback', err);
       } finally {
         setLoadingBooking(false);
       }
@@ -101,7 +99,6 @@ export default function BookingDetailScreen() {
         setTurfBookings(res.data);
       }
     } catch (err) {
-      console.log('Failed to fetch turf bookings for reschedule', err);
     } finally {
       setLoadingSlots(false);
     }
@@ -197,7 +194,7 @@ export default function BookingDetailScreen() {
     );
   }
 
-  const turf = getBookingById(id) ? getTurfById(booking.turfId) : undefined;
+  const turfSport = (booking as any).sport || 'Sports';
 
   const handleCancel = () => {
     setCancelReason('Change of plans');
@@ -383,7 +380,7 @@ export default function BookingDetailScreen() {
               <View style={styles.gridCol}>
                 <Text style={styles.ticketLabel}>SPORT</Text>
                 <Text style={[styles.gridValue, { color: theme.text }]}>
-                  {turf ? turf.sport : 'Sports'}
+                  {turfSport}
                 </Text>
               </View>
               <View style={styles.gridCol}>

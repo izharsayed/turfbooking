@@ -185,11 +185,34 @@ export class AdminService {
 
   // --- Reports & Exports ---
   public async exportReport(reportType: string, format: 'csv' | 'pdf') {
-    const mockData = `id,name,value\n1,Record A,100\n2,Record B,200`;
+    let reportData = '';
+    
+    if (reportType === 'users') {
+      const users = await adminRepository.listUsers({});
+      reportData = 'id,name,email,phone,role,isActive\n' + 
+        users.map(u => `"${u.id}","${u.name || ''}","${u.email || ''}","${u.phone || ''}","${u.role || ''}",${u.isActive}`).join('\n');
+    } else if (reportType === 'owners') {
+      const owners = await adminRepository.listOwners();
+      reportData = 'id,name,email,companyName,status\n' + 
+        owners.map(o => `"${o.id}","${o.name || ''}","${o.email || ''}","${o.companyName || ''}","${o.status || ''}"`).join('\n');
+    } else { // default to bookings / revenue
+      reportData = 'id,turfName,userId,date,timeSlot,amount,status\n';
+      const { firestoreDb } = await import('../../config/firebase.js');
+      if (firestoreDb) {
+        const snap = await firestoreDb.collection('bookings').get();
+        const bookings: any[] = [];
+        snap.forEach(doc => {
+          const d = doc.data();
+          bookings.push({ id: doc.id, ...d });
+        });
+        reportData += bookings.map(b => `"${b.id}","${b.turfName || 'Arena Turf'}","${b.userId || ''}","${b.date || ''}","${b.time || b.timeSlot || ''}",${b.amount || b.totalAmount || 0},"${b.status || ''}"`).join('\n');
+      }
+    }
+
     return {
       filename: `${reportType}_report_${Date.now()}.${format}`,
       contentType: format === 'csv' ? 'text/csv' : 'application/pdf',
-      data: Buffer.from(mockData, 'utf-8'),
+      data: Buffer.from(reportData, 'utf-8'),
     };
   }
 }

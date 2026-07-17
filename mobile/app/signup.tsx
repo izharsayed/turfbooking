@@ -194,34 +194,21 @@ export default function SignupScreen() {
 
   const handleGoogleSignUp = async () => {
     const isExpoGo = Constants.appOwnership === 'expo';
-    if (isExpoGo) {
-      Alert.alert(
-        'Google Sign-Up Simulation',
-        'You are running in Expo Go. Native Google Sign-In requires a custom build.\n\nWould you like to simulate registration with a mock account?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Proceed (Simulate)',
-            onPress: () => {
-              login(
-                {
-                  id: 'dev-google-customer',
-                  email: 'google.mock@turfbook.com',
-                  name: 'Google Mock User',
-                  phone: '+919999988888',
-                  role: 'CUSTOMER',
-                },
-                'dev-token-bypass'
-              );
-              router.replace('/');
-            },
-          },
-        ]
-      );
+    const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+    const firebaseApiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+    const configured = webClientId && webClientId !== 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com' && firebaseApiKey && firebaseApiKey !== 'YOUR_FIREBASE_WEB_API_KEY';
+
+    if (isExpoGo || !configured) {
+      let alertMessage = 'You are currently running the app in ';
+      if (isExpoGo) {
+        alertMessage += 'Expo Go. Native Google Sign-Up requires a custom Development Client build.';
+      } else {
+        alertMessage += 'a native build, but the Google Web Client ID or Firebase API Key is not configured in the application environment.';
+      }
+      Alert.alert('Google Sign-Up Unconfigured', alertMessage);
       return;
     }
 
-    // Real Google Sign-In would go here (same as login.tsx handleGoogleSignIn)
     try {
       const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
       await GoogleSignin.hasPlayServices();
@@ -229,7 +216,6 @@ export default function SignupScreen() {
       const googleIdToken = userInfo.data?.idToken || (userInfo as any).idToken;
       if (!googleIdToken) throw new Error('No ID Token returned.');
 
-      const firebaseApiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
       const exchangeRes = await fetch(
         `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${firebaseApiKey}`,
         {
@@ -260,7 +246,8 @@ export default function SignupScreen() {
             phone: res.data.user.phone,
             role: res.data.user.role,
           },
-          res.data.accessToken
+          res.data.accessToken,
+          res.data.refreshToken
         );
         router.replace('/');
       }

@@ -14,7 +14,25 @@ import { formatCurrency } from '../../utils/index';
 import { useAuthStore } from '../../store/authStore';
 import { useBookingStore } from '../../store/bookingStore';
 import { useThemeStore } from '../../store/themeStore';
-import { getTurfById, type Turf } from '../../data/turfs';
+export interface Turf {
+  id: string;
+  name: string;
+  sport: string;
+  price: number;
+  rating: number;
+  area: string;
+  image: string;
+  latitude: number;
+  longitude: number;
+  description: string;
+  amenities: string[];
+  slots: string[];
+  peakStartHour?: number;
+  peakEndHour?: number;
+  peakSurcharge?: number;
+  weekendSurcharge?: number;
+  blockedSlots?: string[];
+}
 import { apiFetch } from '../../utils/api';
 
 export default function TurfDetailScreen() {
@@ -34,20 +52,20 @@ export default function TurfDetailScreen() {
     overlayBg: isDarkMode ? 'rgba(3, 7, 18, 0.5)' : 'rgba(248, 250, 252, 0.6)',
   };
   const addBooking = useBookingStore((s) => s.addBooking);
-  const [turf, setTurf] = useState<Turf | undefined>(getTurfById(id));
+  const [turf, setTurf] = useState<Turf | undefined>(undefined);
   const [loadingTurf, setLoadingTurf] = useState(false);
   const [bookedReservations, setBookedReservations] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchReservations = async () => {
-      if (!id || /^\d+$/.test(id) || id.length <= 2) return;
+      if (!id) return;
       try {
         const res = await apiFetch(`/turfs/${id}/bookings`);
         if (res.success && Array.isArray(res.data)) {
           setBookedReservations(res.data);
         }
       } catch (err) {
-        console.log('Failed to fetch reservations for turf', err);
+
       }
     };
     fetchReservations();
@@ -139,17 +157,6 @@ export default function TurfDetailScreen() {
     const fetchTurfDetails = async () => {
       if (!id) return;
       
-      // If it's a mock ID (e.g. '1', '2', '3'), bypass API completely to avoid 404 errors
-      const isMockId = /^\d+$/.test(id) || id.length <= 2;
-      if (isMockId) {
-        const mockTurf = getTurfById(id);
-        if (mockTurf) {
-          setTurf(mockTurf);
-          setSelectedSport(mockTurf.sport === 'Football' ? 'Football' : 'Cricket');
-        }
-        return;
-      }
-
       setLoadingTurf(true);
       try {
         const res = await apiFetch(`/turfs/${id}`);
@@ -193,7 +200,7 @@ export default function TurfDetailScreen() {
           setSelectedSport(normalized.sport === 'Football' ? 'Football' : 'Cricket');
         }
       } catch (err) {
-        console.log('Failed to fetch turf details from backend, using mock fallback', err);
+        // Handled silently, UI handles loading/empty state
       } finally {
         setLoadingTurf(false);
       }

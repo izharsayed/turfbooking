@@ -149,7 +149,6 @@ export default function OwnerBookingsScreen() {
         setBookings([]);
       }
     } catch (err) {
-      console.log('Error fetching owner schedule data', err);
       setTurfs([]);
       setBookings([]);
     } finally {
@@ -386,7 +385,6 @@ export default function OwnerBookingsScreen() {
         Alert.alert('Error', 'Failed to update slot settings.');
       }
     } catch (err) {
-      console.log('Error updating blocked slot:', err);
       Alert.alert('Error', 'An error occurred while updating slot settings.');
     } finally {
       setLoading(false);
@@ -435,7 +433,6 @@ export default function OwnerBookingsScreen() {
         Alert.alert('Error', 'Failed to save settings.');
       }
     } catch (err) {
-      console.log('Error saving slot settings:', err);
       Alert.alert('Error', 'An error occurred while saving settings.');
     } finally {
       setSavingSettings(false);

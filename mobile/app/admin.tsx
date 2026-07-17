@@ -172,7 +172,7 @@ export default function AdminScreen() {
         }
       }
     } catch (err) {
-      console.warn('Admin API error, loaded fallback layout', err);
+
     } finally {
       setLoading(false);
       setRefreshing(false);

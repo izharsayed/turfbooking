@@ -118,7 +118,6 @@ export default function OwnerPaymentsScreen() {
       setPendingClearances(calculatedPending);
       setTransactions(mappedTxns);
     } catch (err) {
-      console.warn('Failed to load database payment stats:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);

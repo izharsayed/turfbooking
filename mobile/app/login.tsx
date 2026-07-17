@@ -57,7 +57,6 @@ export default function LoginScreen() {
       try {
         router.replace(path as any);
       } catch (err) {
-        console.warn('Redirect failed, retrying...', err);
         setTimeout(() => router.replace(path as any), 300);
       }
     }, 100);
@@ -89,10 +88,8 @@ export default function LoginScreen() {
             });
           })
           .catch((err) => {
-            console.error('Failed to configure Google Sign-In dynamically:', err);
           });
       } else {
-        console.warn('⚠️ Google Web Client ID is not configured in .env file.');
       }
     }
   }, []);
@@ -102,39 +99,13 @@ export default function LoginScreen() {
     const configured = isGoogleConfigured();
 
     if (isExpoGo || !configured) {
-      // Prompt user with simulation/bypass details
       let alertMessage = 'You are currently running the app in ';
       if (isExpoGo) {
         alertMessage += 'Expo Go. Native Google Sign-In requires a custom Development Client build.';
       } else {
-        alertMessage += 'a native build, but the Google Web Client ID or Firebase API Key is not configured in your .env file.';
+        alertMessage += 'a native build, but the Google Web Client ID or Firebase API Key is not configured in the application environment.';
       }
-      alertMessage += '\n\nWould you like to simulate Google authentication with a mock developer account?';
-
-      Alert.alert(
-        'Google Sign-In Simulation',
-        alertMessage,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Proceed (Simulate)',
-            onPress: () => {
-              // Direct local bypass for simulation to avoid backend verification failures
-              login(
-                {
-                  id: 'dev-google-customer',
-                  email: 'google.mock@turfbook.com',
-                  name: 'Google Mock User',
-                  phone: '+919999988888',
-                  role: 'CUSTOMER',
-                },
-                'dev-token-bypass'
-              );
-              safeRedirect('/');
-            },
-          },
-        ]
-      );
+      Alert.alert('Google Sign-In Unconfigured', alertMessage);
       return;
     }
 
@@ -190,7 +161,8 @@ export default function LoginScreen() {
             phone: res.data.user.phone,
             role: res.data.user.role,
           },
-          res.data.accessToken
+          res.data.accessToken,
+          res.data.refreshToken
         );
         safeRedirect(res.data.user.role === 'SUPER_ADMIN' ? '/admin' : ((res.data.user.role === 'TURF_OWNER' || res.data.user.role === 'CARETAKER') ? '/owner' : '/'));
       } else {
@@ -200,14 +172,13 @@ export default function LoginScreen() {
     } catch (error: any) {
       const { statusCodes } = await import('@react-native-google-signin/google-signin');
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        console.log('Google Sign-in cancelled by user');
+        // Handled silently
       } else if (error.code === statusCodes.IN_PROGRESS) {
-        console.log('Google Sign-in already in progress');
+        // Handled silently
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         Alert.alert('Google Services Error', 'Google Play Services are not available or out of date.');
       } else {
         Alert.alert('Google Authentication Failed', error.message || 'An unknown error occurred during sign-in.');
-        console.error(error);
       }
     }
   };
@@ -241,7 +212,8 @@ export default function LoginScreen() {
             phone: res.data.user.phone,
             role: res.data.user.role,
           },
-          res.data.accessToken
+          res.data.accessToken,
+          res.data.refreshToken
         );
         safeRedirect(res.data.user.role === 'SUPER_ADMIN' ? '/admin' : ((res.data.user.role === 'TURF_OWNER' || res.data.user.role === 'CARETAKER') ? '/owner' : '/'));
       } else {

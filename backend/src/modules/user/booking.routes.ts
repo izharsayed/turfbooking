@@ -2,8 +2,74 @@ import { Router } from 'express';
 import { bookingRepository, turfRepository, paymentRepository } from '../../repositories/index.js';
 import { sendResponse } from '../../shared/utils/response.js';
 import { authenticate } from '../../middlewares/auth.js';
-import { NotFoundError, ValidationError } from '../../shared/utils/errors.js';
 import { firestoreDb } from '../../config/firebase.js';
+import crypto from 'crypto';
+import { NotFoundError, ValidationError } from '../../shared/utils/errors.js';
+
+const router = Router();
+
+/**
+ * @openapi
+ * /bookings:
+ *   get:
+ *     summary: Retrieve booking history for authenticated customer
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Bookings retrieved successfully
+ */
+router.get('/', authenticate as any, async (req: any, res, next) => {
+  try {
+    const rawBookings = await bookingRepository.findByUserId(req.user.id);
+    
+    // Enrich bookings with Turf details
+    const bookings = await Promise.all(
+      rawBookings.map(async (b) => {
+        const turf = await turfRepository.findById(b.turfId);
+        return {
+          id: b.id,
+          turfId: b.turfId,
+          turfName: turf?.name || 'Unknown Turf',
+          area: turf?.location?.address || 'Ahmednagar',
+          amount: b.totalAmount,
+          status: b.status === 'CONFIRMED' ? 'active' : b.status === 'COMPLETED' ? 'completed' : 'cancelled',
+          date: b.bookingDate ? new Date(b.bookingDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          time: (b as any).timeSlot || b.slotId || '17:00 - 18:00',
+          timestamp: b.createdAt ? new Date(b.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
+        };
+      })
+    );
+
+    return sendResponse(res, 200, true, 'User bookings retrieved successfully', bookings);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * @openapi
+ * /bookings:
+ *   post:
+ *     summary: Create a new customer booking
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - turfId
+ *               - amount
+ *             properties:
+ *               turfId:
+ *                 type: string
+ *               slotId:
+ *                 type: string
 
 const router = Router();
 
@@ -106,10 +172,10 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
       const hasOverlap = targetSlots.some((slot: string) => bookedSlots.includes(slot));
       if (!hasOverlap) return false;
 
-      // If already confirmed or pending manager confirmation, it's a conflict
+      // If confirmed or pending manager confirmation, it's a conflict
       if (b.status === 'CONFIRMED' || b.status === 'PENDING_CONFIRMATION') return true;
 
-      // If pending and created less than 5 minutes ago, it's a conflict (temporary reservation active)
+      // If pending and created less than 5 minutes ago, it's a conflict
       if (b.status === 'PENDING') {
         const createdAtTime = new Date(b.createdAt).getTime();
         const ageMs = now - createdAtTime;
@@ -117,7 +183,6 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
           return true;
         }
       }
-
       return false;
     });
 
@@ -125,7 +190,7 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
       return sendResponse(res, 400, false, 'One or more of the selected slots are already booked or temporarily reserved by another user. Please choose other slots.');
     }
 
-    // 1. Create booking in PENDING status (requires payment verification)
+    // 1. Create booking in PENDING status
     const booking = await bookingRepository.create({
       userId: req.user.id,
       turfId,
@@ -136,7 +201,7 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
     });
 
     // 2. Generate internal order reference
-    const orderId = `order_${Math.random().toString(36).substring(2, 15)}`;
+    const orderId = `order_${crypto.randomUUID()}`;
 
     // 3. Create Payment record in PENDING status
     await paymentRepository.create({
@@ -150,7 +215,6 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
     return sendResponse(res, 201, true, 'Booking initiated successfully', {
       booking,
       orderId,
-      // Legacy alias kept until all clients are updated
       razorpayOrderId: orderId,
       amount: chargedAmount,
     });
@@ -159,36 +223,6 @@ router.post('/', authenticate as any, async (req: any, res, next) => {
   }
 });
 
-/**
- * @openapi
- * /bookings/verify:
- *   post:
- *     summary: Record payment outcome and confirm booking
- *     tags: [Bookings]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - bookingId
- *               - status
- *             properties:
- *               bookingId:
- *                 type: string
- *               transactionId:
- *                 type: string
- *               paymentProof:
- *                 type: string
- *               status:
- *                 type: string
- *     responses:
- *       200:
- *         description: Payment processed
- */
 router.post('/verify', authenticate as any, async (req: any, res, next) => {
   try {
     const { bookingId, status, paymentProof } = req.body;

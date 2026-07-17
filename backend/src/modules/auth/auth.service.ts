@@ -237,22 +237,19 @@ export class AuthService {
     let name = '';
     let phone = '';
 
-    if (firebaseAuth) {
-      try {
-        const decoded = await firebaseAuth.verifyIdToken(idToken);
-        email = decoded.email || '';
-        name = decoded.name || '';
-        phone = decoded.phone_number || '';
-      } catch (err: any) {
-        logger.error('❌ Firebase ID token verification failed:', err.message);
-        throw new ValidationError('Google authentication failed. Please try again.');
-      }
-    } else {
-      // In-development mock fallback for testing without firebase credentials configured
-      logger.warn('🔑 Firebase credentials missing. Processing mock JWT payload decoding...');
-      email = 'google.mock@turfbook.com';
-      name = 'Google Mock User';
-      phone = '+919999988888';
+    if (!firebaseAuth) {
+      logger.error('❌ Firebase auth is not configured on the server.');
+      throw new ValidationError('Google login is not configured on this server.');
+    }
+
+    try {
+      const decoded = await firebaseAuth.verifyIdToken(idToken);
+      email = decoded.email || '';
+      name = decoded.name || '';
+      phone = decoded.phone_number || '';
+    } catch (err: any) {
+      logger.error('❌ Firebase ID token verification failed:', err.message);
+      throw new ValidationError('Google authentication failed. Please try again.');
     }
 
     let user = await userRepository.findByEmail(email);

@@ -117,7 +117,6 @@ export default function OwnerTurfsScreen() {
         setMapAddress('Unknown location address');
       }
     } catch (e) {
-      console.warn('⚠️ Reverse geocode failed:', e);
       setMapAddress('Failed to retrieve location address');
     }
   };
@@ -230,7 +229,6 @@ export default function OwnerTurfsScreen() {
         longitudeDelta: 0.015,
       }, 1000);
     } catch (e) {
-      console.warn(e);
       Alert.alert('Location Error', 'Failed to retrieve your current location.');
     }
   };
@@ -274,7 +272,6 @@ export default function OwnerTurfsScreen() {
         setFormImage(dataUrl);
       }
     } catch (e) {
-      console.warn(e);
       Alert.alert('Error', 'Failed to pick image from gallery.');
     }
   };

@@ -90,7 +90,6 @@ export default function OwnerEmployeesScreen() {
         }
       }
     } catch (e) {
-      console.warn('Failed to load employee directory:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -191,7 +190,6 @@ export default function OwnerEmployeesScreen() {
         }
       }
     } catch (e) {
-      console.warn(e);
       Alert.alert('Error', 'An unexpected error occurred while saving.');
     } finally {
       setSaving(false);
@@ -218,7 +216,6 @@ export default function OwnerEmployeesScreen() {
                 Alert.alert('Error', 'Failed to remove employee.');
               }
             } catch (err) {
-              console.warn(err);
               Alert.alert('Error', 'Failed to remove employee due to connection issue.');
             }
           }
@@ -238,7 +235,6 @@ export default function OwnerEmployeesScreen() {
         loadData();
       }
     } catch (e) {
-      console.warn(e);
     }
   };
 

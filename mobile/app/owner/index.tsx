@@ -68,38 +68,7 @@ export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState([
-    {
-      id: '1',
-      title: 'New Booking Confirmed',
-      message: 'Vikas Kale booked Old Trafford Arena for 03:00 PM today.',
-      time: '10m ago',
-      read: false,
-      icon: 'calendar-outline',
-      color: '#10b981',
-      bgColor: 'rgba(16, 185, 129, 0.08)',
-    },
-    {
-      id: '2',
-      title: 'New Review Received',
-      message: 'A customer left a 4.8 star review: "Great turf and well maintained."',
-      time: '1h ago',
-      read: false,
-      icon: 'star-outline',
-      color: '#fbbf24',
-      bgColor: 'rgba(251, 191, 36, 0.08)',
-    },
-    {
-      id: '3',
-      title: 'Payout Processed',
-      message: 'Your daily payout of ₹1,200 has been transferred to your bank account.',
-      time: '3h ago',
-      read: false,
-      icon: 'wallet-outline',
-      color: '#3b82f6',
-      bgColor: 'rgba(59, 130, 246, 0.08)',
-    },
-  ]);
+  const [notifications, setNotifications] = useState([]);
 
   const theme = {
     bg: isDarkMode ? '#030712' : '#f8fafc',
@@ -158,7 +127,6 @@ export default function OwnerDashboard() {
         setStats(prev => ({ ...prev, recentBookings: recent }));
       }
     } catch (err) {
-      console.log('Dashboard fetch failed', err);
       // Show empty state — no fake data
       setStats({});
     } finally {

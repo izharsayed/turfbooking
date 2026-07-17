@@ -170,7 +170,6 @@ export default function OwnerProfileScreen() {
       setFormPhone(phone);
       setFormBusiness(businessName);
     } catch (err) {
-      console.log('Failed to fetch profile/dashboard/turf data', err);
       // Clean fallback using local user session store
       setProfile({
         name: user?.name || 'Owner',
@@ -221,7 +220,6 @@ export default function OwnerProfileScreen() {
       Alert.alert('Saved', 'Your profile has been updated.');
       setIsEditing(false);
     } catch (err) {
-      console.log('Failed to update profile', err);
       Alert.alert('Error', 'Failed to update profile.');
     } finally {
       setSaving(false);
@@ -243,7 +241,6 @@ export default function OwnerProfileScreen() {
       Alert.alert('Saved', 'Payout details saved successfully.');
       setShowPayoutModal(false);
     } catch (err) {
-      console.log('Failed to save payout details', err);
       Alert.alert('Error', 'Failed to save payout details.');
     } finally {
       setSavingPayout(false);
@@ -264,7 +261,6 @@ export default function OwnerProfileScreen() {
       Alert.alert('Saved', 'Availability settings saved successfully.');
       setShowAvailabilityModal(false);
     } catch (err) {
-      console.log('Failed to save availability settings', err);
       Alert.alert('Error', 'Failed to save availability settings.');
     } finally {
       setSavingAvailability(false);
@@ -304,7 +300,6 @@ export default function OwnerProfileScreen() {
         Alert.alert('Error', res.message || 'Failed to change password.');
       }
     } catch (err: any) {
-      console.log('Failed to change password', err);
       Alert.alert('Error', err.message || 'Failed to change password.');
     } finally {
       setChangingPassword(false);

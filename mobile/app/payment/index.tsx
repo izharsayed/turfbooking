@@ -20,9 +20,8 @@ import { useBookingStore } from '../../store/bookingStore';
 import { useAuthStore } from '../../store/authStore';
 import { apiFetch, API_BASE_URL } from '../../utils/api';
 import * as ExpoLinking from 'expo-linking';
-
 import { useThemeStore } from '../../store/themeStore';
-import { getTurfById } from '../../data/turfs';
+
 import { formatCurrency } from '../../utils';
 
 export default function PaymentCheckoutScreen() {
@@ -50,17 +49,6 @@ export default function PaymentCheckoutScreen() {
   useEffect(() => {
     const fetchDetails = async () => {
       if (!params.turfId) {
-        setLoading(false);
-        return;
-      }
-
-      // If it's a mock ID (e.g. '1', '2', '3'), bypass API completely to avoid 404 errors
-      const isMockId = /^\d+$/.test(params.turfId) || params.turfId.length <= 2;
-      if (isMockId) {
-        const mockTurf = getTurfById(params.turfId);
-        if (mockTurf) {
-          setTurf(mockTurf);
-        }
         setLoading(false);
         return;
       }
@@ -108,13 +96,7 @@ export default function PaymentCheckoutScreen() {
           return;
         }
       } catch (err) {
-        console.log('Failed to fetch turf details in payment page', err);
-      }
-      
-      // Fallback to static mock data
-      const mockTurf = getTurfById(params.turfId);
-      if (mockTurf) {
-        setTurf(mockTurf);
+        // Handled silently
       }
       setLoading(false);
     };
@@ -125,14 +107,14 @@ export default function PaymentCheckoutScreen() {
   const [selectedMethod, setSelectedMethod] = useState<'upi' | 'card' | 'net'>('upi');
   const [selectedUpiApp, setSelectedUpiApp] = useState<string | null>('Google Pay');
   const [upiId, setUpiId] = useState('');
-  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'gateway_simulation' | 'success' | 'failed'>('idle');
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'gateway_verification' | 'success' | 'failed'>('idle');
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active' && paymentStatus === 'gateway_simulation' && selectedMethod === 'upi') {
+      if (nextAppState === 'active' && paymentStatus === 'gateway_verification' && selectedMethod === 'upi') {
         confirmPayment();
       }
     });
@@ -144,7 +126,6 @@ export default function PaymentCheckoutScreen() {
 
   useEffect(() => {
     const handleDeepLink = (event: { url: string }) => {
-      console.log('🔗 Mobile app received deep link URL:', event.url);
       
       try {
         const parsed = ExpoLinking.parse(event.url);
@@ -174,7 +155,6 @@ export default function PaymentCheckoutScreen() {
           setPaymentStatus('failed');
         }
       } catch (err) {
-        console.error('Error handling deep link:', err);
       }
     };
 
@@ -310,22 +290,19 @@ export default function PaymentCheckoutScreen() {
           try {
             await Linking.openURL(targetUrl);
           } catch (err) {
-            console.log('Failed direct launch, trying generic upi:// link', err);
             try {
               await Linking.openURL(`upi://pay?${query}`);
             } catch (genericErr) {
-              console.log('Generic UPI launcher failed', genericErr);
             }
           }
         }
 
-        // Show simulated secure payment gateway
-        setPaymentStatus('gateway_simulation');
+        // Show payment verification gateway
+        setPaymentStatus('gateway_verification');
       } else {
         throw new Error(res.message || 'Failed to initiate booking');
       }
     } catch (e: any) {
-      console.log('Initiating booking failed', e);
       setErrorMessage(e.message || 'Network request failed. Make sure server is running.');
       setPaymentStatus('failed');
     }
@@ -345,7 +322,7 @@ export default function PaymentCheckoutScreen() {
           bookingId: activeBookingId,
           orderId: activeOrderId,
           transactionId,
-          status: 'PAID',
+          status: 'PENDING_CONFIRMATION',
         },
       });
 
@@ -365,7 +342,6 @@ export default function PaymentCheckoutScreen() {
         throw new Error(res.message || 'Signature verification failed.');
       }
     } catch (e: any) {
-      console.log('Verification failed', e);
       setErrorMessage(e.message || 'Signature verification failed. Transaction rejected.');
       setPaymentStatus('failed');
     }
@@ -385,7 +361,6 @@ export default function PaymentCheckoutScreen() {
         },
       });
     } catch (e) {
-      console.log('Failed to report transaction failure to backend', e);
     }
     setErrorMessage('The transaction was cancelled or declined by the payment provider.');
     setPaymentStatus('failed');
@@ -433,13 +408,13 @@ export default function PaymentCheckoutScreen() {
             <Text style={styles.processingSub}>Please wait, contacting the payment gateway securely.</Text>
           </View>
         </View>
-      ) : paymentStatus === 'gateway_simulation' ? (
+      ) : paymentStatus === 'gateway_verification' ? (
         <View style={[styles.simulatedAppWrapper, { backgroundColor: isDarkMode ? '#020617' : '#ffffff' }]}>
           <View style={[styles.simHeader, { borderBottomColor: theme.border }]}>
             <View style={styles.simHeaderRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name="shield-checkmark" size={24} color="#10b981" />
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: theme.text }}>Secure Payment Gateway (Sandbox)</Text>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: theme.text }}>Secure Payment Verification</Text>
               </View>
               <TouchableOpacity style={styles.simClose} onPress={cancelPayment}>
                 <Ionicons name="close" size={24} color={theme.textMuted} />
@@ -461,7 +436,7 @@ export default function PaymentCheckoutScreen() {
               </View>
             </View>
 
-            {/* Simulated Payment Box */}
+            {/* Payment Details */}
             <View style={[styles.simDetailsBox, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}>
               <Text style={[styles.simLabel, { color: theme.textMuted }]}>PAYMENT METHOD REFERENCE</Text>
               <View style={styles.simDetailRow}>
@@ -480,13 +455,13 @@ export default function PaymentCheckoutScreen() {
 
             <View style={styles.secureBadgeRow}>
               <Ionicons name="lock-closed" size={14} color="#64748b" />
-              <Text style={styles.secureBadgeText}>Simulated Secure Transaction Sandbox Mode</Text>
+              <Text style={styles.secureBadgeText}>Encrypted & Secure Transaction</Text>
             </View>
 
             {/* Authorize/Decline Action Buttons */}
             <View style={{ gap: 12, marginTop: 10 }}>
               <TouchableOpacity style={[styles.simPayBtn, { backgroundColor: '#10b981' }]} onPress={confirmPayment}>
-                <Text style={[styles.simPayBtnText, { color: '#020617' }]}>Simulate Sandbox Confirmation</Text>
+                <Text style={[styles.simPayBtnText, { color: '#020617' }]}>Confirm Payment</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.simDeclineBtn} onPress={cancelPayment}>

@@ -22,7 +22,20 @@ import { formatCurrency, getBookingStatus } from '../utils/index';
 import { useAuthStore } from '../store/authStore';
 import { useBookingStore } from '../store/bookingStore';
 import { useThemeStore } from '../store/themeStore';
-import { turfs, type Turf } from '../data/turfs';
+export interface Turf {
+  id: string;
+  name: string;
+  sport: string;
+  price: number;
+  rating: number;
+  area: string;
+  image: string;
+  latitude: number;
+  longitude: number;
+  description: string;
+  amenities: string[];
+  slots: string[];
+}
 import { apiFetch } from '../utils/api';
 
 const ACCENT = '#10b981';
@@ -181,7 +194,7 @@ export default function HomeScreen() {
   const [selectedMapTurf, setSelectedMapTurf] = useState<Turf | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSport, setSelectedSport] = useState<string>('All');
-  const [loadedTurfs, setLoadedTurfs] = useState<Turf[]>(turfs);
+  const [loadedTurfs, setLoadedTurfs] = useState<Turf[]>([]);
   const [loadingTurfs, setLoadingTurfs] = useState(false);
 
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -208,7 +221,6 @@ export default function HomeScreen() {
         setTickets(res.data);
       }
     } catch (err) {
-      console.log('Failed to fetch support tickets', err);
     } finally {
       setLoadingTickets(false);
     }
@@ -290,7 +302,6 @@ export default function HomeScreen() {
         await fetchTickets();
       }
     } catch (err) {
-      console.log('Error refreshing dashboard data', err);
     } finally {
       setRefreshing(false);
     }
@@ -355,7 +366,6 @@ export default function HomeScreen() {
           setLoadedTurfs(normalized);
         }
       } catch (err) {
-        console.log('Failed to fetch active turfs from API, falling back to mock data', err);
       } finally {
         setLoadingTurfs(false);
       }
@@ -382,7 +392,6 @@ export default function HomeScreen() {
             setBookings(mapped);
           }
         } catch (err) {
-          console.log('Failed to fetch bookings from backend', err);
         }
       };
       fetchBookings();
@@ -405,7 +414,6 @@ export default function HomeScreen() {
             longitude: location.coords.longitude,
           });
         } catch (e) {
-          console.log('Error requesting location', e);
         }
       })();
     }

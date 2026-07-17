@@ -78,7 +78,6 @@ export function getBookingStatus(
     
     return now > bookingDate ? 'COMPLETED' : 'UPCOMING';
   } catch (e) {
-    console.warn('Error parsing booking date/time:', e);
     return dbStatus === 'active' || dbStatus === 'UPCOMING' ? 'UPCOMING' : 'COMPLETED';
   }
 }

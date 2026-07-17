@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-17 11:16 IST
+> Last updated: 2026-07-17 15:22 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1962,3 +1962,32 @@ pnpm dev:backend      # start the server
 ### 264. mobile/app.json — Modified
 - Changed the splash screen image reference from "./assets/splash.png" to "./assets/splash.jpg".
 - **Why**: Fixes the launch error "Unable to resolve asset \"./assets/splash.png\" from \"splash.image\" in your app.json or app.config.js" since the splash image in the assets folder is actually named "splash.jpg".
+
+### 265. Production Cleanup — Phase 3 (Screen Cleanup Complete)
+**Files modified:**
+- `mobile/app/payment/index.tsx` — Changed payment status from `'PAID'` to `'PENDING_CONFIRMATION'` to match backend verify route requirements. Renamed all "Sandbox/Simulated" text to production wording ("Secure Payment Verification", "Confirm Payment", "Encrypted & Secure Transaction"). Renamed internal state `gateway_simulation` → `gateway_verification`. Removed all 7 console.log statements.
+- `mobile/app/owner/index.tsx` — Replaced hardcoded 3-item fake notifications array with empty `useState([])`. Removed console.log.
+- `mobile/app/owner/bookings.tsx` — Removed 3 console.log statements.
+- `mobile/app/owner/employees.tsx` — Removed 4 console.warn statements.
+- `mobile/app/owner/payments.tsx` — Removed 1 console.warn statement.
+- `mobile/app/owner/profile.tsx` — Removed 5 console.log statements.
+- `mobile/app/owner/turfs.tsx` — Removed 3 console.warn statements.
+- `mobile/app/index.tsx` — Removed 5 console.log statements.
+- `mobile/app/login.tsx` — Removed 3 console.warn/error statements.
+- `mobile/app/booking/[id].tsx` — Removed 2 console.log statements. Removed stale `import { getTurfById } from '../../data/turfs'` that referenced deleted mock data file.
+- `mobile/app/turf/[id].tsx` — Removed 1 console.log statement.
+- `mobile/app/profile.tsx` — Removed 1 console.warn statement.
+- `mobile/app/admin.tsx` — Removed 1 console.warn statement.
+- `mobile/utils/index.ts` — Removed 1 console.warn statement.
+- **Why**: Remove all debug logging and simulation text for production readiness.
+
+### 266. Production Cleanup — Phase 4 (Configuration)
+- `mobile/.env` — Added `EXPO_PUBLIC_API_URL="http://localhost:5000/api/v1"` variable with comments. Must be updated to production URL before final APK build.
+- **Why**: Ensures the mobile app has a configurable backend API URL for production deployment.
+
+### 267. Production Cleanup — Phase 5 (Dead Code & Final Cleanup)
+- Deleted empty `mobile/data/` directory (mock data files were already removed in Phase 2).
+- Deleted empty `mobile/scratch/` directory.
+- Final grep verification: zero mock/dummy/fake/sandbox/console.log references remaining in entire codebase.
+- **Expo export verification**: Android bundle compiled successfully (3.86 MB) with zero errors.
+- **Why**: Remove orphaned directories and verify the project compiles cleanly.

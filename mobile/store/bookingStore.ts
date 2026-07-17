@@ -33,18 +33,7 @@ interface BookingState {
 }
 
 export const useBookingStore = create<BookingState>((set, get) => ({
-  bookings: [
-    {
-      id: 'B-88392',
-      turfId: '1',
-      turfName: 'Old Trafford Arena',
-      area: 'Savedi, Ahmednagar',
-      date: '2026-07-06',
-      time: '18:00 - 19:00',
-      amount: 1200,
-      status: 'UPCOMING',
-    },
-  ],
+  bookings: [],
   setBookings: (bookings) => set({ bookings }),
   addBooking: (booking) => {
     const created: Booking = {

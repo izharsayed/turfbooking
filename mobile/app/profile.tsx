@@ -74,7 +74,7 @@ export default function ProfileScreen() {
           setPhone(u.phone || '');
         }
       } catch (err) {
-        console.warn('Could not refresh profile from backend:', err);
+
       } finally {
         setLoadingProfile(false);
       }
