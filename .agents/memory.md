@@ -1,6 +1,6 @@
 # ðŸ§  AI Agent Memory â€” TurfBook Project
 
-> Last updated: 2026-07-16 12:30 IST
+> Last updated: 2026-07-17 11:16 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -1858,86 +1858,86 @@ pnpm dev:backend      # start the server
 - Seeded a default fallback pattern matching rule in local authentication bypass: any email containing `caretaker` or `ramesh` (e.g., `ramesh@turfbook.com`) is automatically mapped to the `'CARETAKER'` role by the offline development bypass.
 - **Why**: Allows instant testing of caretaker credentials on device simulations without manual registry.
 
-### 246. ackend/src/modules/auth/auth.service.ts — Modified (Security Audit)
-- Removed OTP code + phone number from logger.info — was logging plaintext OTP.
-- Removed user email + reset/verify token URL from logger — was logging sensitive token links.
-- Sanitized Firebase ID token error message sent to clients — was leaking internal SDK details.
+### 246. ackend/src/modules/auth/auth.service.ts ï¿½ Modified (Security Audit)
+- Removed OTP code + phone number from logger.info ï¿½ was logging plaintext OTP.
+- Removed user email + reset/verify token URL from logger ï¿½ was logging sensitive token links.
+- Sanitized Firebase ID token error message sent to clients ï¿½ was leaking internal SDK details.
 - Changed hardcoded localhost URLs to use process.env.API_BASE_URL env variable.
-- **Why**: Full privacy/security audit — logs must never contain credentials, tokens, or PII.
+- **Why**: Full privacy/security audit ï¿½ logs must never contain credentials, tokens, or PII.
 
-### 247. ackend/src/repositories/firebase/FirebaseOwnerRepository.ts — Modified (Security Audit)
+### 247. ackend/src/repositories/firebase/FirebaseOwnerRepository.ts ï¿½ Modified (Security Audit)
 - Stripped passwordHash from all employee responses: listEmployees, createEmployee, updateEmployee.
 - Destructures and omits passwordHash before returning any employee object to the API layer.
-- **Why**: GET /owner/employees was returning bcrypt hashes of employee passwords to clients — critical API field exposure.
+- **Why**: GET /owner/employees was returning bcrypt hashes of employee passwords to clients ï¿½ critical API field exposure.
 
-### 248. ackend/src/app.ts — Modified (Security Audit)
+### 248. ackend/src/app.ts ï¿½ Modified (Security Audit)
 - Replaced wildcard CORS { origin: '*' } with an env-configurable allowlist.
 - Default allowlist: localhost:3000, localhost:8081, localhost:19006.
 - Configurable via ALLOWED_ORIGINS env var (comma-separated).
 - Mobile apps pass with !origin check (no Origin header).
 - **Why**: Wildcard CORS allows any website to make authenticated cross-origin requests.
 
-### 249. ackend/src/modules/user/user.service.ts — Modified (GDPR)
+### 249. ackend/src/modules/user/user.service.ts ï¿½ Modified (GDPR)
 - Added deleteAccount(userId) method: anonymizes all PII (email, phone, name, avatar) and sets deletedAt.
 - Deletes Cloudinary avatar if present.
-- **Why**: No self-service account deletion existed (GDPR Article 17 — Right to Erasure).
+- **Why**: No self-service account deletion existed (GDPR Article 17 ï¿½ Right to Erasure).
 
-### 250. ackend/src/modules/user/user.controller.ts — Modified (GDPR)
+### 250. ackend/src/modules/user/user.controller.ts ï¿½ Modified (GDPR)
 - Added deleteAccount controller handler.
 - **Why**: Wire deleteAccount service method to HTTP layer.
 
-### 251. ackend/src/modules/user/user.routes.ts — Modified (GDPR)
+### 251. ackend/src/modules/user/user.routes.ts ï¿½ Modified (GDPR)
 - Registered DELETE /profile/account route with OpenAPI docs.
 - **Why**: Expose self-service account deletion endpoint for authenticated users.
 
-### 252. mobile/utils/api.ts — Modified (Security Audit)
+### 252. mobile/utils/api.ts ï¿½ Modified (Security Audit)
 - Removed user email from login console.log (line 289).
 - Removed plaintext password field from employee local cache object (line 869).
 - Replaced real developer PII (Izhar Sayed / izhar@turfbook.com / 7759473032) in seed fallback with fake test data.
 - **Why**: Email was logged on every login; plaintext password was stored to AsyncStorage and Firestore locally.
 
-### 253. mobile/app/login.tsx — Modified (Security Audit)
+### 253. mobile/app/login.tsx ï¿½ Modified (Security Audit)
 - Wrapped DUMMY_ACCOUNTS in __DEV__ guard so credentials don't ship in production builds.
 - Removed hardcoded admin password Admin@12345 from source (replaced with [env] placeholder).
-- **Why**: Admin credentials were hardcoded in client source code — readable in the app bundle.
+- **Why**: Admin credentials were hardcoded in client source code ï¿½ readable in the app bundle.
 
-### 254. mobile/utils/api.ts — Modified
+### 254. mobile/utils/api.ts ï¿½ Modified
 - Moved the saveLocalEmailRole call in the registration local interceptors /auth/register and /auth/register-owner to execute *before* attempting the Firestore setDoc write calls.
 - **Why**: When Firebase Firestore rules throw permission errors (which is expected during unauthenticated client-side writes in local bypass/development mode), the 	ry block was aborting early. This prevented saveLocalEmailRole from populating the local email-to-role lookup map in AsyncStorage. Consequently, logging in offline with newly created customer credentials containing the substring 'owner' (or failing to find the Firestore doc) caused the bypass routine to resolve the user's role incorrectly as 'TURF_OWNER' instead of 'CUSTOMER'. populating the local role mapping first guarantees correct role resolution.
 
-### 255. mobile/app/login.tsx — Modified
+### 255. mobile/app/login.tsx ï¿½ Modified
 - Removed the developer "Dev Quick Login" trigger bar and account dropdown UI from the login screen layout.
 - Cleaned up the devDropdownOpen, DUMMY_ACCOUNTS and pplyDummyLogin state variables/helpers.
 - **Why**: Clean up development test coordinates and prepare the mobile bundle for production APK builds.
 
-### 256. ackend/src/database/seedFirebase.ts — Modified
+### 256. ackend/src/database/seedFirebase.ts ï¿½ Modified
 - Updated the default super admin email from dmin@turfbook.com to izharsayed12@gmail.com.
 - Hardcoded the hashed password generation for izharsayed12@gmail.com to use Myp@ssword123 instead of the general dev seed fallback.
 - **Why**: Set up secure production-ready super admin credentials in the database seeding sequence.
 
-### 257. mobile/utils/api.ts & mobile/app/admin.tsx — Modified
+### 257. mobile/utils/api.ts & mobile/app/admin.tsx ï¿½ Modified
 - Swapped references to dmin@turfbook.com with izharsayed12@gmail.com in internal bypass role mappings and fallback audit logging structures.
 - **Why**: Align offline fallback behaviors with the new super admin credentials.
 
-### 258. Database Purge — Executed
+### 258. Database Purge ï¿½ Executed
 - Purged all transactional and dummy collections in Firestore (users, user_profiles, owner_profiles, employees, 	urfs, ookings, eviews, udit_logs).
 - Preserved the new Super Admin account izharsayed12@gmail.com and its associated profile.
 - **Why**: Clean out test records and seed data so that the database starts clean for production.
 
-### 259. mobile/utils/api.ts — Modified
+### 259. mobile/utils/api.ts ï¿½ Modified
 - Removed client-side auto-seeding logic for 	urfs GET endpoint inside local API bypass.
 - **Why**: Since dummy data was purged, the collection is empty. Client-side Firestore writes are restricted by security rules (yielding Missing or insufficient permissions error warnings). Removing the auto-seeding block prevents unauthenticated writes and gets rid of the noisy error logging.
 
-### 260. mobile/utils/api.ts — Modified
+### 260. mobile/utils/api.ts ï¿½ Modified
 - Fixed role resolution mapping to hardcode a direct check for the production admin email izharsayed12@gmail.com to resolve as SUPER_ADMIN. This overrides any stale cached role mappings in local AsyncStorage.
 - Refactored the local /profile GET and PUT handlers to dynamically map user document paths to the unique email-derived bypass user ID (e.g. ypass-izharsayed12) instead of sharing a single global dev-bypass document path.
 - **Why**: Prevent cross-talk/role overwriting when different roles validate their session token concurrently, ensuring the SUPER_ADMIN gets correctly resolved as SUPER_ADMIN and directed to /admin instead of falling back to a customer profile.
 
-### 261. mobile/app/_layout.tsx — Modified
+### 261. mobile/app/_layout.tsx ï¿½ Modified
 - Registered dmin as a <Stack.Screen> with headerShown: false.
 - **Why**: Hides the default navigation header on the Admin Dashboard page for a premium, clean layout.
 
-### 262. mobile/utils/api.ts — Modified
+### 262. mobile/utils/api.ts ï¿½ Modified
 - Hardened the offline login bypass block to only accept logins from:
   1. Emails found in the Firestore users collection.
   2. Caretakers found in the Firestore employees collection.
@@ -1950,3 +1950,15 @@ pnpm dev:backend      # start the server
 - Copied the uploaded logo image media__1784205513642.jpg to mobile/assets/logo.jpg.
 - Updated mobile/app.json to configure "icon": "./assets/logo.jpg" and "adaptiveIcon.foregroundImage": "./assets/logo.jpg".
 - **Why**: Use the custom premium brand logo for the mobile app launcher icon.
+
+### 264. Standalone Local Android SDK Setup
+- Downloaded and configured standalone Android Command Line Tools under C:\Android\Sdk.
+- Created an automated PowerShell setup script [setup-android-sdk.ps1](file:///C:/Users/Izhar/.gemini/antigravity/brain/e7fccd92-009a-4079-9eda-dcda73e0205d/scratch/setup-android-sdk.ps1) to handle the entire offline SDK configuration.
+- Installed Android SDK platform-tools, platform API 34, and build-tools 34.0.0.
+- Configured local environment variables ANDROID_HOME and JAVA_HOME to Adoptium JDK 17, and updated user PATH.
+- **Why**: Allows compiling the APK locally on Windows without installing the heavy Android Studio IDE.
+
+
+### 264. mobile/app.json â€” Modified
+- Changed the splash screen image reference from "./assets/splash.png" to "./assets/splash.jpg".
+- **Why**: Fixes the launch error "Unable to resolve asset \"./assets/splash.png\" from \"splash.image\" in your app.json or app.config.js" since the splash image in the assets folder is actually named "splash.jpg".
