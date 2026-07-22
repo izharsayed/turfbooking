@@ -112,17 +112,7 @@ export default function PaymentCheckoutScreen() {
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active' && paymentStatus === 'gateway_verification' && selectedMethod === 'upi') {
-        confirmPayment();
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [paymentStatus, selectedMethod, activeBookingId, activeOrderId]);
+  const [enteredTxnId, setEnteredTxnId] = useState('');
 
   useEffect(() => {
     const handleDeepLink = (event: { url: string }) => {
@@ -212,7 +202,7 @@ export default function PaymentCheckoutScreen() {
 
     const peakStart = turf.peakStartHour ?? 18;
     const peakEnd = turf.peakEndHour ?? 22;
-    const peakSurch = turf.peakSurcharge ?? 300;
+    const peakSurch = turf.peakSurcharge ?? 0;
     const isPeak = actualHour >= peakStart && actualHour < peakEnd;
 
     let isWeekend = false;
@@ -220,7 +210,7 @@ export default function PaymentCheckoutScreen() {
       const dayOfWeek = new Date(params.date).getDay();
       isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     }
-    const weekendSurch = turf.weekendSurcharge ?? 200;
+    const weekendSurch = turf.weekendSurcharge ?? 0;
 
     let surcharge = 0;
     if (isPeak) surcharge += peakSurch;
@@ -228,7 +218,7 @@ export default function PaymentCheckoutScreen() {
 
     return sum + (turf.price || 1200) + surcharge;
   }, 0) || (turf.price * slotCount);
-  const convenienceFee = turf.ownerProfile?.convenienceFee ?? 45;
+  const convenienceFee = turf.ownerProfile?.convenienceFee ?? 0;
   const finalTotal = basePrice + convenienceFee;
 
   // Advance Payment: dynamic % of base price + convenienceFee
@@ -310,10 +300,10 @@ export default function PaymentCheckoutScreen() {
 
   // Step 2A: Verify payment success on backend (confirms booking)
   const confirmPayment = async () => {
-    if (!activeBookingId || !activeOrderId) return;
+    if (!activeBookingId || !activeOrderId || !enteredTxnId.trim()) return;
 
     setPaymentStatus('processing');
-    const transactionId = 'txn_' + Math.random().toString(36).substring(2, 10);
+    const transactionId = enteredTxnId.trim();
 
     try {
       const res = await apiFetch('/bookings/verify', {
@@ -447,10 +437,32 @@ export default function PaymentCheckoutScreen() {
                 <Text style={styles.simDetailLabel}>Payment Order ID</Text>
                 <Text style={[styles.simDetailVal, { color: theme.text }]}>{activeOrderId}</Text>
               </View>
-              <View style={styles.simDetailRow}>
-                <Text style={styles.simDetailLabel}>Selected Method</Text>
-                <Text style={[styles.simDetailVal, { color: theme.text, textTransform: 'uppercase' }]}>{selectedMethod}</Text>
-              </View>
+            </View>
+
+            {/* Transaction ID Input Form */}
+            <View style={[styles.simDetailsBox, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, marginTop: 12 }]}>
+              <Text style={[styles.simLabel, { color: theme.textMuted }]}>VERIFY TRANSACTION</Text>
+              <Text style={{ fontSize: 13, color: theme.text, marginBottom: 8, fontWeight: '500', lineHeight: 18 }}>
+                Please enter the Transaction ID / UPI Ref No. from your payment app (GPay, PhonePe, Paytm etc.) to complete your booking:
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: theme.inputBg,
+                  borderColor: theme.border,
+                  color: theme.text,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  padding: 12,
+                  fontSize: 14,
+                  fontWeight: '600',
+                  marginTop: 4,
+                }}
+                placeholder="Enter Transaction ID / Ref No."
+                placeholderTextColor={isDarkMode ? '#4b5563' : '#a1a1aa'}
+                value={enteredTxnId}
+                onChangeText={setEnteredTxnId}
+                autoCapitalize="characters"
+              />
             </View>
 
             <View style={styles.secureBadgeRow}>
@@ -460,8 +472,26 @@ export default function PaymentCheckoutScreen() {
 
             {/* Authorize/Decline Action Buttons */}
             <View style={{ gap: 12, marginTop: 10 }}>
-              <TouchableOpacity style={[styles.simPayBtn, { backgroundColor: '#10b981' }]} onPress={confirmPayment}>
-                <Text style={[styles.simPayBtnText, { color: '#020617' }]}>Confirm Payment</Text>
+              <TouchableOpacity
+                style={[
+                  styles.simPayBtn,
+                  {
+                    backgroundColor: enteredTxnId.trim().length >= 6 ? '#10b981' : (isDarkMode ? '#1e293b' : '#e2e8f0'),
+                  }
+                ]}
+                onPress={confirmPayment}
+                disabled={enteredTxnId.trim().length < 6}
+              >
+                <Text
+                  style={[
+                    styles.simPayBtnText,
+                    {
+                      color: enteredTxnId.trim().length >= 6 ? '#020617' : theme.textMuted,
+                    }
+                  ]}
+                >
+                  Confirm Payment
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.simDeclineBtn} onPress={cancelPayment}>
@@ -706,46 +736,6 @@ export default function PaymentCheckoutScreen() {
                 </View>
               </View>
             )}
-
-            {/* Cards Option */}
-            <TouchableOpacity
-              style={[
-                styles.methodCard,
-                { backgroundColor: theme.card, borderColor: selectedMethod === 'card' ? '#10b981' : theme.border },
-              ]}
-              onPress={() => setSelectedMethod('card')}
-            >
-              <View style={styles.methodLeft}>
-                <Ionicons name="card-outline" size={24} color="#10b981" />
-                <View>
-                  <Text style={[styles.methodTitle, { color: theme.text }]}>Credit / Debit Card</Text>
-                  <Text style={[styles.methodDesc, { color: theme.textMuted }]}>Visa, MasterCard, RuPay</Text>
-                </View>
-              </View>
-              <View style={[styles.radioOuter, { borderColor: selectedMethod === 'card' ? '#10b981' : '#64748b' }]}>
-                {selectedMethod === 'card' && <View style={styles.radioInner} />}
-              </View>
-            </TouchableOpacity>
-
-            {/* Netbanking Option */}
-            <TouchableOpacity
-              style={[
-                styles.methodCard,
-                { backgroundColor: theme.card, borderColor: selectedMethod === 'net' ? '#10b981' : theme.border },
-              ]}
-              onPress={() => setSelectedMethod('net')}
-            >
-              <View style={styles.methodLeft}>
-                <Ionicons name="business-outline" size={24} color="#10b981" />
-                <View>
-                  <Text style={[styles.methodTitle, { color: theme.text }]}>Net Banking</Text>
-                  <Text style={[styles.methodDesc, { color: theme.textMuted }]}>All major Indian banks</Text>
-                </View>
-              </View>
-              <View style={[styles.radioOuter, { borderColor: selectedMethod === 'net' ? '#10b981' : '#64748b' }]}>
-                {selectedMethod === 'net' && <View style={styles.radioInner} />}
-              </View>
-            </TouchableOpacity>
           </View>
 
           {/* Pricing Breakdown Sheet */}

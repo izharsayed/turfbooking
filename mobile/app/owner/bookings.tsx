@@ -12,6 +12,7 @@ import {
   Dimensions,
   Modal,
   TextInput,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect, useRouter } from 'expo-router';
@@ -45,13 +46,18 @@ interface OwnerBooking {
   turfId?: string;
   sportId?: string;
   customerName?: string;
+  customerPhone?: string;
   turfName?: string;
   date?: string;
   time?: string;
   slotId?: string;
   timeSlot?: string;
   amount?: number;
+  totalAmount?: number;
+  paidAmount?: number;
+  pendingAmount?: number;
   status?: string;
+  transactionId?: string;
 }
 
 interface OfflineBooking {
@@ -308,12 +314,12 @@ export default function OwnerBookingsScreen() {
     const basePrice = selectedTurf?.pricePerHour ?? 1200;
     const peakStart = selectedTurf?.peakStartHour ?? 18;
     const peakEnd = selectedTurf?.peakEndHour ?? 22;
-    const peakSurch = selectedTurf?.peakSurcharge ?? 300;
+    const peakSurch = selectedTurf?.peakSurcharge ?? 0;
     const isPeak = i >= peakStart && i < peakEnd;
     
     const dayOfWeek = selectedDate.getDay(); // 0 is Sunday, 6 is Saturday
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    const weekendSurch = selectedTurf?.weekendSurcharge ?? 200;
+    const weekendSurch = selectedTurf?.weekendSurcharge ?? 0;
 
     let surcharge = 0;
     if (isPeak) surcharge += peakSurch;
@@ -321,21 +327,34 @@ export default function OwnerBookingsScreen() {
     
     let amount = basePrice + surcharge;
  
-    // Hardcode mockup matches specifically for 13 May 2024 or current date to match image
+    let customerPhone = '';
+    let transactionId = '';
+    let totalAmount = amount;
+    let paidAmount = amount;
+    let pendingAmount = 0;
+
     if (matchingBooking) {
       status = matchingBooking.status === 'PENDING' ? 'PENDING' : 'BOOKED';
       customerName = matchingBooking.customerName || 'Customer';
       amount = matchingBooking.amount || amount;
       bookingId = matchingBooking.id;
+      customerPhone = matchingBooking.customerPhone || '';
+      transactionId = matchingBooking.transactionId || '';
+      totalAmount = matchingBooking.totalAmount !== undefined ? matchingBooking.totalAmount : amount;
+      paidAmount = matchingBooking.paidAmount !== undefined ? matchingBooking.paidAmount : amount;
+      pendingAmount = matchingBooking.pendingAmount !== undefined ? matchingBooking.pendingAmount : Math.max(0, totalAmount - paidAmount);
     } else if (matchingOffline) {
       status = 'BOOKED';
       customerName = matchingOffline.customerName;
       amount = matchingOffline.amount;
+      customerPhone = matchingOffline.customerPhone || '';
+      transactionId = 'Offline Entry';
+      totalAmount = amount;
+      paidAmount = amount;
+      pendingAmount = 0;
     } else if (isBlockedInDb) {
       status = 'BLOCKED';
     }
-
-    // No hardcoded mock slots — all data comes from backend
 
     return {
       index: i,
@@ -343,7 +362,12 @@ export default function OwnerBookingsScreen() {
       price: amount,
       status,
       customerName,
+      customerPhone,
       bookingId,
+      transactionId,
+      totalAmount,
+      paidAmount,
+      pendingAmount,
     };
   });
 
@@ -483,6 +507,16 @@ export default function OwnerBookingsScreen() {
       setActiveSlotDetails(slot);
       setDetailsModalVisible(true);
     }
+  };
+
+  const callCustomer = (phone?: string) => {
+    if (!phone) {
+      Alert.alert('Error', 'No phone number available for this customer');
+      return;
+    }
+    Linking.openURL(`tel:${phone}`).catch(() => {
+      Alert.alert('Error', 'Unable to initiate call. Please ensure your device supports calling.');
+    });
   };
 
   const submitOfflineBooking = async () => {
@@ -926,9 +960,37 @@ export default function OwnerBookingsScreen() {
 
             {activeSlotDetails && (
               <View style={styles.detailsBody}>
+                {activeSlotDetails.bookingId ? (
+                  <View style={styles.detailItemRow}>
+                    <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Booking ID:</Text>
+                    <Text style={[styles.detailItemValue, { color: theme.text, fontSize: 12 }]} numberOfLines={1}>
+                      {activeSlotDetails.bookingId}
+                    </Text>
+                  </View>
+                ) : null}
                 <View style={styles.detailItemRow}>
                   <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Customer:</Text>
                   <Text style={[styles.detailItemValue, { color: theme.text }]}>{activeSlotDetails.customerName}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Phone Number:</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.detailItemValue, { color: theme.text }]}>
+                      {activeSlotDetails.customerPhone || 'N/A'}
+                    </Text>
+                    {activeSlotDetails.customerPhone ? (
+                      <TouchableOpacity 
+                        onPress={() => callCustomer(activeSlotDetails.customerPhone)}
+                        style={{
+                          backgroundColor: '#10b981',
+                          padding: 4,
+                          borderRadius: 6,
+                        }}
+                      >
+                        <Ionicons name="call" size={12} color="#ffffff" />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                 </View>
                 <View style={styles.detailItemRow}>
                   <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Time Slot:</Text>
@@ -939,8 +1001,24 @@ export default function OwnerBookingsScreen() {
                   <Text style={[styles.detailItemValue, { color: theme.text }]}>{selectedTurf?.name}</Text>
                 </View>
                 <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Total Amount:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text }]}>₹{activeSlotDetails.totalAmount}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
                   <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Amount Paid:</Text>
-                  <Text style={[styles.detailItemValue, { color: theme.text }]}>₹{activeSlotDetails.price}</Text>
+                  <Text style={[styles.detailItemValue, { color: '#10b981' }]}>₹{activeSlotDetails.paidAmount}</Text>
+                </View>
+                {activeSlotDetails.pendingAmount > 0 ? (
+                  <View style={styles.detailItemRow}>
+                    <Text style={[styles.detailItemLabel, { color: '#ef4444' }]}>Pending Amount:</Text>
+                    <Text style={[styles.detailItemValue, { color: '#ef4444', fontWeight: '800' }]}>₹{activeSlotDetails.pendingAmount}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Transaction ID:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text, fontWeight: '700' }]}>
+                    {activeSlotDetails.transactionId || 'Offline Entry'}
+                  </Text>
                 </View>
                 <View style={styles.detailItemRow}>
                   <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Status:</Text>
@@ -950,6 +1028,16 @@ export default function OwnerBookingsScreen() {
                     </Text>
                   </View>
                 </View>
+
+                {activeSlotDetails.customerPhone ? (
+                  <TouchableOpacity
+                    style={[styles.callBtn, { backgroundColor: '#10b981', marginTop: 12 }]}
+                    onPress={() => callCustomer(activeSlotDetails.customerPhone)}
+                  >
+                    <Ionicons name="call" size={15} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.callBtnText}>Call Customer</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             )}
 
@@ -1290,5 +1378,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
+  },
+  callBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    paddingVertical: 12,
+    width: '100%',
+  },
+  callBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

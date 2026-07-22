@@ -14,7 +14,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, Callout, PROVIDER_DEFAULT } from '../components/CustomMap';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -182,6 +182,7 @@ const getStatusBg = (status: string) => {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const insets = useSafeAreaInsets();
   const { isAuthenticated, user } = useAuthStore();
@@ -294,7 +295,7 @@ export default function HomeScreen() {
             date: b.date,
             time: b.time,
             amount: b.amount,
-            status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : 'CANCELLED',
+            status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : b.status?.toUpperCase() || 'UPCOMING',
           }));
           setBookings(mapped);
         }
@@ -373,30 +374,41 @@ export default function HomeScreen() {
     fetchTurfs();
   }, []);
 
+  const fetchBookings = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await apiFetch('/bookings');
+      if (res.success && Array.isArray(res.data)) {
+        const mapped = res.data.map((b: any) => ({
+          id: b.id,
+          turfId: b.turfId,
+          turfName: b.turfName,
+          area: b.area,
+          date: b.date,
+          time: b.time,
+          amount: b.amount,
+          status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : b.status?.toUpperCase() || 'UPCOMING',
+        }));
+        setBookings(mapped.filter((b: any) => b.status !== 'CANCELLED'));
+      }
+    } catch (err) {
+    }
+  }, [isAuthenticated, setBookings]);
+
   useEffect(() => {
-    if (activeTab === 'bookings' && isAuthenticated) {
-      const fetchBookings = async () => {
-        try {
-          const res = await apiFetch('/bookings');
-          if (res.success && Array.isArray(res.data)) {
-            const mapped = res.data.map((b: any) => ({
-              id: b.id,
-              turfId: b.turfId,
-              turfName: b.turfName,
-              area: b.area,
-              date: b.date,
-              time: b.time,
-              amount: b.amount,
-              status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : 'CANCELLED',
-            }));
-            setBookings(mapped);
-          }
-        } catch (err) {
-        }
-      };
+    if (activeTab === 'bookings') {
       fetchBookings();
     }
-  }, [activeTab, isAuthenticated]);
+  }, [activeTab, fetchBookings]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (activeTab === 'bookings') {
+        fetchBookings();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, activeTab, fetchBookings]);
 
   useEffect(() => {
     if (activeTab === 'map') {

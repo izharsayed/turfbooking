@@ -9,6 +9,8 @@ export interface UserProfile {
   phone?: string;
   status?: string;
   avatarUrl?: string;
+  ownerId?: string;
+  turfId?: string;
 }
 
 interface AuthState {

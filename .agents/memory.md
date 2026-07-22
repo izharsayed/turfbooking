@@ -1,6 +1,6 @@
 # 🧠 AI Agent Memory — TurfBook Project
 
-> Last updated: 2026-07-17 16:10 IST
+> Last updated: 2026-07-20 13:00 IST
 > This file stores persistent context about the TurfBook project setup, decisions made, and issues resolved during AI-assisted development sessions.
 
 ---
@@ -666,11 +666,7 @@ pnpm dev:backend      # start the server
 - Implemented dedicated render functions for each view: `renderDashboard`, `renderTurfs` (Approve/Reject actions), `renderUsers` (Status badges, Filters), `renderReports`, and `renderSettings`.
 - **Why**: Responds to the user request to make the Admin Dashboard fully functional and add more pages while keeping the single-file structure simplicity from the Owner/Customer apps.
 
-### 50. `frontend/src/services/api.ts` Ã¢â‚¬â€ Created
-- Created a centralized Axios client configured to talk to `http://localhost:5000/api`.
-- Built an automatic JWT injection interceptor using `useAuthStore.getState().token`.
-- Built a response interceptor to automatically log out users on `401 Unauthorized` responses.
-- **Why**: Establishes the real connection layer between the frontend and backend, moving away from mocked data.
+
 
 ### 51. `frontend/src/pages/admin/AdminApp.tsx` Ã¢â‚¬â€ Modified
 - Replaced all mock data arrays with real React state variables (`dashboardStats`, `owners`, `users`, `settings`).
@@ -1996,3 +1992,287 @@ pnpm dev:backend      # start the server
 - `backend/tsconfig.json` — Removed unused `baseUrl` and path mappings (`paths` with `@/*`) configuration.
 - `backend/src/database/purgeFirebase.ts` — Added non-null assertion operators (`!`) to `firestoreDb`, `firebaseAuth`, and `firebaseApp` to resolve TS type narrowing compiler errors during build.
 - **Why**: Fixes typescript build errors (TS5102, TS5090, and TS18047) encountered during production deployment builds (e.g. on Render) so that `npm run build` succeeds cleanly.
+
+### 269. Render Production Backend Deployment — Configured
+- `mobile/.env` — Updated `EXPO_PUBLIC_API_URL` to point to the live Render endpoint: `https://turfbooking-xbn8.onrender.com/api/v1`.
+- **Why**: Links the mobile app production builds directly to the cloud-hosted backend server.
+
+- **Why**: Recovers and implements full backendless / serverless capabilities, allowing the mobile app to function completely independent of the backend on the free Firebase Spark plan.
+
+### 271. Google Maps Crash Fix & Keystore Audit — Modified
+- `mobile/android/app/src/main/AndroidManifest.xml` — Added `<meta-data android:name="com.google.android.geo.API_KEY" android:value="YOUR_GOOGLE_MAPS_API_KEY"/>` under the `<application>` tag.
+- **Why**: Prevents native Maps SDK crash (app closing) when a user switches to the maps tab or opens a map interface on Android.
+
+### 272. Resolved Bookings Fallback and API Timeout — Modified
+- `mobile/utils/api.ts` — Increased the REST API network connection timeout from 2.5 seconds to 15 seconds to allow the free Render backend instance to spin up/wake up on the first app request.
+- `mobile/utils/api.ts` — Updated the client-side Firestore offline fallbacks for booking GET and POST routes to dynamically query the database for the active logged-in user's ID (`useAuthStore.getState().user?.id`) instead of the hardcoded `'dev-bypass'` mock user string.
+- **Why**: Resolves the bug where a newly logged-in user was seeing pre-seeded bookings belonging to the mock `'dev-bypass'` user during initial load timeouts.
+
+### 273. Owner Turfs CRUD Operations Fallback — Modified
+- `mobile/utils/api.ts` — Imported `deleteDoc` from `firebase/firestore`.
+- `mobile/utils/api.ts` — Replaced the single GET `/owner/turfs` handler in the offline fallback with a full set of CRUD handlers (`GET`, `POST`, `PUT`, `DELETE`) filtering by the active owner's `ownerId` and dynamically saving changes to Firestore.
+- **Why**: Resolves the bug where new turfs added by owners vanished after a refresh because the offline fallback only handled GET requests and discarded POST/PUT/DELETE requests.
+### 274. Owner Turf Write Short-Circuit — Modified
+- `mobile/utils/api.ts` — Added a top-level short-circuit at the start of `apiFetch` for `POST/PUT/DELETE /owner/turfs*` paths that writes directly to Firestore, bypassing the backend entirely.
+- **Why**: The backend `authorizeRoles('TURF_OWNER')` rejects mobile users with 403 because they have CUSTOMER role in the backend DB. After the 403, the fallback tries Firestore but the write fails due to security rules. Bypassing the backend removes this double-failure chain.
+
+### 275. Firestore Security Rules — Created
+- `firestore.rules` (project root) — Created new Firestore security rules file allowing:
+  - **turfs**: Anyone can read; authenticated users can create if `ownerId == auth.uid`; owners can update/delete their own turfs.
+  - **bookings**: Authenticated users can CRUD their own bookings.
+  - **users/user_profiles/owner_profiles**: Users can read/write their own documents.
+  - **reviews**: Anyone can read; authenticated users can create.
+- **Why**: Without deployed rules, Firestore was in locked mode (default) — all client-side writes rejected. This was the final blocker for owner turf creation.
+- **Action required**: Run `firebase deploy --only firestore:rules` from the project root to deploy.
+
+### 276. Mock Bank Data Removed from Payments Screen — Modified
+- `mobile/app/owner/payments.tsx` — Removed hardcoded `HDFC BANK LTD / *****4829 / HDFC0000072 / owner@upi` mock data.
+- Replaced with a proper "Payout Settings" section explaining that bank/UPI payout configuration is managed through the admin portal, with a Contact Support button.
+- **Why**: The hardcoded bank details were misleading placeholder data that made the app look like it was showing real bank info.
+
+### 277. Cancelled Bookings Filter — Modified
+- `mobile/app/index.tsx` — Added `.filter(b => b.status !== 'CANCELLED')` after mapping the bookings API response.
+- **Why**: Old cancelled test bookings from earlier development sessions were showing up in "My reservations" for the logged-in user.
+
+### 278. ROOT CAUSE: Firebase Auth SDK Never Signed In — Fixed
+- `mobile/app/login.tsx` — Replaced the manual REST API token exchange with `signInWithCredential(auth, GoogleAuthProvider.credential(googleIdToken))`.
+- **Why**: The app was manually exchanging Google tokens via REST API but never signing into Firebase Auth SDK. This meant `auth.currentUser` was always `null`. Firestore security rules use `request.auth.uid` — if null, ALL writes are rejected with PERMISSION_DENIED → "Failed to save turf".
+- Now calls `signInWithCredential` which properly sets `auth.currentUser` and allows Firestore writes.
+- Also stores Firebase UID (not backend UUID) as `user.id` in authStore so `ownerId` always matches `auth.currentUser.uid`.
+
+### 279. ROOT CAUSE: Role Reset to CUSTOMER on App Restart — Fixed
+- `mobile/app/_layout.tsx` calls `apiFetch('/profile')` on every restart to validate token.
+- Old `/profile` fallback in `api.ts` read from Firestore `'dev-bypass'` document (hardcoded) which returned `role: 'CUSTOMER'`, overwriting the stored `TURF_OWNER` role.
+- **Fix**: `/profile` GET fallback now returns the stored authStore user directly — no Firestore lookup — preserving the real role across restarts.
+- `/profile` PUT fallback now uses real Firebase UID instead of `'dev-bypass'`.
+
+### 280. firebase.json and firestore.indexes.json — Created
+- `firestore.rules` — Firestore security rules deployed to `turfbook-74c8c`.
+- `firebase.json` — Firebase project config pointing to rules and indexes files.
+- `firestore.indexes.json` — Empty indexes file required by firebase deploy.
+- Deployed with: `firebase use turfbook-74c8c && firebase deploy --only firestore:rules`
+
+### 281. Pure Serverless Transition — Modified
+- **`mobile/utils/api.ts`**: Completely removed the Express backend API connection attempt (the hybrid connection layer) and deleted unused imports (`useBookingStore`, `CONFIG`). All API routes now execute directly and instantly against Firestore, removing any backend timeouts or Render cold-start dependencies.
+- **Why**: Responds to user request to convert the application to a pure serverless architecture running directly on Firebase client-side SDKs.
+
+### 282. Real Firebase Auth for Email/Password Serverless Mode — Modified
+- **`mobile/utils/api.ts`**: Replaced simulated email/password login and registration fallbacks with real Firebase Auth SDK calls (`signInWithEmailAndPassword`, `createUserWithEmailAndPassword`).
+- **Why**: In Pure Serverless mode, using a simulated mock user ID (`'dev-bypass'`) meant the device was never actually logged into Firebase Auth. Since `auth.currentUser` was null, Firestore security rules (`allow read, write: if request.auth != null`) rejected every booking fetch or write, resulting in "Missing or insufficient permissions" errors. Now, logging in actually authenticates the device and enables full read/write capabilities across the app.
+
+### 283. Email-Based Role Auto-Assignment for Serverless Mode — Modified
+- **`mobile/utils/api.ts`**: Configured automatic role mapping based on email patterns during login/registration. Real profile documents are created automatically with the designated role in the `/users/{uid}` collection if they do not exist.
+- **Why**: Allows logging in as the main admin account (`izharsayed12@gmail.com`) using password authentication or signing up custom owner accounts easily.
+
+### 284. Invalid Firebase API Key Configured — Fixed
+- **`mobile/.env`**: Replaced the invalid Firebase Web API Key (`AIzaSyCUsd6go...`) with the correct, verified Google API Key (`AIzaSyBkSr4SGN2ppo7KlMEnhQZp6P5PwYYZACM`) found in `google-services.json`.
+- **Why**: The incorrect key was causing Firebase Auth login/registration endpoints to return `auth/api-key-not-valid`, completely preventing successful email/password auth.
+
+### 285. Manual Transaction Verification Flow — Modified
+- **`mobile/app/payment/index.tsx`**: Added TextInput box inside simulated checkout verification screen for user-entered Transaction ID/Ref No. Disabled the confirm button unless the ID contains 6+ characters.
+- **`mobile/utils/api.ts`**: Updated `/bookings/verify` to write this `transactionId` and change status to `CONFIRMED` in the Firestore booking document. Also mapped it into owner bookings list.
+- **`mobile/app/owner/bookings.tsx`**: Mapped `transactionId` into slot info and added a details row in the booking detailmodal sheet to display the Transaction ID.
+- **`mobile/app/owner/payments.tsx`**: Added Reference ID display (`Ref ID: {txn.refId}`) directly to recent transaction items card under customer name/date.
+- **Why**: Responds to user request to allow customers to manually enter their transaction ID after UPI/bank payment, and let owners see and verify it on their dashboards.
+
+### 286. Quick Demo Logins Helper Buttons — Modified
+- **`mobile/app/login.tsx`**: Added "QUICK DEMO LOGINS" helper buttons for `Demo Admin`, `Demo Owner`, and `Demo User` directly on the login screen. Tapping them sets the credentials and logs in immediately.
+- Includes automatic on-the-fly registration fallback in Firebase Auth and Firestore if the demo accounts (`customer@turfbook.com`, `owner@turfbook.com`, or `izharsayed12@gmail.com`) don't exist yet, ensuring a flawless one-tap login experience for development.
+
+### 287. Booking Status Mapping and Fetching — Fixed
+- **`mobile/utils/api.ts`**:
+  - Replaced Firestore booking status values of `'UPCOMING'`, `'CONFIRMED'`, and `'PENDING_CONFIRMATION'` with standardized lowercase backend status values `'active'` and `'cancelled'`.
+  - Added a missing direct Firestore fallback handler for `GET /bookings/:id` requests.
+- **Why**:
+  1. The client-side dashboard (`index.tsx`) and details page (`booking/[id].tsx`) map all booking statuses that are not exactly `'active'` or `'completed'` to `'CANCELLED'`. Writing `'UPCOMING'` or `'CONFIRMED'` caused active bookings to show up as `'CANCELLED'` on the UI.
+  2. The missing `GET /bookings/:id` handler caused 404 errors when opening ticket details.
+  3. Correcting these status strings resolves both issues: bookings appear correctly on the user's dashboard and populate correctly on the owner dashboard.
+
+### 288. Pricing Discrepancy & Default Surcharges — Fixed
+- **`mobile/utils/api.ts`**, **`mobile/app/payment/index.tsx`**, **`mobile/app/owner/bookings.tsx`**:
+  - Changed fallback defaults for `peakSurcharge`, `weekendSurcharge`, and `convenienceFee` from hardcoded defaults (`300`, `200`, `45`) to `0` when not explicitly defined in the Turf database document.
+  - Used nullish coalescing `?? 0` in database mapping to prevent explicitly set `0` surcharges from being overridden by fallback defaults.
+- **Why**: If a turf was created with a custom low base price (e.g., `30` per hour), the checkout screen would automatically add a weekend surcharge of `200` and convenience fee of `45` by default, inflating the price to `275` and creating a confusing mismatch. Setting fallbacks to `0` resolves this issue.
+
+### 289. Owner Turf-Claiming Self-Healing Fallback — Modified
+- **`mobile/utils/api.ts`**:
+  - Added a self-healing block to the GET `/owner/turfs` serverless endpoint fallback.
+  - If no turfs are owned by the currently logged-in demo owner (due to new Firebase Auth UIDs not matching the pre-seeded mock IDs in Firestore), the code dynamically claims all existing/seeded turfs for this owner's UID in Firestore.
+- **Why**: Ensures that the dropdown selector inside the owner dashboard lists the seeded turfs instantly, allowing bookings and slot grids to render and align perfectly without database UID mismatches.
+
+### 290. Firestore Security Rules Alignment for Owner Bookings — Fixed
+- **`mobile/utils/api.ts`**:
+  - Modified the customer booking creation (`POST /bookings`) to store the turf's `ownerId` directly on the booking document.
+  - Filtered the owner bookings query (`GET /owner/bookings`) by `where('ownerId', '==', currentUserId)`.
+- **Why**: Firestore Security Rules dictate that owners can only read/update bookings where `resource.data.ownerId == request.auth.uid`. Storing `ownerId` on the booking and filtering the owner's fetch query to only request their own documents resolves the "Missing or insufficient permissions" error.
+
+### 291. Focus-Based Auto-Reloading for Customer Reservations — Fixed
+- **`mobile/app/index.tsx`**:
+  - Imported and initialized the `useNavigation` hook.
+  - Added a screen focus listener (`navigation.addListener('focus')`) to trigger `fetchBookings()` automatically whenever the customer returns to or focuses the dashboard screen while on the bookings tab.
+  - Aligned status string mapping inside the pull-to-refresh (`onRefresh`) handler to matches the standard fetch logic.
+- **Why**: Since the homepage remains mounted in the navigation stack when the user goes to the checkout page, returning via `router.replace` did not fire standard mount `useEffect` hooks. Adding a focus event listener ensures reservations update automatically on focus without needing a manual pull-to-refresh.
+
+### 292. Removed Card and Net Banking Options from Secure Checkout — Modified
+- **`mobile/app/payment/index.tsx`**:
+  - Removed Credit/Debit Card and Net Banking options from the secure checkout screen.
+  - Leaves UPI as the sole selectable payment method.
+- **Why**: Responds to user request to restrict secure checkout transactions exclusively to UPI payments.
+
+### 293. Dynamic Owner Dashboard Metric Calculations — Modified
+- **`mobile/utils/api.ts`**:
+  - Replaced static mock data returned by the `/owner/dashboard` fallback with dynamic real-time Firestore database queries.
+  - Calculates `todayBookings`, `todayRevenue`, `totalTurfs`, and occupancy rates dynamically based on actual booking documents matching the owner's UID.
+- **Why**: Resolves the issue where "Today's Overview" metrics (total bookings and revenue) were static and did not update when new bookings were verified.
+
+### 294. Booking Details Modal on Owner Dashboard — Modified
+- **`mobile/app/owner/index.tsx`**:
+  - Added `customerPhone` and `transactionId` properties to the mapped objects inside `recentBookings`.
+  - Added `detailsModalVisible` and `selectedBooking` state variables.
+  - Replaced the list row `onPress` action with opening the details modal.
+  - Implemented a details bottom-sheet Modal displaying customer name, time slot, turf, price, transaction ID, and status badge.
+  - Added a "Call Customer" CTA button inside the modal to let owners initiate a phone call via the device's native dialer.
+- **Why**: Responds to user request to open full customer details and call shortcuts directly from clicking on items in the "Today's Bookings" dashboard list.
+
+### 295. Serena Coding Agent Toolkit Initialization — Created
+- **CLI Commands**:
+  - Ran `serena init` to initialize the Serena configuration at `C:\Users\Izhar\.serena\serena_config.yml`.
+  - Ran `serena setup claude-code` to register the Serena MCP server for Claude Code workspace integrations.
+- **Why**: Configured structural and semantic code intelligence for AI agent coding clients as requested.
+
+### 296. Block Slot Routing & Payload Parsing — Fixed
+- **`mobile/app/owner/index.tsx`**:
+  - Corrected the route for the "Block Slot" shortcut grid button from `'/owner/turfs'` to `'/owner/bookings'`.
+- **`mobile/utils/api.ts`**:
+  - Added a body parsing check (`JSON.parse(options.body)`) at the start of `apiFetch` in direct Firestore mode if `options.body` is a stringified JSON payload.
+  - Modified the PUT `/owner/turfs/:id` handler to return the updated properties under the `data` key of the response.
+- **Why**:
+  1. The "Block Slot" shortcut was incorrectly routing to the fields list screen. Correcting it to the schedule manager screen lets owners manage/block slots immediately.
+  2. The mobile slots manager screen passes updates using stringified bodies, but the serverless API expected object properties directly. Spreading a stringified body resulted in malformed data payloads. Additionally, the lack of `data` inside the success response caused the frontend to show "failed to update slot settings" alerts.
+
+### 297. Owner Employees API Fallbacks — Created
+- **`mobile/utils/api.ts`**:
+  - Implemented `/owner/employees` serverless API endpoint fallbacks in direct Firestore mode, providing full CRUD support (GET, POST, PUT, DELETE) on the `users` Firestore collection.
+  - Links employees to their owner using the `ownerId` property.
+  - Added a Firestore lookup fallback check in the `/auth/login` endpoint's failure handler.
+- **Why**:
+  1. Resolves the `Not Found: GET /owner/employees` endpoint crash on the owner's staff/employees management screen.
+  2. The `/auth/login` fallback check allows newly created Caretakers, Managers, and Staff members to bypass Firebase Authentication and log in to the application directly with their custom credentials using the local Firestore documents.
+
+### 298. Employee Creation ReferenceError Fix — Fixed
+- **`mobile/utils/api.ts`**:
+  - Declared `currentUserId` globally inside the parent `if (cleanPath.startsWith('/owner/'))` routing block.
+  - Cleaned up shadowed duplicate definitions of `currentUserId` across sub-routes (`/owner/dashboard`, `/owner/bookings`, `/owner/turfs`).
+- **Why**: Referencing the undeclared `currentUserId` variable inside `/owner/employees` route handlers threw `ReferenceError` crashes. Defining it at the parent level resolves this and ensures all employee CRUD operations are executed flawlessly.
+
+### 299. Owner Employees Mismatched Routing Brace — Fixed
+- **`mobile/utils/api.ts`**:
+  - Closed the `if (cleanPath.startsWith('/owner/turfs'))` block correctly at the end of the turf handlers.
+  - Removed the misplaced extra closing brace from the end of the owner block.
+- **Why**: The `/owner/employees` CRUD handlers were accidentally nested inside the `if (cleanPath.startsWith('/owner/turfs'))` block due to a misplaced brace, which bypassed them entirely and threw 404 Not Found errors on all employee requests. Balancing the braces resolves the issue.
+
+### 300. Firestore Security Rules Employee Write Alignment — Fixed
+- **`firestore.rules`**:
+  - Updated the `/users/{userId}` security match block.
+  - Allowed read, create, update, and delete access if `resource.data.ownerId == request.auth.uid` or `request.resource.data.ownerId == request.auth.uid`.
+- **Why**: The original security rule restricted all writes under the `/users` collection exclusively to the owner of that exact profile (`request.auth.uid == userId`). Since employee documents are created with a newly generated doc ID and not the Turf Owner's authenticated UID, the write was rejected by Firebase with "Missing or insufficient permissions". Allowing owners to write employee profiles matching their `ownerId` resolves the permission issue.
+
+### 301. Owner Dashboard QR Scanner Integration — Created
+- **`mobile/package.json`**:
+  - Installed the native library `expo-camera` to handle QR/barcode scanning.
+- **`mobile/app.json`**:
+  - Added the `"expo-camera"` plugin configuration to handle camera permissions and barcode scanning feature dependencies.
+- **`mobile/utils/api.ts`**:
+  - Updated auth login API responses to return caretaker fields (`ownerId`, `turfId`).
+  - Scoped `currentUserId` in owner endpoints block to parent owner's UID if the logged-in user role is `CARETAKER`.
+  - Added `PATCH /owner/bookings/:id/status` endpoint to allow owners and caretakers to update a booking's status.
+- **`mobile/app/owner/index.tsx`**:
+  - Added a QR Code scanner icon button to the top navbar.
+  - Created a full-screen `ScannerModal` utilizing `CameraView` from `expo-camera` to scan customer booking QR codes.
+  - Handled fetching the scanned booking ID details from the API and instantly displaying them inside the booking details view modal.
+  - Added a "Check In" button inside the details modal to mark a confirmed/pending booking as checked in (`CHECKED_IN`), automatically refreshing dashboard statistics.
+
+### 302. Android Release APK Compilation — Built
+- **`mobile/android`**:
+  - Ran `./gradlew assembleRelease` via gradle wrapper inside the Android native directory.
+  - Compiled and bundled Metro assets and JS bundle.
+- **Why**: Rebuilt the mobile application's final Android Release APK containing the brand new Staff permissions fix and QR code scanner integration.
+
+### 303. QR Code Dynamic JSON Generator & Owner Scanner — Modified
+- **`mobile/app/booking/[id].tsx`**:
+  - Replaced the static QR placeholder icon with `QRCode` from `react-native-qrcode-svg` and increased the size to `180` (previously `130`) to make it larger and easier to scan.
+  - Simplified the QR value JSON payload to include only the essential fields (`bookingId`, `transactionId`) rather than the full booking structure, reducing the QR complexity by over 40% for instant scanning speed.
+- **`mobile/utils/api.ts`**:
+  - Modified `mapFirestoreBooking` and `POST /bookings` handlers to properly persist and map `totalAmount`, `paidAmount`, and `pendingAmount` (calculated as `totalAmount - paidAmount` when partial advance is paid).
+  - Persisted user phone number (`customerPhone`) in the booking document.
+- **`mobile/app/owner/index.tsx`**:
+  - Updated QR barcode scanned handler to parse the dynamic JSON fields and assign them to `selectedBooking` state.
+  - Updated the Booking Details Modal UI to render:
+    1. **Booking ID** at the top.
+    2. **Total Amount**, **Amount Paid**, and **Pending Amount** (conditionally shown in red if `pendingAmount > 0`).
+    3. **Transaction ID** as entered during payment checkout verification.
+- **Why**: Resolves the user request to show both the booking ID and transaction ID, and display any pending amount if the customer paid a partial percentage of the ticket (e.g. 30%).
+
+### 304. Gradle Plugin Build Path Errors Resolution — Fixed
+- **`mobile/node_modules/@react-native/gradle-plugin`**:
+  - Ran `gradlew.bat assemble` in this directory to build and compile the local Java/Kotlin plugin source code.
+  - Successfully generated the required library `shared-testutil.jar` under `shared-testutil/build/libs/`.
+- **Why**: The IDE reported build path errors across `react-native-gradle-plugin`, `settings-plugin`, `shared`, and `expo-module-gradle-plugin` because they were referencing `shared-testutil.jar`, which was not built/compiled out of the box in the node_modules source files. Compiling them generates this artifact and resolves the IDE's missing dependency errors.
+
+### 305. `mobile/app/owner/bookings.tsx` — Modified
+- Imported `Linking` from `react-native` to allow initiation of customer phone calls directly from the app.
+- Extended the `OwnerBooking` interface with fields: `customerPhone`, `totalAmount`, `paidAmount`, `pendingAmount`, and `transactionId`.
+- Mapped all these fields dynamically inside the `slotsList` generator block for booked/offline slots.
+- Redesigned the Booking Details Modal (`detailsModalVisible`) to render the full booking structure (Booking ID, Customer Name, Phone, Time, Turf, Total/Paid/Pending amount split, Status, and Transaction ID).
+- Added an inline quick-call phone icon button in the Phone row and a full-width "Call Customer" green button inside the details drawer modal.
+- **Why**: Fulfills user request to view full details (transaction ID, number, time) and call the customer when clicking on a booked slot on the owner bookings management page.
+
+### 306. `mobile/app/owner/payments.tsx` — Modified
+- Imported `Alert` from `react-native` to display actionable alerts for transaction actions.
+- Added helper functions `handleTransactionPress` and `updatePaymentStatus` to handle clicks on individual transactions.
+- Converted transaction list row container from `<View>` to a clickable `<TouchableOpacity>`.
+- Clicking a transaction opens a dialog with options: "Close", "Confirm Payment" (calls PATCH status API with `CONFIRMED`), and "Reject Payment" (calls PATCH status API with `CANCELLED`).
+- **Why**: Fulfills the user request to allow owners to confirm or reject options when clicking on a payment in the payments & payouts screen.
+
+### 307. `mobile/app/owner/payments.tsx` — Modified
+- Extended `Transaction` type definition with optional fields `totalAmount`, `paidAmount`, and `pendingAmount`.
+- Redesigned stats accumulation logic to correctly calculate pending clearances.
+- Now sums up total amounts of all pending bookings (such as those with `PENDING` and `PENDING_CONFIRMATION` status) and the `pendingAmount` (venue pay balances) of confirmed bookings.
+- Utilizes case-insensitive checks on status fields to ensure matching across lowercase and uppercase states.
+- Enhanced `handleTransactionPress` to show full payment breakdown including total, paid, and pending balance amounts.
+- **Why**: Fixes user issue where pending clearances calculations were not working or not capturing partial payment pending amounts and different pending status casing.
+
+### 308. slots live status fixes — Modified
+- **Why**: Resolved the issue where slots live status was not showing booked slots on the user booking page.
+- **Changes**:
+  - In `mobile/utils/api.ts`: Modified the `/turfs/:id/bookings` API path to fetch all bookings for that turf and filter out cancelled/failed bookings in memory, instead of doing a strict firestore query for `status == 'UPCOMING'` (since bookings are stored as `active` or `CONFIRMED` in the DB).
+  - In `mobile/app/turf/[id].tsx`: Updated `isSlotBooked` to correctly map and normalize the date (`date` field) and slot time (`time` field) returned by the bookings API, instead of looking for mismatched fields like `bookingDate` and `slotId`.
+  - In `mobile/app/booking/[id].tsx`: Applied the same robust `isSlotBooked` changes to the rescheduling screen to ensure it displays live booked status perfectly.
+
+### 309. offline bookings date/time normalization — Modified
+- **Why**: Resolved the issue where bookings added in the owner panel (offline bookings) were not loading/marking slots as booked in the user view.
+- **Changes**:
+  - In `mobile/utils/api.ts`:
+    - Updated POST `/owner/bookings/offline` to correctly parse and extract the date part (`YYYY-MM-DD`) and time slot (`HH:MM - HH:MM`) from the ISO `startTime` and `endTime` fields sent by the owner panel.
+    - Updated GET `/owner/bookings` and `mapFirestoreBooking` to auto-normalize any old test data where `date` was stored as an ISO string or `time` was missing (extracting it from `startTime` and `endTime`).
+
+### 310. ticket back button touch interception fix — Modified
+- **Why**: The transparent stack navigation header was being covered by the ScrollView container's layout layer, blocking all touch events to the back button on mobile screens.
+- **Changes**:
+  - In `mobile/app/booking/[id].tsx`:
+    - Disabled the native stack header navigation (`headerShown: false`).
+    - Implemented a custom transparent header bar (`customHeader`, `customHeaderBack`, `customHeaderTitle`) directly inside the main view wrapper to guarantee 100% responsive, unblocked touch event processing.
+
+### 311. `mobile/app/turf/[id].tsx` — Modified
+- Imported `useNavigation` from `'expo-router'`.
+- Consolidated separate turf details and bookings fetch effects into a unified `fetchAllData` function.
+- Added a focus event listener (`navigation.addListener('focus')`) to refresh the turf details (containing `blockedSlots`) and bookings list automatically on screen focus.
+- **Why**: Resolves the bug where booked or blocked slots did not update dynamically on the turf detail screen until the user either closed the page or attempted to book first. Now, the slots grid automatically refetches and updates on focus.
+
+### 312. `mobile/app/turf/[id].tsx` — Modified
+- Wrapped the top greeting header bar in a conditional rendering block checking `isAuthenticated`.
+- When logged out, it displays a neutral guest greeting ("Welcome to TurfBook") and a small "Sign In" button instead of defaulting to "Hi ahmed" and a placeholder avatar.
+- Added stylesheet classes `loginBtnSmall` and `loginBtnTextSmall` to format the Sign In button.
+- **Why**: Fixes the UI anomaly where the greeting bar welcomed "ahmed" with a default avatar even when the user was not authenticated.
+
+

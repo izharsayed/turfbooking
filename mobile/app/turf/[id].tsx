@@ -8,7 +8,7 @@ import {
   Image,
   TextInput,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack, useNavigation } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/index';
 import { useAuthStore } from '../../store/authStore';
@@ -37,6 +37,7 @@ import { apiFetch } from '../../utils/api';
 
 export default function TurfDetailScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { isDarkMode } = useThemeStore();
@@ -56,20 +57,74 @@ export default function TurfDetailScreen() {
   const [loadingTurf, setLoadingTurf] = useState(false);
   const [bookedReservations, setBookedReservations] = useState<any[]>([]);
 
-  useEffect(() => {
-    const fetchReservations = async () => {
-      if (!id) return;
-      try {
-        const res = await apiFetch(`/turfs/${id}/bookings`);
-        if (res.success && Array.isArray(res.data)) {
-          setBookedReservations(res.data);
-        }
-      } catch (err) {
+  const fetchAllData = async (showLoading = false) => {
+    if (!id) return;
+    if (showLoading) setLoadingTurf(true);
+    try {
+      const [resTurf, resBookings] = await Promise.all([
+        apiFetch(`/turfs/${id}`),
+        apiFetch(`/turfs/${id}/bookings`),
+      ]);
 
+      if (resTurf.success && resTurf.data) {
+        const bt = resTurf.data;
+        const getMobileSportName = (s: string): string => {
+          const map: Record<string, string> = {
+            'NHQKZB3YRCRhWBL95sUE': 'Football',
+            'nB4mpucB3cyLZA8gXxiA': 'Cricket',
+            'HV8G3I9zmsYnUWFqqqMV': 'Box Cricket'
+          };
+          return map[s] || s;
+        };
+        const rawSport = Array.isArray(bt.sports) ? bt.sports[0] : (bt.sport || 'Football');
+        const sport = getMobileSportName(rawSport);
+        let imagePath = Array.isArray(bt.images) && bt.images.length > 0 ? bt.images[0] : (bt.image || '/images/football.jpg');
+        if ((sport === 'Cricket' || sport === 'Box Cricket') && (imagePath === '/images/football.jpg' || imagePath.includes('football.jpg') || imagePath.includes('photo-1575361204480-aadea25e6e68'))) {
+          imagePath = '/images/cricket.jpg';
+        }
+
+        const normalized = {
+          id: bt.id,
+          name: bt.name,
+          sport: sport,
+          price: bt.pricePerHour || bt.price || 1200,
+          rating: bt.rating || 4.5,
+          area: bt.location?.address || bt.area || 'Ahmednagar',
+          image: imagePath,
+          latitude: bt.location?.latitude || bt.latitude || 19.1158,
+          longitude: bt.location?.longitude || bt.longitude || 74.742,
+          description: bt.description || '',
+          amenities: bt.amenities || [],
+          slots: bt.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
+          peakStartHour: bt.peakStartHour,
+          peakEndHour: bt.peakEndHour,
+          peakSurcharge: bt.peakSurcharge,
+          weekendSurcharge: bt.weekendSurcharge,
+          blockedSlots: bt.blockedSlots || [],
+        };
+        setTurf(normalized);
+        setSelectedSport(normalized.sport === 'Football' ? 'Football' : 'Cricket');
       }
-    };
-    fetchReservations();
-  }, [id]);
+
+      if (resBookings.success && Array.isArray(resBookings.data)) {
+        setBookedReservations(resBookings.data);
+      }
+    } catch (err) {
+      console.warn('⚠️ Error loading turf details/bookings:', err);
+    } finally {
+      if (showLoading) setLoadingTurf(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllData(true);
+
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchAllData(false);
+    });
+
+    return unsubscribe;
+  }, [id, navigation]);
 
   const localBookings = useBookingStore((s) => s.bookings);
 
@@ -109,11 +164,19 @@ export default function TurfDetailScreen() {
     const targetNorm = normalizeSlot(slotTime);
 
     const isBackendBooked = bookedReservations.some((res) => {
-      const bDate = res.bookingDate ? new Date(res.bookingDate).toISOString().split('T')[0] : '';
+      let bDate = '';
+      if (res.date) {
+        bDate = res.date.split('T')[0];
+      } else if (res.bookingDate) {
+        try {
+          bDate = new Date(res.bookingDate).toISOString().split('T')[0];
+        } catch (e) {}
+      }
+
       if (bDate !== selectedDate) return false;
 
-      // Support comma-separated slotId values
-      const dbSlots = (res.slotId || '').split(',').map((s: string) => s.trim());
+      const slotVal = res.time || res.timeSlot || res.slotId || '';
+      const dbSlots = slotVal.split(',').map((s: string) => s.trim());
       return dbSlots.some((dbSlot: string) => dbSlot && normalizeSlot(dbSlot) === targetNorm);
     });
 
@@ -153,60 +216,7 @@ export default function TurfDetailScreen() {
   const startTime = sortedTimes.length > 0 ? sortedTimes[0].split(' - ')[0] : '';
   const endTime = sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1].split(' - ')[1] : '';
 
-  useEffect(() => {
-    const fetchTurfDetails = async () => {
-      if (!id) return;
-      
-      setLoadingTurf(true);
-      try {
-        const res = await apiFetch(`/turfs/${id}`);
-        if (res.success && res.data) {
-          const bt = res.data;
-          const getMobileSportName = (s: string): string => {
-            const map: Record<string, string> = {
-              'NHQKZB3YRCRhWBL95sUE': 'Football',
-              'nB4mpucB3cyLZA8gXxiA': 'Cricket',
-              'HV8G3I9zmsYnUWFqqqMV': 'Box Cricket'
-            };
-            return map[s] || s;
-          };
-          const rawSport = Array.isArray(bt.sports) ? bt.sports[0] : (bt.sport || 'Football');
-          const sport = getMobileSportName(rawSport);
-          let imagePath = Array.isArray(bt.images) && bt.images.length > 0 ? bt.images[0] : (bt.image || '/images/football.jpg');
-          if ((sport === 'Cricket' || sport === 'Box Cricket') && (imagePath === '/images/football.jpg' || imagePath.includes('football.jpg') || imagePath.includes('photo-1575361204480-aadea25e6e68'))) {
-            imagePath = '/images/cricket.jpg';
-          }
 
-          const normalized = {
-            id: bt.id,
-            name: bt.name,
-            sport: sport,
-            price: bt.pricePerHour || bt.price || 1200,
-            rating: bt.rating || 4.5,
-            area: bt.location?.address || bt.area || 'Ahmednagar',
-            image: imagePath,
-            latitude: bt.location?.latitude || bt.latitude || 19.1158,
-            longitude: bt.location?.longitude || bt.longitude || 74.742,
-            description: bt.description || '',
-            amenities: bt.amenities || [],
-            slots: bt.slots || ['17:00 - 18:00', '18:00 - 19:00', '19:00 - 20:00', '20:00 - 21:00'],
-            peakStartHour: bt.peakStartHour,
-            peakEndHour: bt.peakEndHour,
-            peakSurcharge: bt.peakSurcharge,
-            weekendSurcharge: bt.weekendSurcharge,
-            blockedSlots: bt.blockedSlots || [],
-          };
-          setTurf(normalized);
-          setSelectedSport(normalized.sport === 'Football' ? 'Football' : 'Cricket');
-        }
-      } catch (err) {
-        // Handled silently, UI handles loading/empty state
-      } finally {
-        setLoadingTurf(false);
-      }
-    };
-    fetchTurfDetails();
-  }, [id]);
 
   const user = useAuthStore((s) => s.user);
 
@@ -267,21 +277,39 @@ export default function TurfDetailScreen() {
 
       {/* Greeting Header Bar */}
       <View style={styles.topGreetHeader}>
-        <View style={styles.greetLeft}>
-          <Image
-            source={{ uri: `https://avatar.iran.liara.run/public/boy?username=${user?.name || 'ahmed'}` }}
-            style={styles.headerAvatar}
-          />
-          <View>
-            <Text style={styles.greetText}>Hi {user?.name || 'ahmed'} <Ionicons name="hand-left-outline" size={16} color="#fbbf24" /></Text>
-            <Text style={styles.greetSubText}>{'Ahmednagar >'}</Text>
-          </View>
-        </View>
-        <View style={styles.greetRight}>
-          <TouchableOpacity style={styles.headerBell} onPress={() => router.push('/profile')}>
-            <Ionicons name="notifications-outline" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        {isAuthenticated ? (
+          <>
+            <View style={styles.greetLeft}>
+              <Image
+                source={{ uri: `https://avatar.iran.liara.run/public/boy?username=${user?.name || 'guest'}` }}
+                style={styles.headerAvatar}
+              />
+              <View>
+                <Text style={styles.greetText}>Hi {user?.name ? user.name.split(' ')[0] : 'Guest'} <Ionicons name="hand-left-outline" size={16} color="#fbbf24" /></Text>
+                <Text style={styles.greetSubText}>{'Ahmednagar >'}</Text>
+              </View>
+            </View>
+            <View style={styles.greetRight}>
+              <TouchableOpacity style={styles.headerBell} onPress={() => router.push('/profile')}>
+                <Ionicons name="notifications-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.greetLeft}>
+              <View>
+                <Text style={styles.greetText}>Welcome to TurfBook <Ionicons name="sparkles" size={16} color="#fbbf24" /></Text>
+                <Text style={styles.greetSubText}>{'Ahmednagar >'}</Text>
+              </View>
+            </View>
+            <View style={styles.greetRight}>
+              <TouchableOpacity style={styles.loginBtnSmall} onPress={() => router.push('/login')}>
+                <Text style={styles.loginBtnTextSmall}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -1023,5 +1051,16 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 12,
     fontWeight: '700',
+  },
+  loginBtnSmall: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  loginBtnTextSmall: {
+    color: '#020617',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

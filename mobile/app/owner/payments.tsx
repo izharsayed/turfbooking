@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Dimensions,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useNavigation, Redirect } from 'expo-router';
@@ -24,6 +25,9 @@ interface Transaction {
   customerName: string;
   turfName: string;
   amount: number;
+  totalAmount?: number;
+  paidAmount?: number;
+  pendingAmount?: number;
   date: string;
   method: string;
   status: string;
@@ -82,26 +86,36 @@ export default function OwnerPaymentsScreen() {
           }
         } catch (e) {}
 
-        const bAmount = Number(b.amount) || 0;
-        const isPaid = b.status === 'CONFIRMED' || b.status === 'COMPLETED';
+        const totalAmt = Number(b.totalAmount) || Number(b.amount) || 0;
+        const paidAmt = Number(b.paidAmount) || Number(b.amount) || 0;
+        const pendingAmt = b.pendingAmount !== undefined ? Number(b.pendingAmount) : Math.max(0, totalAmt - paidAmt);
+
+        const statusUpper = (b.status || '').toUpperCase();
+        const isPaid = statusUpper === 'CONFIRMED' || statusUpper === 'COMPLETED' || statusUpper === 'CHECKED_IN';
+        const isCancelled = statusUpper === 'CANCELLED' || statusUpper === 'FAILED';
+        const isPending = !isPaid && !isCancelled;
 
         if (isPaid) {
-          calculatedTotal += bAmount;
+          calculatedTotal += paidAmt;
           if (isThisMonth) {
-            calculatedMonth += bAmount;
+            calculatedMonth += paidAmt;
           }
-        } else if (b.status === 'PENDING') {
-          calculatedPending += bAmount;
+          calculatedPending += pendingAmt;
+        } else if (isPending) {
+          calculatedPending += totalAmt;
         }
 
         return {
           id: b.id,
           customerName: b.customerName || 'Customer',
           turfName: b.turfName || 'Arena',
-          amount: bAmount,
+          amount: totalAmt,
+          totalAmount: totalAmt,
+          paidAmount: paidAmt,
+          pendingAmount: pendingAmt,
           date: b.date ? `${b.date} • ${b.time}` : `${b.time}`,
           method: b.transactionId ? 'Online Payment' : 'Offline Entry',
-          status: isPaid ? 'Settled' : b.status === 'CANCELLED' ? 'Cancelled' : 'Pending',
+          status: isPaid ? 'Settled' : isCancelled ? 'Cancelled' : 'Pending',
           refId: b.transactionId || 'Offline Entry',
         };
       });
@@ -131,6 +145,45 @@ export default function OwnerPaymentsScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     fetchPaymentsData();
+  };
+
+  const updatePaymentStatus = async (bookingId: string, newStatus: string) => {
+    try {
+      setLoading(true);
+      const res = await apiFetch(`/owner/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        body: { status: newStatus },
+      });
+      if (res.success) {
+        Alert.alert('Success', `Payment status updated to ${newStatus === 'CONFIRMED' ? 'Settled' : 'Cancelled'} successfully!`);
+        fetchPaymentsData();
+      } else {
+        Alert.alert('Error', 'Failed to update payment status.');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'An error occurred while updating status.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTransactionPress = (txn: Transaction) => {
+    Alert.alert(
+      'Payment Action',
+      `Customer: ${txn.customerName}\nTurf: ${txn.turfName}\nTotal Amount: ₹${txn.totalAmount ?? txn.amount}\nPaid Amount: ₹${txn.paidAmount ?? txn.amount}\nPending Balance: ₹${txn.pendingAmount ?? 0}\nRef ID: ${txn.refId || 'N/A'}\nCurrent Status: ${txn.status}\n\nChoose action for this payment:`,
+      [
+        { text: 'Close', style: 'cancel' },
+        {
+          text: 'Confirm Payment',
+          onPress: () => updatePaymentStatus(txn.id, 'CONFIRMED'),
+        },
+        {
+          text: 'Reject Payment',
+          style: 'destructive',
+          onPress: () => updatePaymentStatus(txn.id, 'CANCELLED'),
+        },
+      ]
+    );
   };
 
   const theme = {
@@ -176,9 +229,9 @@ export default function OwnerPaymentsScreen() {
           <Text style={styles.balanceValue}>₹{totalEarnings.toLocaleString('en-IN')}</Text>
 
           <View style={styles.payoutTargetRow}>
-            <Ionicons name="checkmark-circle" size={16} color={ACCENT} />
+            <Ionicons name="information-circle" size={16} color={ACCENT} />
             <Text style={[styles.payoutTargetText, { color: theme.textMuted }]}>
-              All payouts settled directly to Bank Account (**** 4829)
+              Revenue is calculated from confirmed bookings
             </Text>
           </View>
         </View>
@@ -199,12 +252,19 @@ export default function OwnerPaymentsScreen() {
         <View style={[styles.infoCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.infoTitleRow}>
             <MaterialCommunityIcons name="bank-outline" size={20} color={ACCENT} />
-            <Text style={[styles.infoTitle, { color: theme.text }]}>Registered Payout Profile</Text>
+            <Text style={[styles.infoTitle, { color: theme.text }]}>Payout Settings</Text>
           </View>
-          <Text style={[styles.bankName, { color: theme.text }]}>HDFC BANK LTD</Text>
-          <Text style={[styles.bankDetails, { color: theme.textMuted }]}>Account Number: *******4829</Text>
-          <Text style={[styles.bankDetails, { color: theme.textMuted }]}>IFS Code: HDFC0000072</Text>
-          <Text style={[styles.bankDetails, { color: theme.textMuted }]}>Primary UPI ID: owner@upi (Verified)</Text>
+          <Text style={[styles.bankDetails, { color: theme.textMuted, marginTop: 8 }]}>
+            Bank account and UPI payout settings are managed through the TurfBook admin portal.
+            Contact support to register or update your payout account.
+          </Text>
+          <TouchableOpacity
+            style={[styles.setupBtn, { borderColor: ACCENT }]}
+            onPress={() => {}}
+          >
+            <Ionicons name="mail-outline" size={16} color={ACCENT} style={{ marginRight: 6 }} />
+            <Text style={{ color: ACCENT, fontSize: 13, fontWeight: '600' }}>Contact Support</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Transactions List */}
@@ -222,8 +282,10 @@ export default function OwnerPaymentsScreen() {
           </View>
         ) : (
           transactions.map((txn, index) => (
-            <View 
+            <TouchableOpacity 
               key={txn.id} 
+              activeOpacity={0.7}
+              onPress={() => handleTransactionPress(txn)}
               style={[
                 styles.txnCard, 
                 { backgroundColor: theme.card, borderColor: theme.cardBorder },
@@ -241,9 +303,14 @@ export default function OwnerPaymentsScreen() {
               <View style={[styles.txnDivider, { backgroundColor: theme.divider }]} />
               
               <View style={styles.txnBottom}>
-                <Text style={[styles.txnMeta, { color: theme.textMuted }]}>
-                  {txn.date} • {txn.method}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.txnMeta, { color: theme.textMuted }]}>
+                    {txn.date} • {txn.method}
+                  </Text>
+                  <Text style={[styles.txnMeta, { color: theme.textMuted, fontSize: 11, marginTop: 2, fontWeight: '700' }]}>
+                    Ref ID: {txn.refId || 'Offline Entry'}
+                  </Text>
+                </View>
                 <View style={[
                   styles.statusBadge, 
                   txn.status === 'Settled' ? styles.statusBadgeSettled : txn.status === 'Pending' ? styles.statusBadgePending : styles.statusBadgeCancelled
@@ -260,7 +327,7 @@ export default function OwnerPaymentsScreen() {
                   </Text>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
@@ -371,6 +438,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     lineHeight: 18,
+  },
+  setupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginTop: 14,
+    alignSelf: 'flex-start',
   },
   sectionHeader: {
     flexDirection: 'row',

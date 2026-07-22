@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect, useRouter, useNavigation } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../utils/api';
@@ -69,6 +70,66 @@ export default function OwnerDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+
+  // Scanner States
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [hasScanned, setHasScanned] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanLoading, setScanLoading] = useState(false);
+
+  const handleBarcodeScanned = async ({ data }: { data: string }) => {
+    if (hasScanned) return;
+    setHasScanned(true);
+    setScanLoading(true);
+    setScanError(null);
+    try {
+      let bookingId = data.trim();
+      let parsedData: any = null;
+      try {
+        parsedData = JSON.parse(data);
+        if (parsedData && parsedData.bookingId) {
+          bookingId = parsedData.bookingId;
+        }
+      } catch (err) {}
+
+      const res = await apiFetch(`/bookings/${bookingId}`);
+      if (res.success && res.data) {
+        const b = res.data;
+        const parts = (b.time || '').split(/[-–]/).map((s: string) => s.trim());
+        const startTime = parts[0] || '12:00';
+        const fullTime = b.time || '12:00 - 13:00';
+        
+        setSelectedBooking({
+          id: b.id,
+          startTime,
+          timeRange: fullTime,
+          label: b.turfName || 'Booking',
+          turfName: b.turfName || 'Arena',
+          customerName: b.customerName || parsedData?.customerName || 'Customer',
+          customerPhone: b.customerPhone || parsedData?.customerPhone || '+919999988888',
+          amount: b.amount || 0,
+          totalAmount: b.totalAmount || parsedData?.totalAmount || b.amount || 0,
+          paidAmount: b.paidAmount || parsedData?.paidAmount || b.amount || 0,
+          pendingAmount: b.pendingAmount !== undefined ? b.pendingAmount : (parsedData?.pendingAmount !== undefined ? parsedData.pendingAmount : 0),
+          status: b.status || 'CONFIRMED',
+          transactionId: b.transactionId || parsedData?.transactionId || '',
+        });
+        setScannerVisible(false);
+        setDetailsModalVisible(true);
+      } else {
+        setScanError('Booking not found in the database.');
+        setHasScanned(false);
+      }
+    } catch (e: any) {
+      setScanError(e.message || 'Invalid or unrecognized booking QR code.');
+      setHasScanned(false);
+    } finally {
+      setScanLoading(false);
+    }
+  };
 
   const theme = {
     bg: isDarkMode ? '#030712' : '#f8fafc',
@@ -120,8 +181,13 @@ export default function OwnerDashboard() {
             label: b.turfName || 'Booking',
             turfName: b.turfName || 'Arena',
             customerName: b.customerName || 'Customer',
+            customerPhone: b.customerPhone || '+919999988888',
             amount: b.amount || 0,
+            totalAmount: b.totalAmount || b.amount || 0,
+            paidAmount: b.paidAmount || b.amount || 0,
+            pendingAmount: b.pendingAmount || 0,
             status: b.status || 'CONFIRMED',
+            transactionId: b.transactionId || '',
           };
         });
         setStats(prev => ({ ...prev, recentBookings: recent }));
@@ -179,18 +245,31 @@ export default function OwnerDashboard() {
               <TouchableOpacity style={styles.menuBtn} activeOpacity={0.7}>
                 <Ionicons name="menu-outline" size={24} color="#ffffff" />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.menuBtn}
-                activeOpacity={0.7}
-                onPress={() => setShowNotifications(true)}
-              >
-                <Ionicons name="notifications-outline" size={22} color="#ffffff" />
-                {notifications.filter(n => !n.read).length > 0 && (
-                  <View style={styles.bellBadge}>
-                    <Text style={styles.bellBadgeText}>{notifications.filter(n => !n.read).length}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={styles.menuBtn}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setHasScanned(false);
+                    setScanError(null);
+                    setScannerVisible(true);
+                  }}
+                >
+                  <Ionicons name="qr-code-outline" size={22} color="#ffffff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuBtn}
+                  activeOpacity={0.7}
+                  onPress={() => setShowNotifications(true)}
+                >
+                  <Ionicons name="notifications-outline" size={22} color="#ffffff" />
+                  {notifications.filter(n => !n.read).length > 0 && (
+                    <View style={styles.bellBadge}>
+                      <Text style={styles.bellBadgeText}>{notifications.filter(n => !n.read).length}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Slogans and status */}
@@ -274,7 +353,10 @@ export default function OwnerDashboard() {
                   <TouchableOpacity
                     style={styles.bookingRow}
                     activeOpacity={0.7}
-                    onPress={() => navigation.navigate('bookings' as any)}
+                    onPress={() => {
+                      setSelectedBooking(b);
+                      setDetailsModalVisible(true);
+                    }}
                   >
                     {/* Left Column: Time */}
                     <View style={styles.bookingTimeWrap}>
@@ -326,7 +408,7 @@ export default function OwnerDashboard() {
             {[
               { label: 'Add Booking', icon: 'calendar-plus', library: 'MaterialCommunityIcons', route: '/owner/bookings' },
               { label: 'Slots Manager', icon: 'grid-large', library: 'MaterialCommunityIcons', route: '/owner/bookings' },
-              { label: 'Block Slot', icon: 'calendar-lock', library: 'MaterialCommunityIcons', route: '/owner/turfs' },
+              { label: 'Block Slot', icon: 'calendar-lock', library: 'MaterialCommunityIcons', route: '/owner/bookings' },
               { label: 'Employees', icon: 'people-outline', library: 'Ionicons', route: '/owner/employees' },
               { label: 'Payments', icon: 'credit-card-outline', library: 'MaterialCommunityIcons', route: '/owner/payments' },
               { label: 'Reports', icon: 'bar-chart-outline', library: 'Ionicons', route: '/owner/bookings' },
@@ -462,6 +544,212 @@ export default function OwnerDashboard() {
               </TouchableOpacity>
             )}
           </View>
+        </View>
+      </Modal>
+
+      {/* Booking Details Modal */}
+      <Modal
+        visible={detailsModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setDetailsModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Booking Details</Text>
+              <TouchableOpacity onPress={() => setDetailsModalVisible(false)} hitSlop={8}>
+                <Ionicons name="close" size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.modalDivider, { backgroundColor: theme.divider }]} />
+
+            {selectedBooking && (
+              <View style={styles.detailsBody}>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Booking ID:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text, fontWeight: '700' }]}>{selectedBooking.id}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Customer Name:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text }]}>{selectedBooking.customerName}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Phone Number:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text }]}>{selectedBooking.customerPhone}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Time Slot:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text }]}>{selectedBooking.timeRange}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Turf Name:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text }]}>{selectedBooking.turfName}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Total Amount:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text }]}>₹{selectedBooking.totalAmount || selectedBooking.amount}</Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Amount Paid:</Text>
+                  <Text style={[styles.detailItemValue, { color: '#10b981', fontWeight: '700' }]}>₹{selectedBooking.paidAmount || selectedBooking.amount}</Text>
+                </View>
+                {selectedBooking.pendingAmount > 0 && (
+                  <View style={styles.detailItemRow}>
+                    <Text style={[styles.detailItemLabel, { color: '#ef4444', fontWeight: '700' }]}>Pending Amount:</Text>
+                    <Text style={[styles.detailItemValue, { color: '#ef4444', fontWeight: '800' }]}>₹{selectedBooking.pendingAmount}</Text>
+                  </View>
+                )}
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Transaction ID:</Text>
+                  <Text style={[styles.detailItemValue, { color: theme.text, fontWeight: '700' }]}>
+                    {selectedBooking.transactionId || 'Offline Entry'}
+                  </Text>
+                </View>
+                <View style={styles.detailItemRow}>
+                  <Text style={[styles.detailItemLabel, { color: theme.textMuted }]}>Status:</Text>
+                  <View style={[
+                    styles.statusPill,
+                    { backgroundColor: selectedBooking.status === 'CONFIRMED' ? 'rgba(16, 185, 129, 0.1)' : selectedBooking.status === 'CHECKED_IN' ? 'rgba(59, 130, 246, 0.1)' : selectedBooking.status === 'COMPLETED' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)' }
+                  ]}>
+                    <Text style={[
+                      styles.statusText,
+                      { color: selectedBooking.status === 'CONFIRMED' ? '#10b981' : selectedBooking.status === 'CHECKED_IN' ? '#3b82f6' : selectedBooking.status === 'COMPLETED' ? '#10b981' : '#f59e0b', fontSize: 11, fontWeight: '800' }
+                    ]}>
+                      {selectedBooking.status === 'CONFIRMED' ? 'Confirmed' : selectedBooking.status === 'CHECKED_IN' ? 'Checked In' : selectedBooking.status === 'COMPLETED' ? 'Completed' : 'Pending'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity 
+                style={[styles.actionCancelBtn, { borderColor: theme.divider }]} 
+                onPress={() => setDetailsModalVisible(false)}
+              >
+                <Text style={[styles.actionCancelBtnText, { color: theme.text }]}>Close</Text>
+              </TouchableOpacity>
+              {selectedBooking && selectedBooking.customerPhone && (
+                <TouchableOpacity 
+                  style={[styles.actionSubmitBtn, { backgroundColor: '#3b82f6' }]} 
+                  onPress={() => {
+                    const cleanPhone = selectedBooking.customerPhone.replace(/\s+/g, '');
+                    import('react-native').then(({ Linking }) => {
+                      Linking.openURL(`tel:${cleanPhone}`).catch(() => {});
+                    });
+                  }}
+                >
+                  <Text style={styles.actionSubmitBtnText}>Call</Text>
+                </TouchableOpacity>
+              )}
+              {selectedBooking && selectedBooking.status !== 'CHECKED_IN' && selectedBooking.status !== 'COMPLETED' && selectedBooking.status !== 'CANCELLED' && (
+                <TouchableOpacity 
+                  style={[styles.actionSubmitBtn, { backgroundColor: '#10b981' }]} 
+                  onPress={async () => {
+                    try {
+                      const res = await apiFetch(`/owner/bookings/${selectedBooking.id}/status`, {
+                        method: 'PATCH',
+                        body: { status: 'CHECKED_IN' }
+                      });
+                      if (res.success) {
+                        alert('Booking checked in successfully!');
+                        setDetailsModalVisible(false);
+                        fetchDashboard();
+                      } else {
+                        alert('Failed to check in booking.');
+                      }
+                    } catch (e: any) {
+                      alert(e.message || 'Failed to update check-in status.');
+                    }
+                  }}
+                >
+                  <Text style={styles.actionSubmitBtnText}>Check In</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* QR Scanner Modal */}
+      <Modal
+        visible={scannerVisible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => setScannerVisible(false)}
+      >
+        <View style={[styles.scannerModalContainer, { backgroundColor: '#020617' }]}>
+          {!permission ? (
+            <View style={styles.scannerCenterContent}>
+              <ActivityIndicator size="large" color={ACCENT} />
+            </View>
+          ) : !permission.granted ? (
+            <View style={styles.scannerPermissionContainer}>
+              <Ionicons name="camera-outline" size={64} color={ACCENT} style={{ marginBottom: 16 }} />
+              <Text style={styles.scannerPermissionTitle}>Camera Permission Required</Text>
+              <Text style={styles.scannerPermissionDesc}>
+                TurfBook requires access to your camera to scan booking QR codes at the entry gate.
+              </Text>
+              <TouchableOpacity style={styles.scannerPermissionBtn} onPress={requestPermission}>
+                <Text style={styles.scannerPermissionBtnText}>Grant Permission</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.scannerCancelLink} onPress={() => setScannerVisible(false)}>
+                <Text style={styles.scannerCancelLinkText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.scannerWrapper}>
+              <CameraView
+                style={StyleSheet.absoluteFillObject}
+                onBarcodeScanned={hasScanned ? undefined : handleBarcodeScanned}
+                barcodeScannerSettings={{
+                  barcodeTypes: ['qr'],
+                }}
+              />
+              
+              {/* Overlay graphics */}
+              <View style={styles.scannerOverlayContainer}>
+                {/* Header Row */}
+                <View style={styles.scannerHeaderRow}>
+                  <Text style={styles.scannerHeaderTitle}>Scan Booking QR</Text>
+                  <TouchableOpacity 
+                    style={styles.scannerCloseBtn} 
+                    onPress={() => setScannerVisible(false)}
+                  >
+                    <Ionicons name="close" size={24} color="#ffffff" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Target Frame */}
+                <View style={styles.scannerTargetArea}>
+                  <View style={styles.scannerTargetFrame}>
+                    <View style={[styles.cornerMarker, styles.topLeftCorner]} />
+                    <View style={[styles.cornerMarker, styles.topRightCorner]} />
+                    <View style={[styles.cornerMarker, styles.bottomLeftCorner]} />
+                    <View style={[styles.cornerMarker, styles.bottomRightCorner]} />
+                    {scanLoading && (
+                      <ActivityIndicator size="large" color={ACCENT} style={styles.scannerLoadingIndicator} />
+                    )}
+                  </View>
+                </View>
+
+                {/* Footer Message */}
+                <View style={styles.scannerFooterRow}>
+                  {scanError ? (
+                    <View style={styles.scanErrorPill}>
+                      <Ionicons name="alert-circle" size={16} color="#ef4444" style={{ marginRight: 6 }} />
+                      <Text style={styles.scanErrorText}>{scanError}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.scannerInstructionText}>
+                      Align the customer's QR code inside the frame to scan
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
         </View>
       </Modal>
     </View>
@@ -911,6 +1199,208 @@ const styles = StyleSheet.create({
     color: '#10b981',
     fontSize: 18,
     fontWeight: '900',
+  },
+  detailsBody: {
+    paddingVertical: 8,
+  },
+  detailItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  detailItemLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  detailItemValue: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  actionCancelBtn: {
+    flex: 1,
+    borderWidth: 1,
+    padding: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  actionCancelBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  actionSubmitBtn: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  actionSubmitBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  scannerModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scannerCenterContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scannerPermissionContainer: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scannerPermissionTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  scannerPermissionDesc: {
+    fontSize: 13,
+    color: '#94a3b8',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 24,
+  },
+  scannerPermissionBtn: {
+    backgroundColor: '#10b981',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  scannerPermissionBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  scannerCancelLink: {
+    paddingVertical: 8,
+  },
+  scannerCancelLinkText: {
+    color: '#94a3b8',
+    fontSize: 14,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  scannerWrapper: {
+    flex: 1,
+    width: '100%',
+    position: 'relative',
+  },
+  scannerOverlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'space-between',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  scannerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    marginTop: 20,
+  },
+  scannerHeaderTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  scannerCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scannerTargetArea: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scannerTargetFrame: {
+    width: 250,
+    height: 250,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cornerMarker: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    borderColor: '#10b981',
+  },
+  topLeftCorner: {
+    top: -2,
+    left: -2,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+  },
+  topRightCorner: {
+    top: -2,
+    right: -2,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+  },
+  bottomLeftCorner: {
+    bottom: -2,
+    left: -2,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+  },
+  bottomRightCorner: {
+    bottom: -2,
+    right: -2,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+  },
+  scannerLoadingIndicator: {
+    position: 'absolute',
+  },
+  scannerFooterRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  scannerInstructionText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  scanErrorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  scanErrorText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });
 

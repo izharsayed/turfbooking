@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "322171909313",
+    "project_id": "turfbook-74c8c",
+    "storage_bucket": "turfbook-74c8c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:322171909313:android:8dbc8609eeaafc4059d040",
+        "android_client_info": {
+          "package_name": "com.turfbook.customer"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "322171909313-mg7iphcd0llp27up3ravakibkmriru4h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkSr4SGN2ppo7KlMEnhQZp6P5PwYYZACM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "322171909313-mg7iphcd0llp27up3ravakibkmriru4h.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

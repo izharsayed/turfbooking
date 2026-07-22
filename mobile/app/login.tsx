@@ -19,6 +19,9 @@ import { useThemeStore } from '../store/themeStore';
 import { apiFetch } from '../utils/api';
 import Constants from 'expo-constants';
 import Svg, { Path } from 'react-native-svg';
+import { auth, db } from '../utils/firebase';
+import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 const GoogleIcon = ({ size = 18 }: { size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -60,6 +63,59 @@ export default function LoginScreen() {
         setTimeout(() => router.replace(path as any), 300);
       }
     }, 100);
+  };
+
+  const handleDemoLogin = async (demoEmail: string, demoPass: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPass);
+    setIsLoading(true);
+    try {
+      try {
+        const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
+        const name = demoEmail.split('@')[0];
+        const role = demoEmail === 'izharsayed12@gmail.com' ? 'SUPER_ADMIN' : (demoEmail.includes('owner') ? 'TURF_OWNER' : 'CUSTOMER');
+        
+        const userCredential = await createUserWithEmailAndPassword(auth, demoEmail, demoPass);
+        const firebaseUser = userCredential.user;
+        await updateProfile(firebaseUser, { displayName: name });
+        
+        await setDoc(doc(db, 'users', firebaseUser.uid), {
+          email: demoEmail,
+          name,
+          phone: '9876543210',
+          role,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      } catch (err) {
+        // User already exists or error, ignore and sign in directly
+      }
+
+      const res = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: { email: demoEmail, password: demoPass },
+      });
+
+      if (res.success && res.data) {
+        login(
+          {
+            id: res.data.user.id,
+            email: res.data.user.email,
+            name: res.data.user.name,
+            phone: res.data.user.phone,
+            role: res.data.user.role,
+          },
+          res.data.accessToken,
+          res.data.refreshToken
+        );
+        safeRedirect(res.data.user.role === 'SUPER_ADMIN' ? '/admin' : ((res.data.user.role === 'TURF_OWNER' || res.data.user.role === 'CARETAKER') ? '/owner' : '/'));
+      }
+    } catch (e: any) {
+      Alert.alert('Demo Login Failed', e.message || 'An error occurred during demo login');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Google Sign-In credentials check
@@ -115,36 +171,19 @@ export default function LoginScreen() {
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
       
-      const googleIdToken = userInfo.data?.idToken || userInfo.idToken;
+      const googleIdToken = userInfo.data?.idToken || (userInfo as any).idToken;
       
       if (!googleIdToken) {
         throw new Error('Google authentication succeeded, but no ID Token was returned.');
       }
 
-      // Exchange Google ID Token for Firebase ID Token
-      const firebaseApiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
-      const firebaseExchangeUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${firebaseApiKey}`;
-      
-      const exchangeRes = await fetch(firebaseExchangeUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          postBody: `id_token=${googleIdToken}&providerId=google.com`,
-          requestUri: 'http://localhost',
-          returnIdpCredential: true,
-          returnSecureToken: true,
-        }),
-      });
-
-      const exchangeData = await exchangeRes.json();
-      if (!exchangeRes.ok) {
-        throw new Error(exchangeData.error?.message || 'Failed to exchange Google token for Firebase token.');
-      }
-
-      const firebaseIdToken = exchangeData.idToken;
-      if (!firebaseIdToken) {
-        throw new Error('Firebase token exchange succeeded, but no Firebase ID Token was returned.');
-      }
+      // ✅ Sign into Firebase Auth SDK using the Google credential
+      // This is REQUIRED for Firestore security rules to work (sets auth.currentUser)
+      const googleCredential = GoogleAuthProvider.credential(googleIdToken);
+      const firebaseUserCredential = await signInWithCredential(auth, googleCredential);
+      const firebaseUser = firebaseUserCredential.user;
+      const firebaseUid = firebaseUser.uid;
+      const firebaseIdToken = await firebaseUser.getIdToken();
 
       // Send Firebase ID Token to backend
       const res = await apiFetch('/auth/google', {
@@ -155,9 +194,10 @@ export default function LoginScreen() {
       if (res.success && res.data) {
         login(
           {
-            id: res.data.user.id,
-            email: res.data.user.email,
-            name: `${res.data.user.profile?.firstName || ''} ${res.data.user.profile?.lastName || ''}`.trim() || res.data.user.name || 'Google User',
+            // Use Firebase UID as the user ID — this matches auth.currentUser.uid for Firestore writes
+            id: firebaseUid,
+            email: res.data.user.email || firebaseUser.email || '',
+            name: `${res.data.user.profile?.firstName || ''} ${res.data.user.profile?.lastName || ''}`.trim() || res.data.user.name || firebaseUser.displayName || 'Google User',
             phone: res.data.user.phone,
             role: res.data.user.role,
           },
@@ -369,6 +409,36 @@ export default function LoginScreen() {
             <GoogleIcon size={18} />
             <Text style={[styles.googleButtonText, { color: isDarkMode ? '#ffffff' : '#0f172a' }]}>Continue with Google</Text>
           </TouchableOpacity>
+
+          {/* Quick Demo Logins */}
+          <View style={{ marginTop: 20 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: isDarkMode ? '#64748b' : '#94a3b8', textAlign: 'center', marginBottom: 10, letterSpacing: 1 }}>
+              QUICK DEMO LOGINS
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'space-between' }}>
+              <TouchableOpacity
+                style={[styles.demoLoginBtn, { flex: 1, borderColor: '#10b981', borderStyle: 'dashed', paddingVertical: 8, paddingHorizontal: 4 }]}
+                onPress={() => handleDemoLogin('izharsayed12@gmail.com', 'Myp@ssword123')}
+                disabled={isLoading}
+              >
+                <Text style={[styles.demoLoginText, { fontSize: 11 }]}>Demo Admin</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.demoLoginBtn, { flex: 1, borderColor: '#10b981', borderStyle: 'dashed', paddingVertical: 8, paddingHorizontal: 4 }]}
+                onPress={() => handleDemoLogin('owner@turfbook.com', 'password')}
+                disabled={isLoading}
+              >
+                <Text style={[styles.demoLoginText, { fontSize: 11 }]}>Demo Owner</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.demoLoginBtn, { flex: 1, borderColor: '#10b981', borderStyle: 'dashed', paddingVertical: 8, paddingHorizontal: 4 }]}
+                onPress={() => handleDemoLogin('customer@turfbook.com', 'password')}
+                disabled={isLoading}
+              >
+                <Text style={[styles.demoLoginText, { fontSize: 11 }]}>Demo User</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         {/* Footer info links */}
@@ -749,5 +819,19 @@ const styles = StyleSheet.create({
     color: '#6366f1',
     fontSize: 11,
     fontWeight: '800',
+  },
+  demoLoginBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  demoLoginText: {
+    color: '#10b981',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

@@ -358,22 +358,33 @@ export default function OwnerTurfsScreen() {
       return;
     }
     setSaving(true);
+    // Backend expects flat fields (not nested location) and sports as an array
     const payload = {
       name: formName.trim(),
-      location: { 
-        address: formAddress.trim(),
-        latitude: formLat,
-        longitude: formLng
-      },
+      // Flat fields required by backend schema
+      address: formAddress.trim() || 'Ahmednagar',
+      latitude: formLat,
+      longitude: formLng,
+      // Backend requires sports array
+      sports: [formSport],
+      // Backend requires these IDs (use defaults if not set)
+      cityId: 'ahmednagar',
+      areaId: 'default',
       pricePerHour: parseFloat(formPrice),
-      sport: formSport,
-      description: formDescription.trim(),
+      description: formDescription.trim() || formName.trim(),
       isActive: formActive,
       peakStartHour: parseInt(formPeakStart, 10),
       peakEndHour: parseInt(formPeakEnd, 10),
       peakSurcharge: parseFloat(formPeakSurcharge),
       weekendSurcharge: parseFloat(formWeekendSurcharge),
       images: formImage ? [formImage.trim()] : [],
+      // Also keep location object for Firestore offline fallback
+      location: { 
+        address: formAddress.trim() || 'Ahmednagar',
+        latitude: formLat,
+        longitude: formLng
+      },
+      sport: formSport,
     };
     try {
       if (editingTurf) {

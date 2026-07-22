@@ -11,6 +11,12 @@ export interface Booking {
   time: string;
   amount: number;
   status: BookingStatus;
+  totalAmount?: number;
+  paidAmount?: number;
+  pendingAmount?: number;
+  transactionId?: string;
+  customerName?: string;
+  customerPhone?: string;
 }
 
 interface NewBooking {
@@ -21,6 +27,12 @@ interface NewBooking {
   date: string;
   time: string;
   amount: number;
+  totalAmount?: number;
+  paidAmount?: number;
+  pendingAmount?: number;
+  transactionId?: string;
+  customerName?: string;
+  customerPhone?: string;
 }
 
 interface BookingState {

@@ -19,6 +19,7 @@ import { useBookingStore, type Booking } from '../../store/bookingStore';
 import { useThemeStore } from '../../store/themeStore';
 import { formatCurrency, getBookingStatus } from '../../utils';
 import { apiFetch } from '../../utils/api';
+import QRCode from 'react-native-qrcode-svg';
 
 const { width } = Dimensions.get('window');
 
@@ -71,6 +72,12 @@ export default function BookingDetailScreen() {
             date: b.date,
             time: b.time,
             amount: b.amount,
+            totalAmount: b.totalAmount,
+            paidAmount: b.paidAmount,
+            pendingAmount: b.pendingAmount,
+            transactionId: b.transactionId,
+            customerName: b.customerName,
+            customerPhone: b.customerPhone,
             status: b.status === 'active' ? 'UPCOMING' : b.status === 'completed' ? 'COMPLETED' : 'CANCELLED',
           });
         }
@@ -165,9 +172,20 @@ export default function BookingDetailScreen() {
     const targetNorm = normalizeSlot(slotTime);
     return turfBookings.some((res: any) => {
       if (res.id === id) return false;
-      const bDate = res.bookingDate ? new Date(res.bookingDate).toISOString().split('T')[0] : '';
+      
+      let bDate = '';
+      if (res.date) {
+        bDate = res.date.split('T')[0];
+      } else if (res.bookingDate) {
+        try {
+          bDate = new Date(res.bookingDate).toISOString().split('T')[0];
+        } catch (e) {}
+      }
+
       if (bDate !== rescheduleDate) return false;
-      const dbSlots = (res.slotId || '').split(',').map((s: string) => s.trim());
+
+      const slotVal = res.time || res.timeSlot || res.slotId || '';
+      const dbSlots = slotVal.split(',').map((s: string) => s.trim());
       return dbSlots.some((dbSlot: string) => dbSlot && normalizeSlot(dbSlot) === targetNorm);
     });
   };
@@ -291,19 +309,20 @@ export default function BookingDetailScreen() {
       />
       <View style={[styles.overlay, { backgroundColor: theme.overlayBg }]} />
 
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Your Ticket',
-          headerTransparent: true,
-          headerTintColor: theme.text,
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.replace('/')} style={styles.headerBackBtn}>
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
-          ),
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Custom Header Bar */}
+      <View style={[styles.customHeader, { paddingTop: Platform.OS === 'ios' ? 50 : 35 }]}>
+        <TouchableOpacity 
+          onPress={() => router.replace('/')} 
+          style={styles.customHeaderBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </TouchableOpacity>
+        <Text style={[styles.customHeaderTitle, { color: theme.text }]}>Your Ticket</Text>
+        <View style={styles.customHeaderRight} />
+      </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Confirmed Banner */}
@@ -413,7 +432,15 @@ export default function BookingDetailScreen() {
               </View>
             ) : (
               <View style={styles.qrContainer}>
-                <MaterialCommunityIcons name="qrcode" size={130} color={isDarkMode ? '#ffffff' : '#020617'} />
+                 <QRCode
+                  value={JSON.stringify({
+                    bookingId: booking.id,
+                    transactionId: booking.transactionId || `txn_${booking.id}`,
+                  })}
+                  size={180}
+                  color={isDarkMode ? '#ffffff' : '#020617'}
+                  backgroundColor="transparent"
+                />
                 <Text style={[styles.scanInstruction, { color: theme.textMuted }]}>
                   Scan QR code at the turf entry gate
                 </Text>
@@ -750,11 +777,30 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: -1,
   },
-  headerBackBtn: {
+  customHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    width: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: 100,
+  },
+  customHeaderBack: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginLeft: 10,
+  },
+  customHeaderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  customHeaderRight: {
+    width: 40,
+    height: 40,
   },
   scrollContent: {
     paddingTop: Platform.OS === 'ios' ? 120 : 100,
